@@ -1,0 +1,822 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AIS BRASIL APP</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin=""
+  />
+  <style>
+    :root {
+      --bg: #071424;
+      --panel: #10253d;
+      --panel-strong: #0b1d31;
+      --line: #2f4f6d;
+      --line-soft: #233c56;
+      --text: #eaf4ff;
+      --muted: #9ab6d4;
+      --accent: #35c8ff;
+      --good: #37d989;
+      --warn: #ffcd6b;
+      --shadow: 0 20px 40px rgba(0, 0, 0, 0.35);
+      --radius-xl: 18px;
+      --radius-lg: 14px;
+      --radius-md: 12px;
+      --header-h: 74px;
+      --sidebar-w: 320px;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "IBM Plex Sans", sans-serif;
+      color: var(--text);
+      background: var(--bg);
+      min-height: 100vh;
+      font-size: clamp(12px, 1.2vw, 14px);
+      overflow: hidden;
+    }
+
+    header {
+      height: var(--header-h);
+      padding: 10px 12px 9px;
+      border-bottom: 1px solid var(--line-soft);
+      background:
+        radial-gradient(circle at top right, rgba(53, 200, 255, 0.12), transparent 42%),
+        linear-gradient(180deg, rgba(4, 13, 24, 0.96), rgba(4, 13, 24, 0.92));
+      position: sticky;
+      top: 0;
+      z-index: 1500;
+    }
+
+    .header-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .menu-toggle {
+      width: 34px;
+      height: 34px;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      background: rgba(11, 29, 49, 0.92);
+      color: var(--text);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+
+    .menu-toggle svg {
+      width: 18px;
+      height: 18px;
+      fill: currentColor;
+    }
+
+    h1 {
+      margin: 0 0 2px;
+      font-family: "Space Grotesk", sans-serif;
+      font-size: clamp(0.95rem, 1.5vw, 1.25rem);
+      letter-spacing: 0.02em;
+      white-space: nowrap;
+    }
+
+    .subtitle {
+      color: var(--muted);
+      font-size: clamp(0.7rem, 1.1vw, 0.82rem);
+      line-height: 1.25;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .header-actions {
+      display: flex;
+      gap: 6px;
+    }
+
+    .icon-link {
+      width: 32px;
+      height: 32px;
+      border-radius: 9px;
+      border: 1px solid var(--line);
+      background: rgba(11, 29, 49, 0.9);
+      color: var(--text);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transition: border-color 140ms ease, transform 140ms ease, box-shadow 140ms ease;
+    }
+
+    .icon-link svg {
+      width: 16px;
+      height: 16px;
+      fill: currentColor;
+    }
+
+    .icon-link:hover {
+      transform: translateY(-1px);
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(53, 200, 255, 0.12);
+    }
+
+    .app {
+      height: calc(100vh - var(--header-h));
+      position: relative;
+    }
+
+    .side-menu {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: var(--sidebar-w);
+      height: 100%;
+      border-right: 1px solid var(--line-soft);
+      background: linear-gradient(180deg, rgba(11, 29, 49, 0.96), rgba(8, 22, 37, 0.96));
+      padding: 10px;
+      overflow-y: auto;
+      z-index: 1200;
+    }
+
+    .menu-card {
+      border: 1px solid var(--line-soft);
+      border-radius: var(--radius-lg);
+      background: rgba(255, 255, 255, 0.02);
+      padding: 10px;
+      margin-bottom: 10px;
+    }
+
+    .status-main {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 700;
+      font-size: 0.92rem;
+      margin-bottom: 8px;
+    }
+
+    .status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--warn);
+      box-shadow: 0 0 10px rgba(255, 205, 107, 0.6);
+    }
+
+    .online {
+      background: var(--good);
+      box-shadow: 0 0 10px rgba(55, 217, 137, 0.6);
+    }
+
+    .stat-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      font-size: 0.8rem;
+    }
+
+    .stat-item {
+      border: 1px solid var(--line-soft);
+      border-radius: var(--radius-md);
+      padding: 7px;
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .stat-item .k {
+      color: var(--muted);
+      font-size: 0.64rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 3px;
+    }
+
+    .menu-tabs {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      margin-bottom: 8px;
+    }
+
+    .tab-btn {
+      height: 34px;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      background: var(--panel-strong);
+      color: var(--muted);
+      font-weight: 600;
+      cursor: pointer;
+      font-size: 0.82rem;
+    }
+
+    .tab-btn.active {
+      color: var(--text);
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px rgba(53, 200, 255, 0.13);
+    }
+
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    .control label {
+      display: block;
+      color: var(--muted);
+      font-size: 0.64rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin: 8px 0 4px;
+      font-weight: 600;
+    }
+
+    select, button {
+      width: 100%;
+      height: 38px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--line);
+      background: var(--panel-strong);
+      color: var(--text);
+      font-family: inherit;
+      padding: 0 10px;
+      font-size: 0.88rem;
+    }
+
+    button {
+      margin-top: 10px;
+      cursor: pointer;
+      font-weight: 700;
+      background: linear-gradient(180deg, #1a3d61, #15314d);
+    }
+
+    select:focus, button:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(53, 200, 255, 0.14);
+    }
+
+    .legend {
+      margin-top: 8px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 5px;
+      font-size: 0.72rem;
+      color: var(--muted);
+    }
+
+    .map-wrap {
+      position: absolute;
+      top: 0;
+      left: var(--sidebar-w);
+      right: 0;
+      bottom: 0;
+      padding: 8px;
+    }
+
+    #map {
+      width: 100%;
+      height: 100%;
+      border-radius: var(--radius-xl);
+      border: 1px solid var(--line-soft);
+      box-shadow: var(--shadow);
+    }
+
+    .vessel-icon {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      border: 2px solid #ffffff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 700;
+      color: #ffffff;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+    }
+
+    .vessel-carga { background: #2f80ed; }
+    .vessel-petroleiro { background: #eb5757; }
+    .vessel-rebocador_servico { background: #f2994a; }
+    .vessel-passageiros { background: #27ae60; }
+    .vessel-pesca { background: #56ccf2; }
+    .vessel-lazer { background: #bb6bd9; }
+    .vessel-outros { background: #7f8c8d; }
+
+    .leaflet-popup-content-wrapper,
+    .leaflet-popup-tip {
+      background: #102238;
+      color: var(--text);
+    }
+
+    .backdrop {
+      position: fixed;
+      inset: var(--header-h) 0 0 0;
+      background: rgba(2, 8, 16, 0.55);
+      z-index: 1100;
+      display: none;
+    }
+
+    .backdrop.active { display: block; }
+
+    @media (max-width: 980px) {
+      .menu-toggle { display: inline-flex; }
+      .side-menu {
+        transform: translateX(-100%);
+        transition: transform 180ms ease;
+      }
+      .side-menu.open {
+        transform: translateX(0);
+      }
+      .map-wrap {
+        left: 0;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="header-row">
+      <div class="header-left">
+        <button id="menuToggle" class="menu-toggle" aria-label="Abrir menu lateral">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M3 6h18v2H3V6zm0 5h18v2H3v-2zm0 5h18v2H3v-2z"/>
+          </svg>
+        </button>
+        <div>
+          <h1>AIS BRASIL APP</h1>
+          <div class="subtitle">Jossian Brito • AISSTREAM • <span id="creditYear"></span></div>
+        </div>
+      </div>
+      <div class="header-actions">
+        <a class="icon-link" href="https://aisstream.io" target="_blank" rel="noopener noreferrer" title="AISSTREAM">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M3 12a9 9 0 0 1 15.36-6.36l-1.42 1.42A7 7 0 1 0 19 12h2a9 9 0 1 1-18 0zm9-5a1 1 0 0 1 1 1v3.59l2.3 2.3-1.4 1.42-2.6-2.6A1 1 0 0 1 11 12V8a1 1 0 0 1 1-1z"/>
+          </svg>
+        </a>
+        <a class="icon-link" href="https://aisstream.io/documentation" target="_blank" rel="noopener noreferrer" title="Documentação AISSTREAM">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M6 2h9l5 5v15a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2zm8 1.5V8h4.5L14 3.5zM8 12h8v2H8v-2zm0 4h8v2H8v-2zm0-8h4v2H8V8z"/>
+          </svg>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <div class="app">
+    <aside id="sideMenu" class="side-menu">
+      <div class="menu-card">
+        <div class="status-main" id="connectionStatus"><span class="status-dot"></span>Aguardando conexão...</div>
+        <div class="stat-grid">
+          <div class="stat-item"><div class="k">Modo</div><div id="modeText">-</div></div>
+          <div class="stat-item"><div class="k">Área</div><div id="areaText">-</div></div>
+          <div class="stat-item"><div class="k">Mensagens</div><div id="totalMessages">0</div></div>
+          <div class="stat-item"><div class="k">Última AIS</div><div id="lastAis">-</div></div>
+        </div>
+      </div>
+
+      <div class="menu-card">
+        <div class="menu-tabs">
+          <button class="tab-btn active" data-tab="monitor">Monitoramento</button>
+          <button class="tab-btn" data-tab="filtro">Filtros</button>
+        </div>
+
+        <div id="tab-monitor" class="tab-panel active">
+          <div class="control">
+            <label for="areaSelect">Área de monitoramento</label>
+            <select id="areaSelect"></select>
+          </div>
+          <button id="applyAreaBtn">Aplicar área</button>
+        </div>
+
+        <div id="tab-filtro" class="tab-panel">
+          <div class="control">
+            <label for="shipTypeFilter">Filtro de embarcação</label>
+            <select id="shipTypeFilter">
+              <option value="all">Todos os tipos</option>
+              <option value="carga">Carga</option>
+              <option value="petroleiro">Petroleiro</option>
+              <option value="rebocador_servico">Rebocador/Serviço</option>
+              <option value="passageiros">Passageiros</option>
+              <option value="pesca">Pesca</option>
+              <option value="lazer">Lazer/Vela</option>
+              <option value="outros">Outros</option>
+            </select>
+          </div>
+          <div class="legend">
+            <div>C: Carga</div>
+            <div>T: Petroleiro</div>
+            <div>R: Rebocador</div>
+            <div>P: Passageiros</div>
+            <div>F: Pesca</div>
+            <div>L/O: Lazer/Outros</div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <div id="menuBackdrop" class="backdrop"></div>
+
+    <main class="map-wrap">
+      <div id="map"></div>
+    </main>
+  </div>
+
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin=""
+  ></script>
+  <script>
+    const map = L.map("map").setView([-14.235, -51.9253], 4);
+    const markers = new Map();
+    let socket = null;
+    let reconnectTimer = null;
+    let areas = {};
+    let currentShipFilter = "all";
+    let lastAreaKeyApplied = null;
+    let modeState = "live";
+    let liveConnectedState = false;
+    let wsFailCount = 0;
+    let wsOpenedAtLeastOnce = false;
+    let pollingMode = false;
+    let pollingTimer = null;
+    let lastSeq = 0;
+
+    const areaSelect = document.getElementById("areaSelect");
+    const areaText = document.getElementById("areaText");
+    const modeText = document.getElementById("modeText");
+    const totalMessagesEl = document.getElementById("totalMessages");
+    const lastAisEl = document.getElementById("lastAis");
+    const connectionStatusEl = document.getElementById("connectionStatus");
+    const shipTypeFilterEl = document.getElementById("shipTypeFilter");
+    const menuToggle = document.getElementById("menuToggle");
+    const sideMenu = document.getElementById("sideMenu");
+    const menuBackdrop = document.getElementById("menuBackdrop");
+    const appConfig = window.APP_CONFIG || {};
+    const API_BASE = (appConfig.API_BASE || "").replace(/\/$/, "");
+    const pathSegments = window.location.pathname.split("/").filter(Boolean);
+    const BASE_PATH = pathSegments.length > 0 ? `/${pathSegments[0]}` : "";
+    const WS_URL = appConfig.WS_URL || (() => {
+      const proto = window.location.protocol === "https:" ? "wss" : "ws";
+      return `${proto}://${window.location.host}${BASE_PATH}/ws`;
+    })();
+
+    function apiUrl(path) {
+      if (API_BASE) return `${API_BASE}${path}`;
+      return `${BASE_PATH}${path}`;
+    }
+
+    document.getElementById("creditYear").textContent = String(new Date().getFullYear());
+
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: "&copy; OpenStreetMap contributors"
+    }).addTo(map);
+
+    function escapeHtml(value) {
+      return String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll("\"", "&quot;")
+        .replaceAll("'", "&#39;");
+    }
+
+    function clearAllMarkers() {
+      markers.forEach((entry) => map.removeLayer(entry.marker));
+      markers.clear();
+    }
+
+    function setConnectionStatus(payload) {
+      const wasLiveConnected = liveConnectedState;
+      modeState = payload.mode || modeState;
+      liveConnectedState = Boolean(payload.liveConnected);
+
+      const dotClass = payload.liveConnected ? "status-dot online" : "status-dot";
+      const text = payload.liveConnected ? "Conectado ao stream live" : "Desconectado";
+      connectionStatusEl.innerHTML = `<span class="${dotClass}"></span>${text}`;
+
+      modeText.textContent = payload.mode || "live";
+      areaText.textContent = payload.area?.name || payload.areaKey || "-";
+      totalMessagesEl.textContent = String(payload.totalMessages || 0);
+      lastAisEl.textContent = payload.lastAisMessageAt
+        ? new Date(payload.lastAisMessageAt).toLocaleString("pt-BR")
+        : "-";
+
+      if (payload.areaKey !== lastAreaKeyApplied && payload.area?.center && payload.area?.zoom) {
+        lastAreaKeyApplied = payload.areaKey;
+        map.setView(payload.area.center, payload.area.zoom);
+      }
+
+      if (modeState === "live" && wasLiveConnected && !liveConnectedState) {
+        clearAllMarkers();
+      }
+    }
+
+    function getShipCategory(v) {
+      if (v.shipCategory) return v.shipCategory;
+      const code = Number(v.shipTypeCode);
+      if (Number.isFinite(code)) {
+        if (code >= 30 && code <= 39) return (code === 36 || code === 37) ? "lazer" : "pesca";
+        if (code >= 50 && code <= 59) return "rebocador_servico";
+        if (code >= 60 && code <= 69) return "passageiros";
+        if (code >= 70 && code <= 79) return "carga";
+        if (code >= 80 && code <= 89) return "petroleiro";
+      }
+      return "outros";
+    }
+
+    function getShipCategoryLabel(category) {
+      const labels = {
+        carga: "Carga",
+        petroleiro: "Petroleiro",
+        rebocador_servico: "Rebocador/Serviço",
+        passageiros: "Passageiros",
+        pesca: "Pesca",
+        lazer: "Lazer/Vela",
+        outros: "Outros"
+      };
+      return labels[category] || "Outros";
+    }
+
+    function getShipSymbol(category) {
+      const symbols = {
+        carga: "C",
+        petroleiro: "T",
+        rebocador_servico: "R",
+        passageiros: "P",
+        pesca: "F",
+        lazer: "L",
+        outros: "O"
+      };
+      return symbols[category] || "O";
+    }
+
+    function createVesselIcon(category) {
+      const safeCategory = category || "outros";
+      return L.divIcon({
+        className: "vessel-div-icon",
+        html: `<div class="vessel-icon vessel-${safeCategory}">${getShipSymbol(safeCategory)}</div>`,
+        iconSize: [24, 24],
+        iconAnchor: [12, 12],
+        popupAnchor: [0, -12]
+      });
+    }
+
+    function vesselPopup(v) {
+      const shipName = escapeHtml(v.shipName || "Sem nome");
+      const mmsi = escapeHtml(v.mmsi || "-");
+      const messageType = escapeHtml(v.messageType || "-");
+      const shipCategory = escapeHtml(getShipCategoryLabel(getShipCategory(v)));
+      const shipTypeCode = v.shipTypeCode == null ? "-" : escapeHtml(String(v.shipTypeCode));
+      return `
+        <strong>${shipName}</strong><br>
+        MMSI: ${mmsi}<br>
+        Tipo: ${messageType}<br>
+        Categoria: ${shipCategory}<br>
+        Tipo AIS: ${shipTypeCode}<br>
+        SOG: ${Number(v.sog || 0).toFixed(1)} kn<br>
+        COG: ${Number(v.cog || 0).toFixed(1)}°<br>
+        Heading: ${Number(v.heading || 0).toFixed(1)}°<br>
+        Hora: ${new Date(v.timestamp).toLocaleString("pt-BR")}
+      `;
+    }
+
+    function applyMarkerFilter(entry) {
+      const matches = currentShipFilter === "all" || entry.vessel.shipCategory === currentShipFilter;
+      if (matches) {
+        if (!map.hasLayer(entry.marker)) entry.marker.addTo(map);
+      } else if (map.hasLayer(entry.marker)) {
+        map.removeLayer(entry.marker);
+      }
+    }
+
+    function applyFilterToAllMarkers() {
+      markers.forEach((entry) => applyMarkerFilter(entry));
+    }
+
+    function upsertMarker(v) {
+      const key = String(v.mmsi);
+      const latLng = [v.latitude, v.longitude];
+      const shipCategory = getShipCategory(v);
+      const vesselData = { ...v, shipCategory };
+
+      if (!markers.has(key)) {
+        const marker = L.marker(latLng, { icon: createVesselIcon(shipCategory) }).bindPopup(vesselPopup(vesselData));
+        const entry = { marker, vessel: vesselData };
+        markers.set(key, entry);
+        applyMarkerFilter(entry);
+      } else {
+        const entry = markers.get(key);
+        entry.vessel = vesselData;
+        entry.marker.setLatLng(latLng);
+        entry.marker.setIcon(createVesselIcon(shipCategory));
+        entry.marker.setPopupContent(vesselPopup(vesselData));
+        applyMarkerFilter(entry);
+      }
+    }
+
+    async function loadAreas() {
+      const response = await fetch(apiUrl("/api/areas"));
+      const data = await response.json();
+      areas = data.areas || {};
+      areaSelect.innerHTML = "";
+      Object.entries(areas).forEach(([key, value]) => {
+        const option = document.createElement("option");
+        option.value = key;
+        option.textContent = value.name;
+        if (key === data.currentAreaKey) option.selected = true;
+        areaSelect.appendChild(option);
+      });
+    }
+
+    async function applyArea() {
+      const areaKey = areaSelect.value;
+      const response = await fetch(apiUrl("/api/area"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ areaKey })
+      });
+      const data = await response.json();
+      if (!data.ok) return;
+      setConnectionStatus(data.status);
+      clearAllMarkers();
+      closeMenuOnMobile();
+    }
+
+    async function setMode(mode) {
+      const response = await fetch(apiUrl("/api/mode"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode })
+      });
+      const data = await response.json();
+      if (!data.ok) return;
+      setConnectionStatus(data.status);
+      clearAllMarkers();
+      reconnectSocket();
+    }
+
+    function scheduleReconnect() {
+      if (reconnectTimer) return;
+      reconnectTimer = setTimeout(() => {
+        reconnectTimer = null;
+        connectFrontendSocket();
+      }, 1500);
+    }
+
+    function reconnectSocket() {
+      if (pollingMode) return;
+      if (!socket) {
+        connectFrontendSocket();
+        return;
+      }
+      socket.close();
+    }
+
+    async function pollOnce() {
+      try {
+        const statusResponse = await fetch(apiUrl("/api/status"));
+        if (statusResponse.ok) {
+          const statusData = await statusResponse.json();
+          setConnectionStatus(statusData);
+        }
+        const vesselsResponse = await fetch(apiUrl(`/api/vessels?since=${lastSeq}&limit=400`));
+        if (vesselsResponse.ok) {
+          const vesselData = await vesselsResponse.json();
+          (vesselData.vessels || []).forEach((v) => upsertMarker(v));
+          if (typeof vesselData.lastSeq === "number") {
+            lastSeq = vesselData.lastSeq;
+          }
+        }
+      } catch (_) {
+      } finally {
+        pollingTimer = setTimeout(pollOnce, 1600);
+      }
+    }
+
+    function startPollingMode() {
+      if (pollingMode) return;
+      pollingMode = true;
+      if (socket) {
+        try { socket.close(); } catch (_) {}
+        socket = null;
+      }
+      if (pollingTimer) clearTimeout(pollingTimer);
+      pollOnce();
+    }
+
+    function connectFrontendSocket() {
+      if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) {
+        return;
+      }
+      socket = new WebSocket(WS_URL);
+
+      socket.addEventListener("open", () => {
+        wsOpenedAtLeastOnce = true;
+        wsFailCount = 0;
+      });
+      socket.addEventListener("error", () => {
+        wsFailCount += 1;
+        if (wsFailCount >= 2) {
+          startPollingMode();
+        }
+      });
+      socket.addEventListener("close", () => {
+        if (pollingMode) return;
+        wsFailCount += 1;
+        if (!wsOpenedAtLeastOnce || wsFailCount >= 2) {
+          startPollingMode();
+          return;
+        }
+        scheduleReconnect();
+      });
+      socket.addEventListener("message", (event) => {
+        const message = JSON.parse(event.data);
+        if (message.type === "status") {
+          setConnectionStatus(message.payload);
+          return;
+        }
+        if (message.type === "ais") {
+          if (modeState === "live" && !liveConnectedState) return;
+          upsertMarker(message.payload);
+        }
+      });
+    }
+
+    function setActiveTab(tabName) {
+      document.querySelectorAll(".tab-btn").forEach((btn) => {
+        btn.classList.toggle("active", btn.dataset.tab === tabName);
+      });
+      document.getElementById("tab-monitor").classList.toggle("active", tabName === "monitor");
+      document.getElementById("tab-filtro").classList.toggle("active", tabName === "filtro");
+    }
+
+    function openMenuOnMobile() {
+      if (window.innerWidth > 980) return;
+      sideMenu.classList.add("open");
+      menuBackdrop.classList.add("active");
+    }
+
+    function closeMenuOnMobile() {
+      if (window.innerWidth > 980) return;
+      sideMenu.classList.remove("open");
+      menuBackdrop.classList.remove("active");
+    }
+
+    menuToggle.addEventListener("click", () => {
+      if (sideMenu.classList.contains("open")) {
+        closeMenuOnMobile();
+      } else {
+        openMenuOnMobile();
+      }
+    });
+    menuBackdrop.addEventListener("click", closeMenuOnMobile);
+
+    document.querySelectorAll(".tab-btn").forEach((btn) => {
+      btn.addEventListener("click", () => setActiveTab(btn.dataset.tab));
+    });
+
+    document.getElementById("applyAreaBtn").addEventListener("click", applyArea);
+    shipTypeFilterEl.addEventListener("change", () => {
+      currentShipFilter = shipTypeFilterEl.value;
+      applyFilterToAllMarkers();
+      closeMenuOnMobile();
+    });
+
+    window.addEventListener("resize", () => {
+      if (window.innerWidth > 980) {
+        sideMenu.classList.remove("open");
+        menuBackdrop.classList.remove("active");
+      }
+    });
+
+    loadAreas()
+      .then(() => setMode("live"))
+      .then(() => {
+        if (appConfig.FORCE_POLLING) {
+          startPollingMode();
+        } else {
+          connectFrontendSocket();
+        }
+      })
+      .catch(() => {
+        startPollingMode();
+      });
+  </script>
+</body>
+</html>
