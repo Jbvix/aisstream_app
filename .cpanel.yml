@@ -1,0 +1,10 @@
+---
+deployment:
+  tasks:
+    - export DEPLOYPATH=/home/c62gtwye66po/aisstream_app
+    - /bin/mkdir -p "$DEPLOYPATH/frontend"
+    - /bin/cp main.py "$DEPLOYPATH/main.py"
+    - /bin/test -f passenger_wsgi.py && /bin/cp passenger_wsgi.py "$DEPLOYPATH/passenger_wsgi.py" || true
+    - /bin/cp requirements.txt "$DEPLOYPATH/requirements.txt"
+    - /bin/cp README.md "$DEPLOYPATH/README.md"
+    - /bin/cp -R frontend/* "$DEPLOYPATH/frontend/"
