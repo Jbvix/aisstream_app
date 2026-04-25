@@ -1,3 +1,6 @@
+# Notas de sessao / working docs (usar commits e descricoes de MR)
+RELATORIO_SESSAO_*.md
+
 __pycache__/
 *.pyc
 tmp/
