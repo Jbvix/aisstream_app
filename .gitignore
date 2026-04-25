@@ -1,6 +1,10 @@
 # Notas de sessao / working docs (usar commits e descricoes de MR)
 RELATORIO_SESSAO_*.md
 
+# Runtime no servidor (Praticagem sync / AIS); versionar quebra deploy cPanel (working tree limpa)
+data/users/default/saa_maneuvers.json
+data/users/default/tug_geofence_stats.json
+
 __pycache__/
 *.pyc
 tmp/
