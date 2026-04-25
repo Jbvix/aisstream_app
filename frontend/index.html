@@ -29,8 +29,8 @@
       --radius-xl: 18px;
       --radius-lg: 14px;
       --radius-md: 12px;
-      --header-h: 74px;
-      --sidebar-w: 320px;
+      --header-h: 92px;
+      --dock-w: 56px;
     }
 
     * { box-sizing: border-box; }
@@ -45,8 +45,7 @@
     }
 
     header {
-      height: var(--header-h);
-      padding: 10px 12px 9px;
+      padding: 8px 12px 6px;
       border-bottom: 1px solid var(--line-soft);
       background:
         radial-gradient(circle at top right, rgba(53, 200, 255, 0.12), transparent 42%),
@@ -60,7 +59,136 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 10px;
+      gap: 8px;
+      flex-wrap: nowrap;
+    }
+
+    .header-lamps-wrap {
+      flex: 1 1 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-width: 0;
+      overflow-x: auto;
+      overscroll-behavior-x: contain;
+      scrollbar-width: thin;
+    }
+
+    .header-lamps-wrap::-webkit-scrollbar {
+      height: 4px;
+    }
+
+    .header-lamps {
+      display: flex;
+      flex-direction: row;
+      flex-wrap: nowrap;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      width: max-content;
+      margin: 0 auto;
+    }
+
+    .saam-lamp {
+      box-sizing: border-box;
+      width: auto;
+      max-width: none;
+      flex: 0 0 auto;
+      min-width: 32px;
+      height: 28px;
+      margin-top: 0;
+      padding: 0 7px;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      font-weight: 700;
+      font-size: 0.65rem;
+      letter-spacing: 0.06em;
+      cursor: pointer;
+      font-family: inherit;
+      color: #f8fafc;
+      line-height: 1;
+      transition: transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease;
+    }
+
+    .saam-lamp:hover {
+      transform: translateY(-1px);
+    }
+
+    .saam-lamp:focus-visible {
+      outline: 2px solid rgba(53, 200, 255, 0.7);
+      outline-offset: 2px;
+    }
+
+    .saam-lamp--base {
+      background: linear-gradient(180deg, #2563eb 0%, #1e3a8a 100%);
+      box-shadow:
+        0 0 16px rgba(59, 130, 246, 0.75),
+        0 0 4px rgba(147, 197, 253, 0.9) inset;
+      border-color: rgba(147, 197, 253, 0.45);
+    }
+
+    .saam-lamp--away {
+      background: linear-gradient(180deg, #22c55e 0%, #14532d 100%);
+      box-shadow:
+        0 0 16px rgba(34, 197, 94, 0.65),
+        0 0 4px rgba(187, 247, 208, 0.35) inset;
+      border-color: rgba(134, 239, 172, 0.45);
+    }
+
+    .saam-lamp--offline {
+      background: linear-gradient(180deg, #475569 0%, #1e293b 100%);
+      color: #94a3b8;
+      box-shadow: 0 0 10px rgba(100, 116, 139, 0.35);
+      border-color: rgba(148, 163, 184, 0.25);
+      cursor: default;
+    }
+
+    .saam-lamp--offline:hover {
+      transform: none;
+    }
+
+    .header-saam-legend {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: center;
+      gap: 10px 14px;
+      margin-top: 4px;
+      padding-top: 3px;
+      border-top: 1px solid rgba(53, 200, 255, 0.08);
+      font-size: 0.58rem;
+      color: var(--muted);
+      line-height: 1.25;
+    }
+
+    .header-saam-legend span {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      white-space: nowrap;
+    }
+
+    .legend-swatch {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      box-shadow: 0 0 8px currentColor;
+    }
+
+    .legend-swatch--base {
+      background: #3b82f6;
+      color: rgba(59, 130, 246, 0.85);
+    }
+
+    .legend-swatch--away {
+      background: #22c55e;
+      color: rgba(34, 197, 94, 0.85);
+    }
+
+    .legend-swatch--offline {
+      background: #64748b;
+      color: rgba(100, 116, 139, 0.6);
     }
 
     .header-left {
@@ -68,25 +196,6 @@
       align-items: center;
       gap: 8px;
       min-width: 0;
-    }
-
-    .menu-toggle {
-      width: 34px;
-      height: 34px;
-      border-radius: 10px;
-      border: 1px solid var(--line);
-      background: rgba(11, 29, 49, 0.92);
-      color: var(--text);
-      display: none;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-    }
-
-    .menu-toggle svg {
-      width: 18px;
-      height: 18px;
-      fill: currentColor;
     }
 
     h1 {
@@ -108,10 +217,12 @@
 
     .header-actions {
       display: flex;
+      align-items: center;
       gap: 6px;
     }
 
     .icon-link {
+      box-sizing: border-box;
       width: 32px;
       height: 32px;
       border-radius: 9px;
@@ -121,7 +232,24 @@
       display: inline-flex;
       align-items: center;
       justify-content: center;
+      padding: 0;
+      margin: 0;
+      line-height: 1;
       transition: border-color 140ms ease, transform 140ms ease, box-shadow 140ms ease;
+    }
+
+    button.icon-link {
+      cursor: pointer;
+      appearance: none;
+      -webkit-appearance: none;
+      font: inherit;
+    }
+
+    #dashboardLink.icon-link,
+    #toggleNamesBtn.icon-link {
+      font-weight: 700;
+      font-size: 0.75rem;
+      text-decoration: none;
     }
 
     .icon-link svg {
@@ -153,17 +281,139 @@
       position: relative;
     }
 
-    .side-menu {
+    .dock {
       position: absolute;
       top: 0;
       left: 0;
-      width: var(--sidebar-w);
+      width: var(--dock-w);
       height: 100%;
       border-right: 1px solid var(--line-soft);
       background: linear-gradient(180deg, rgba(11, 29, 49, 0.96), rgba(8, 22, 37, 0.96));
-      padding: 10px;
-      overflow-y: auto;
+      padding: 8px 6px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      z-index: 1600;
+    }
+
+    .dock-spacer {
+      flex: 1;
+    }
+
+    .dock-btn {
+      width: 42px;
+      height: 42px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: rgba(11, 29, 49, 0.92);
+      color: var(--text);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: border-color 140ms ease, transform 140ms ease, box-shadow 140ms ease;
+    }
+
+    .dock-btn svg {
+      width: 18px;
+      height: 18px;
+      fill: currentColor;
+    }
+
+    .dock-btn:hover {
+      transform: translateY(-1px);
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(53, 200, 255, 0.12);
+    }
+
+    .dock-btn.active {
+      border-color: var(--accent);
+      color: #ffffff;
+      box-shadow: 0 0 0 3px rgba(53, 200, 255, 0.18);
+    }
+
+    .float-layer {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
       z-index: 1200;
+    }
+
+    .float-panel {
+      position: fixed;
+      width: min(360px, calc(100vw - var(--dock-w) - 24px));
+      max-height: min(70vh, 640px);
+      border: 1px solid var(--line-soft);
+      border-radius: var(--radius-xl);
+      background: linear-gradient(180deg, rgba(11, 29, 49, 0.98), rgba(8, 22, 37, 0.98));
+      box-shadow: var(--shadow);
+      display: none;
+      flex-direction: column;
+      overflow: hidden;
+      pointer-events: auto;
+    }
+
+    .float-panel.is-open {
+      display: flex;
+    }
+
+    .float-panel__header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 10px 10px 9px;
+      border-bottom: 1px solid var(--line-soft);
+      cursor: grab;
+      user-select: none;
+    }
+
+    .float-panel__title {
+      font-weight: 800;
+      font-size: 0.86rem;
+      letter-spacing: 0.02em;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .float-panel__actions {
+      display: flex;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+
+    .float-panel__icon-btn {
+      width: 30px;
+      height: 30px;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      background: rgba(11, 29, 49, 0.92);
+      color: var(--text);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+
+    .float-panel__icon-btn svg {
+      width: 14px;
+      height: 14px;
+      fill: currentColor;
+    }
+
+    .float-panel__body {
+      padding: 10px;
+      overflow: auto;
+    }
+
+    .float-panel__body .menu-card {
+      margin-bottom: 10px;
+    }
+
+    .float-panel__body .menu-card:last-child {
+      margin-bottom: 0;
     }
 
     .menu-card {
@@ -218,32 +468,125 @@
       margin-bottom: 3px;
     }
 
-    .menu-tabs {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 6px;
-      margin-bottom: 8px;
+    .geofence-editor {
+      margin-top: 8px;
+      border-top: 1px solid var(--line-soft);
+      padding-top: 8px;
     }
-
-    .tab-btn {
-      height: 34px;
+    .geofence-list {
+      margin-top: 8px;
+      max-height: 170px;
+      overflow-y: auto;
+      border: 1px solid var(--line-soft);
       border-radius: 10px;
-      border: 1px solid var(--line);
-      background: var(--panel-strong);
-      color: var(--muted);
+      padding: 6px;
+      background: rgba(255, 255, 255, 0.02);
+    }
+    .geofence-item {
+      border: 1px solid var(--line-soft);
+      border-radius: 8px;
+      padding: 6px;
+      margin-bottom: 6px;
+      font-size: 0.75rem;
+    }
+    .geofence-item:last-child {
+      margin-bottom: 0;
+    }
+    .geofence-item-actions {
+      display: flex;
+      gap: 6px;
+      margin-top: 6px;
+      flex-wrap: wrap;
+    }
+    .geofence-item-actions button {
+      margin-top: 0;
+      flex: 1;
+      min-width: 0;
+      height: 28px;
+      font-size: 0.72rem;
       font-weight: 600;
-      cursor: pointer;
+    }
+    .tiny-btn {
+      margin-top: 6px;
+      height: 28px;
+      font-size: 0.74rem;
+      font-weight: 600;
+    }
+    .vertex-handle {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #35c8ff;
+      border: 2px solid #ffffff;
+      box-shadow: 0 0 0 2px rgba(53, 200, 255, 0.35);
+    }
+
+    .saam-fleet-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 8px;
+      max-height: 220px;
+      overflow-y: auto;
+    }
+    .saam-fleet-row {
+      border: 1px solid var(--line-soft);
+      border-radius: 10px;
+      padding: 8px;
+      background: rgba(255, 255, 255, 0.02);
+      font-size: 0.78rem;
+    }
+    .saam-fleet-row .row-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 4px;
+    }
+    .saam-fleet-row .name {
+      font-weight: 700;
       font-size: 0.82rem;
+      line-height: 1.2;
     }
-
-    .tab-btn.active {
+    .saam-fleet-row .mmsi {
+      color: var(--muted);
+      font-size: 0.72rem;
+    }
+    .saam-status-pill {
+      flex-shrink: 0;
+      font-size: 0.65rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      padding: 3px 8px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+    }
+    .saam-status-online {
+      color: #0d2a1c;
+      background: var(--good);
+      border-color: rgba(55, 217, 137, 0.65);
+    }
+    .saam-status-offline {
       color: var(--text);
-      border-color: var(--accent);
-      box-shadow: 0 0 0 2px rgba(53, 200, 255, 0.13);
+      background: rgba(255, 205, 107, 0.18);
+      border-color: rgba(255, 205, 107, 0.45);
     }
-
-    .tab-panel { display: none; }
-    .tab-panel.active { display: block; }
+    .saam-fleet-meta {
+      color: var(--muted);
+      font-size: 0.72rem;
+      line-height: 1.35;
+    }
+    .btn-locate-saam {
+      margin-top: 8px;
+      height: 30px;
+      font-size: 0.78rem;
+      font-weight: 700;
+    }
+    .btn-locate-saam:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
 
     .control label {
       display: block;
@@ -280,6 +623,41 @@
       box-shadow: 0 0 0 3px rgba(53, 200, 255, 0.14);
     }
 
+    /* Painéis usam width:100% em todos os buttons; luminosos do header precisam ficar em linha. */
+    header .header-lamps .saam-lamp {
+      width: auto;
+      max-width: none;
+      margin-top: 0;
+      flex: 0 0 auto;
+      height: 28px;
+      padding: 0 7px;
+      font-size: 0.65rem;
+      font-weight: 700;
+    }
+
+    header .header-lamps .saam-lamp--base {
+      background: linear-gradient(180deg, #2563eb 0%, #1e3a8a 100%);
+      box-shadow:
+        0 0 14px rgba(59, 130, 246, 0.75),
+        0 0 3px rgba(147, 197, 253, 0.9) inset;
+      border-color: rgba(147, 197, 253, 0.45);
+    }
+
+    header .header-lamps .saam-lamp--away {
+      background: linear-gradient(180deg, #22c55e 0%, #14532d 100%);
+      box-shadow:
+        0 0 14px rgba(34, 197, 94, 0.65),
+        0 0 3px rgba(187, 247, 208, 0.35) inset;
+      border-color: rgba(134, 239, 172, 0.45);
+    }
+
+    header .header-lamps .saam-lamp--offline {
+      background: linear-gradient(180deg, #475569 0%, #1e293b 100%);
+      color: #94a3b8;
+      box-shadow: 0 0 8px rgba(100, 116, 139, 0.35);
+      border-color: rgba(148, 163, 184, 0.25);
+    }
+
     .legend {
       margin-top: 8px;
       display: grid;
@@ -292,7 +670,7 @@
     .map-wrap {
       position: absolute;
       top: 0;
-      left: var(--sidebar-w);
+      left: var(--dock-w);
       right: 0;
       bottom: 0;
       padding: 8px;
@@ -307,26 +685,95 @@
     }
 
     .vessel-icon {
-      width: 24px;
-      height: 24px;
-      border-radius: 50%;
-      border: 2px solid #ffffff;
+      width: 26px;
+      height: 26px;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 11px;
+      font-size: 10px;
       font-weight: 700;
       color: #ffffff;
       box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
     }
 
-    .vessel-carga { background: #2f80ed; }
-    .vessel-petroleiro { background: #eb5757; }
-    .vessel-rebocador_servico { background: #f2994a; }
-    .vessel-passageiros { background: #27ae60; }
-    .vessel-pesca { background: #56ccf2; }
-    .vessel-lazer { background: #bb6bd9; }
-    .vessel-outros { background: #7f8c8d; }
+    .ship-wrap {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transform-origin: 50% 50%;
+    }
+
+    .ship-shape {
+      position: relative;
+      width: var(--ship-w, 14px);
+      height: var(--ship-h, 24px);
+      filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.45));
+    }
+
+    .ship-shape .bow {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 0;
+      height: 0;
+      border-left: calc(var(--ship-w, 14px) / 2) solid transparent;
+      border-right: calc(var(--ship-w, 14px) / 2) solid transparent;
+      border-bottom: calc(var(--ship-h, 24px) * 0.33) solid currentColor;
+    }
+
+    .ship-shape .hull {
+      position: absolute;
+      top: calc(var(--ship-h, 24px) * 0.33);
+      left: calc(var(--ship-w, 14px) * 0.14);
+      width: calc(var(--ship-w, 14px) * 0.72);
+      height: calc(var(--ship-h, 24px) * 0.5);
+      border-radius: 3px;
+      background: currentColor;
+      border: 1px solid rgba(255, 255, 255, 0.8);
+    }
+
+    .ship-shape .stern {
+      position: absolute;
+      bottom: 0;
+      left: calc(var(--ship-w, 14px) * 0.21);
+      width: calc(var(--ship-w, 14px) * 0.58);
+      height: calc(var(--ship-h, 24px) * 0.17);
+      border-radius: 0 0 4px 4px;
+      background: currentColor;
+      border: 1px solid rgba(255, 255, 255, 0.75);
+      border-top: none;
+    }
+
+    .ship-badge {
+      position: absolute;
+      top: calc(var(--ship-h, 24px) * 0.33);
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 8px;
+      font-weight: 800;
+      color: #fff;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+      z-index: 2;
+      pointer-events: none;
+    }
+
+    .ship-saam .ship-shape {
+      color: #ffd400;
+    }
+
+    .ship-saam .hull,
+    .ship-saam .stern {
+      border-color: #092a4d;
+      box-shadow: 0 0 0 1px rgba(255, 212, 0, 0.5);
+    }
+
+    .vessel-carga { background: #2f80ed; color: #2f80ed; }
+    .vessel-petroleiro { background: #eb5757; color: #eb5757; }
+    .vessel-rebocador_servico { background: #f2994a; color: #f2994a; }
+    .vessel-passageiros { background: #27ae60; color: #27ae60; }
+    .vessel-pesca { background: #56ccf2; color: #56ccf2; }
+    .vessel-lazer { background: #bb6bd9; color: #bb6bd9; }
+    .vessel-outros { background: #7f8c8d; color: #7f8c8d; }
 
     .leaflet-popup-content-wrapper,
     .leaflet-popup-tip {
@@ -350,27 +797,10 @@
       border-right-color: rgba(73, 120, 163, 0.85);
     }
 
-    .backdrop {
-      position: fixed;
-      inset: var(--header-h) 0 0 0;
-      background: rgba(2, 8, 16, 0.55);
-      z-index: 1100;
-      display: none;
-    }
-
-    .backdrop.active { display: block; }
-
-    @media (max-width: 980px) {
-      .menu-toggle { display: inline-flex; }
-      .side-menu {
-        transform: translateX(-100%);
-        transition: transform 180ms ease;
-      }
-      .side-menu.open {
-        transform: translateX(0);
-      }
-      .map-wrap {
-        left: 0;
+    @media (max-width: 520px) {
+      .float-panel {
+        width: calc(100vw - 16px);
+        left: 8px !important;
       }
     }
   </style>
@@ -379,87 +809,189 @@
   <header>
     <div class="header-row">
       <div class="header-left">
-        <button id="menuToggle" class="menu-toggle" aria-label="Abrir menu lateral">
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M3 6h18v2H3V6zm0 5h18v2H3v-2zm0 5h18v2H3v-2z"/>
-          </svg>
-        </button>
         <div>
           <h1>AIS BRASIL APP</h1>
           <div class="subtitle">Jossian Brito • AISSTREAM • <span id="creditYear"></span></div>
         </div>
       </div>
+      <div class="header-lamps-wrap">
+        <div id="saamHeaderLamps" class="header-lamps" role="group" aria-label="Status rebocadores SAAM-BGRA"></div>
+      </div>
       <div class="header-actions">
-        <button id="toggleNamesBtn" class="icon-link" title="Mostrar nomes das embarcações" aria-label="Mostrar nomes das embarcações">
+        <a class="icon-link" id="dashboardLink" href="./dashboard" title="Dashboard estratégico (/dashboard com dados no HTML)" aria-label="Dashboard estratégico">DB</a>
+        <button id="toggleNamesBtn" class="icon-link" type="button" title="Mostrar nomes das embarcações" aria-label="Mostrar nomes das embarcações">
           N
         </button>
-        <a class="icon-link" href="https://aisstream.io" target="_blank" rel="noopener noreferrer" title="AISSTREAM">
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M3 12a9 9 0 0 1 15.36-6.36l-1.42 1.42A7 7 0 1 0 19 12h2a9 9 0 1 1-18 0zm9-5a1 1 0 0 1 1 1v3.59l2.3 2.3-1.4 1.42-2.6-2.6A1 1 0 0 1 11 12V8a1 1 0 0 1 1-1z"/>
-          </svg>
-        </a>
-        <a class="icon-link" href="https://aisstream.io/documentation" target="_blank" rel="noopener noreferrer" title="Documentação AISSTREAM">
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M6 2h9l5 5v15a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2zm8 1.5V8h4.5L14 3.5zM8 12h8v2H8v-2zm0 4h8v2H8v-2zm0-8h4v2H8V8z"/>
-          </svg>
-        </a>
       </div>
+    </div>
+    <div class="header-saam-legend">
+      <span><span class="legend-swatch legend-swatch--base" aria-hidden="true"></span> Na base (azul)</span>
+      <span><span class="legend-swatch legend-swatch--away" aria-hidden="true"></span> Fora da base (verde)</span>
+      <span><span class="legend-swatch legend-swatch--offline" aria-hidden="true"></span> Offline (cinza)</span>
     </div>
   </header>
 
   <div class="app">
-    <aside id="sideMenu" class="side-menu">
-      <div class="menu-card">
-        <div class="status-main" id="connectionStatus"><span class="status-dot"></span>Aguardando conexão...</div>
-        <div class="stat-grid">
-          <div class="stat-item"><div class="k">Modo</div><div id="modeText">-</div></div>
-          <div class="stat-item"><div class="k">Área</div><div id="areaText">-</div></div>
-          <div class="stat-item"><div class="k">Mensagens</div><div id="totalMessages">0</div></div>
-          <div class="stat-item"><div class="k">Última AIS</div><div id="lastAis">-</div></div>
-        </div>
-      </div>
-
-      <div class="menu-card">
-        <div class="menu-tabs">
-          <button class="tab-btn active" data-tab="monitor">Monitoramento</button>
-          <button class="tab-btn" data-tab="filtro">Filtros</button>
-        </div>
-
-        <div id="tab-monitor" class="tab-panel active">
-          <div class="control">
-            <label for="areaSelect">Área de monitoramento</label>
-            <select id="areaSelect"></select>
-          </div>
-          <button id="applyAreaBtn">Aplicar área</button>
-        </div>
-
-        <div id="tab-filtro" class="tab-panel">
-          <div class="control">
-            <label for="shipTypeFilter">Filtro de embarcação</label>
-            <select id="shipTypeFilter">
-              <option value="all">Todos os tipos</option>
-              <option value="carga">Carga</option>
-              <option value="petroleiro">Petroleiro</option>
-              <option value="rebocador_servico">Rebocador/Serviço</option>
-              <option value="passageiros">Passageiros</option>
-              <option value="pesca">Pesca</option>
-              <option value="lazer">Lazer/Vela</option>
-              <option value="outros">Outros</option>
-            </select>
-          </div>
-          <div class="legend">
-            <div>C: Carga</div>
-            <div>T: Petroleiro</div>
-            <div>R: Rebocador</div>
-            <div>P: Passageiros</div>
-            <div>F: Pesca</div>
-            <div>L/O: Lazer/Outros</div>
-          </div>
-        </div>
-      </div>
+    <aside class="dock" aria-label="Painéis do aplicativo">
+      <button type="button" class="dock-btn" data-panel="status" title="Status" aria-label="Status">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm1 15h-2v-2h2zm0-4h-2V7h2z"/></svg>
+      </button>
+      <button type="button" class="dock-btn" data-panel="area" title="Área" aria-label="Área">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2C8.1 2 5 5.1 5 9c0 5.2 7 13 7 13s7-7.8 7-13c0-3.9-3.1-7-7-7zm0 9.5A2.5 2.5 0 1 1 12 6a2.5 2.5 0 0 1 0 5.5z"/></svg>
+      </button>
+      <button type="button" class="dock-btn" data-panel="filters" title="Filtros" aria-label="Filtros">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 18h4v-2h-4v2zM3 6v2h18V6H3zm3 7h12v-2H6v2z"/></svg>
+      </button>
+      <button type="button" class="dock-btn" data-panel="geofence" title="Geofences" aria-label="Geofences">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3h8v8H3V3zm10 0h8v8h-8V3zM3 13h8v8H3v-8zm10 0h8v8h-8v-8z"/></svg>
+      </button>
+      <button type="button" class="dock-btn" data-panel="saam" title="SAAM-BGRA" aria-label="SAAM-BGRA">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6h5v12H6V6zm7 4h5v8h-5v-8z"/></svg>
+      </button>
+      <div class="dock-spacer"></div>
     </aside>
 
-    <div id="menuBackdrop" class="backdrop"></div>
+    <div class="float-layer" aria-hidden="true">
+      <section id="panel-status" class="float-panel" data-panel="status" role="dialog" aria-label="Status">
+        <div class="float-panel__header" data-drag-handle="true">
+          <div class="float-panel__title">Status</div>
+          <div class="float-panel__actions">
+            <button type="button" class="float-panel__icon-btn" data-panel-close="status" aria-label="Fechar painel Status">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="float-panel__body">
+          <div class="menu-card">
+            <div class="status-main" id="connectionStatus"><span class="status-dot"></span>Aguardando conexão...</div>
+            <div class="stat-grid">
+              <div class="stat-item"><div class="k">Modo</div><div id="modeText">-</div></div>
+              <div class="stat-item"><div class="k">Área</div><div id="areaText">-</div></div>
+              <div class="stat-item"><div class="k">Mensagens</div><div id="totalMessages">0</div></div>
+              <div class="stat-item"><div class="k">Última AIS</div><div id="lastAis">-</div></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="panel-area" class="float-panel" data-panel="area" role="dialog" aria-label="Área">
+        <div class="float-panel__header" data-drag-handle="true">
+          <div class="float-panel__title">Área</div>
+          <div class="float-panel__actions">
+            <button type="button" class="float-panel__icon-btn" data-panel-close="area" aria-label="Fechar painel Área">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="float-panel__body">
+          <div class="menu-card">
+            <div class="control">
+              <label for="areaSelect">Área de monitoramento</label>
+              <select id="areaSelect"></select>
+            </div>
+            <button id="applyAreaBtn">Aplicar área</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="panel-filters" class="float-panel" data-panel="filters" role="dialog" aria-label="Filtros">
+        <div class="float-panel__header" data-drag-handle="true">
+          <div class="float-panel__title">Filtros</div>
+          <div class="float-panel__actions">
+            <button type="button" class="float-panel__icon-btn" data-panel-close="filters" aria-label="Fechar painel Filtros">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="float-panel__body">
+          <div class="menu-card">
+            <div class="control">
+              <label for="shipTypeFilter">Filtro de embarcação</label>
+              <select id="shipTypeFilter">
+                <option value="all">Todos os tipos</option>
+                <option value="carga">Carga</option>
+                <option value="petroleiro">Petroleiro</option>
+                <option value="rebocador_servico">Rebocador/Serviço</option>
+                <option value="passageiros">Passageiros</option>
+                <option value="pesca">Pesca</option>
+                <option value="lazer">Lazer/Vela</option>
+                <option value="outros">Outros</option>
+              </select>
+            </div>
+            <div class="legend">
+              <div>C: Carga</div>
+              <div>T: Petroleiro</div>
+              <div>R: Rebocador</div>
+              <div>P: Passageiros</div>
+              <div>F: Pesca</div>
+              <div>L/O: Lazer/Outros</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="panel-geofence" class="float-panel" data-panel="geofence" role="dialog" aria-label="Geofences">
+        <div class="float-panel__header" data-drag-handle="true">
+          <div class="float-panel__title">Geofences</div>
+          <div class="float-panel__actions">
+            <button type="button" class="float-panel__icon-btn" data-panel-close="geofence" aria-label="Fechar painel Geofences">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="float-panel__body">
+          <div class="menu-card">
+            <div class="control">
+              <label for="geofenceName">Nome do geofence</label>
+              <input id="geofenceName" type="text" placeholder="Ex.: Berço 101" style="width:100%;height:38px;border-radius:12px;border:1px solid var(--line);background:var(--panel-strong);color:var(--text);padding:0 10px;" />
+            </div>
+            <div class="control">
+              <label for="geofenceType">Tipo</label>
+              <select id="geofenceType">
+                <option value="berco">Berço</option>
+                <option value="base_rebocador">Base Rebocador</option>
+                <option value="polygon">Polígono Geral</option>
+              </select>
+            </div>
+            <div class="control">
+              <label for="geofenceFleetScope">Escopo de frota</label>
+              <select id="geofenceFleetScope">
+                <option value="all">Todas</option>
+                <option value="SAAM-BGRA">SAAM-BGRA</option>
+              </select>
+            </div>
+            <button id="startGeofenceDrawBtn" class="tiny-btn">Iniciar desenho</button>
+            <button id="finishGeofenceDrawBtn" class="tiny-btn">Finalizar desenho</button>
+            <button id="saveGeofenceBtn" class="tiny-btn">Salvar geofence</button>
+            <button id="saveGeofenceEditBtn" class="tiny-btn">Salvar edição do polígono</button>
+            <button id="cancelGeofenceEditBtn" class="tiny-btn">Cancelar edição</button>
+            <button id="cancelGeofenceDrawBtn" class="tiny-btn">Cancelar desenho</button>
+            <div class="geofence-editor">
+              <div id="geofenceEditorHint" style="font-size:0.72rem;color:var(--muted);">Clique no mapa para adicionar vértices. Finalize e salve.</div>
+            </div>
+            <div id="geofenceList" class="geofence-list"></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="panel-saam" class="float-panel" data-panel="saam" role="dialog" aria-label="SAAM-BGRA">
+        <div class="float-panel__header" data-drag-handle="true">
+          <div class="float-panel__title">SAAM-BGRA</div>
+          <div class="float-panel__actions">
+            <button type="button" class="float-panel__icon-btn" data-panel-close="saam" aria-label="Fechar painel SAAM-BGRA">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="float-panel__body">
+          <div class="menu-card">
+            <div class="status-main" style="margin-bottom: 4px;">Frota SAAM-BGRA</div>
+            <div class="subtitle" style="white-space: normal; margin-bottom: 6px;">Status dos rebocadores e localização rápida no mapa.</div>
+            <div id="saamFleetList" class="saam-fleet-list"></div>
+          </div>
+        </div>
+      </section>
+    </div>
 
     <main class="map-wrap">
       <div id="map"></div>
@@ -474,6 +1006,15 @@
   <script>
     const map = L.map("map").setView([-14.235, -51.9253], 4);
     const markers = new Map();
+    const SAAM_BGRA_ROSTER = [
+      { mmsi: "710020280", name: "SAAM ARIES", abbr: "AR" },
+      { mmsi: "710000348", name: "SAAM ITABIRA", abbr: "IT" },
+      { mmsi: "710021750", name: "SAAM CHILE", abbr: "CH" },
+      { mmsi: "710001593", name: "SAAM HOLANDA", abbr: "HL" },
+      { mmsi: "710016030", name: "SAAM LANCELOT", abbr: "LT" },
+      { mmsi: "710015310", name: "SAAM ARTHUR", abbr: "AT" }
+    ];
+    const SAAM_STALE_MS = 5 * 60 * 1000;
     let socket = null;
     let reconnectTimer = null;
     let areas = {};
@@ -487,6 +1028,22 @@
     let pollingTimer = null;
     let lastSeq = 0;
     let showVesselNames = false;
+    let geofenceDrawMode = false;
+    let geofenceDrawPoints = [];
+    let geofenceDraftLayer = null;
+    let geofenceLayers = new Map();
+    let geofenceById = new Map();
+    let occupancyByGeofenceId = new Map();
+    let editingGeofenceId = null;
+    let editPolygonLayer = null;
+    let editVertexMarkers = [];
+    let editLatLngs = [];
+    const vertexHandleIcon = L.divIcon({
+      className: "vertex-handle-icon",
+      html: '<div class="vertex-handle"></div>',
+      iconSize: [12, 12],
+      iconAnchor: [6, 6]
+    });
 
     const areaSelect = document.getElementById("areaSelect");
     const areaText = document.getElementById("areaText");
@@ -495,14 +1052,27 @@
     const lastAisEl = document.getElementById("lastAis");
     const connectionStatusEl = document.getElementById("connectionStatus");
     const shipTypeFilterEl = document.getElementById("shipTypeFilter");
-    const menuToggle = document.getElementById("menuToggle");
-    const sideMenu = document.getElementById("sideMenu");
-    const menuBackdrop = document.getElementById("menuBackdrop");
     const toggleNamesBtn = document.getElementById("toggleNamesBtn");
+    const saamFleetListEl = document.getElementById("saamFleetList");
+    const geofenceNameEl = document.getElementById("geofenceName");
+    const geofenceTypeEl = document.getElementById("geofenceType");
+    const geofenceFleetScopeEl = document.getElementById("geofenceFleetScope");
+    const geofenceListEl = document.getElementById("geofenceList");
+    const startGeofenceDrawBtn = document.getElementById("startGeofenceDrawBtn");
+    const finishGeofenceDrawBtn = document.getElementById("finishGeofenceDrawBtn");
+    const saveGeofenceBtn = document.getElementById("saveGeofenceBtn");
+    const saveGeofenceEditBtn = document.getElementById("saveGeofenceEditBtn");
+    const cancelGeofenceEditBtn = document.getElementById("cancelGeofenceEditBtn");
+    const cancelGeofenceDrawBtn = document.getElementById("cancelGeofenceDrawBtn");
+    const geofenceEditorHintEl = document.getElementById("geofenceEditorHint");
     const appConfig = window.APP_CONFIG || {};
     const API_BASE = (appConfig.API_BASE || "").replace(/\/$/, "");
     const pathSegments = window.location.pathname.split("/").filter(Boolean);
     const BASE_PATH = pathSegments.length > 0 ? `/${pathSegments[0]}` : "";
+    const dashboardLinkEl = document.getElementById("dashboardLink");
+    if (dashboardLinkEl) {
+      dashboardLinkEl.setAttribute("href", `${BASE_PATH}/dashboard`);
+    }
     const WS_URL = appConfig.WS_URL || (() => {
       const proto = window.location.protocol === "https:" ? "wss" : "ws";
       return `${proto}://${window.location.host}${BASE_PATH}/ws`;
@@ -513,12 +1083,250 @@
       return `${BASE_PATH}${path}`;
     }
 
+    const dockRoot = document.querySelector(".dock");
+    const dockButtons = dockRoot ? Array.from(dockRoot.querySelectorAll(".dock-btn")) : [];
+    const panelEls = {
+      status: document.getElementById("panel-status"),
+      area: document.getElementById("panel-area"),
+      filters: document.getElementById("panel-filters"),
+      geofence: document.getElementById("panel-geofence"),
+      saam: document.getElementById("panel-saam")
+    };
+
+    const FloatPanels = (() => {
+      let zCounter = 2100;
+      const dragState = { active: null };
+
+      function dockWidthPx() {
+        try {
+          const v = getComputedStyle(document.documentElement).getPropertyValue("--dock-w").trim();
+          const n = Number.parseFloat(v);
+          return Number.isFinite(n) ? n : 56;
+        } catch (_) {
+          return 56;
+        }
+      }
+
+      function headerOffsetPx() {
+        try {
+          const v = getComputedStyle(document.documentElement).getPropertyValue("--header-h").trim();
+          const n = Number.parseFloat(v);
+          return Number.isFinite(n) ? n : 92;
+        } catch (_) {
+          return 92;
+        }
+      }
+
+      function clamp(n, min, max) {
+        return Math.min(max, Math.max(min, n));
+      }
+
+      function bringToFront(panelEl) {
+        zCounter += 1;
+        panelEl.style.zIndex = String(zCounter);
+      }
+
+      function setDockActive(panelId, isOpen) {
+        dockButtons.forEach((btn) => {
+          const id = btn.getAttribute("data-panel");
+          btn.classList.toggle("active", Boolean(isOpen && id === panelId));
+        });
+      }
+
+      function refreshDockActiveStates() {
+        const openIds = new Set(
+          Object.values(panelEls)
+            .filter(Boolean)
+            .filter((p) => p.classList.contains("is-open"))
+            .map((p) => p.getAttribute("data-panel"))
+        );
+        dockButtons.forEach((btn) => {
+          const id = btn.getAttribute("data-panel");
+          btn.classList.toggle("active", openIds.has(id));
+        });
+      }
+
+      function positionDefault(panelEl) {
+        const id = panelEl.getAttribute("data-panel") || "status";
+        const order = ["status", "area", "filters", "geofence", "saam"];
+        const idx = Math.max(0, order.indexOf(id));
+        const dock = dockWidthPx();
+        const header = headerOffsetPx();
+        const left = dock + 12 + idx * 16;
+        const top = header + 12 + idx * 16;
+        panelEl.style.left = `${left}px`;
+        panelEl.style.top = `${top}px`;
+      }
+
+      function ensurePosition(panelEl) {
+        if (!panelEl.style.left || !panelEl.style.top) {
+          positionDefault(panelEl);
+        }
+      }
+
+      function fitOnScreen(panelEl) {
+        const rect = panelEl.getBoundingClientRect();
+        const margin = 8;
+        const maxLeft = window.innerWidth - rect.width - margin;
+        const maxTop = window.innerHeight - rect.height - margin;
+        const left = clamp(rect.left, margin, Math.max(margin, maxLeft));
+        const top = clamp(rect.top, margin, Math.max(margin, maxTop));
+        panelEl.style.left = `${left}px`;
+        panelEl.style.top = `${top}px`;
+      }
+
+      function open(panelId) {
+        const panelEl = panelEls[panelId];
+        if (!panelEl) return;
+        panelEl.classList.add("is-open");
+        ensurePosition(panelEl);
+        fitOnScreen(panelEl);
+        bringToFront(panelEl);
+        refreshDockActiveStates();
+      }
+
+      function close(panelId) {
+        const panelEl = panelEls[panelId];
+        if (!panelEl) return;
+        panelEl.classList.remove("is-open");
+        refreshDockActiveStates();
+      }
+
+      function toggle(panelId) {
+        const panelEl = panelEls[panelId];
+        if (!panelEl) return;
+        if (panelEl.classList.contains("is-open")) close(panelId);
+        else open(panelId);
+      }
+
+      function attachDrag(panelEl) {
+        const handle = panelEl.querySelector("[data-drag-handle='true']");
+        if (!handle) return;
+
+        handle.addEventListener("pointerdown", (e) => {
+          if (e.button !== 0) return;
+          const target = e.target;
+          if (target && target.closest(".float-panel__icon-btn")) return;
+
+          bringToFront(panelEl);
+          ensurePosition(panelEl);
+
+          const rect = panelEl.getBoundingClientRect();
+          dragState.active = {
+            panelEl,
+            pointerId: e.pointerId,
+            startX: e.clientX,
+            startY: e.clientY,
+            origLeft: rect.left,
+            origTop: rect.top
+          };
+
+          try {
+            handle.setPointerCapture(e.pointerId);
+          } catch (_) {}
+
+          handle.classList.add("is-dragging");
+        });
+
+        handle.addEventListener("pointermove", (e) => {
+          if (!dragState.active || dragState.active.pointerId !== e.pointerId) return;
+          const { panelEl, startX, startY, origLeft, origTop } = dragState.active;
+          const dx = e.clientX - startX;
+          const dy = e.clientY - startY;
+          const nextLeft = origLeft + dx;
+          const nextTop = origTop + dy;
+          panelEl.style.left = `${nextLeft}px`;
+          panelEl.style.top = `${nextTop}px`;
+          fitOnScreen(panelEl);
+        });
+
+        const endDrag = (e) => {
+          if (!dragState.active || dragState.active.pointerId !== e.pointerId) return;
+          try {
+            handle.releasePointerCapture(e.pointerId);
+          } catch (_) {}
+          handle.classList.remove("is-dragging");
+          dragState.active = null;
+        };
+
+        handle.addEventListener("pointerup", endDrag);
+        handle.addEventListener("pointercancel", endDrag);
+      }
+
+      function attachFocus(panelEl) {
+        panelEl.addEventListener("pointerdown", () => {
+          if (panelEl.classList.contains("is-open")) bringToFront(panelEl);
+        });
+      }
+
+      function init() {
+        dockButtons.forEach((btn) => {
+          btn.addEventListener("click", () => {
+            const panelId = btn.getAttribute("data-panel");
+            if (!panelId) return;
+            toggle(panelId);
+          });
+        });
+
+        document.querySelectorAll("[data-panel-close]").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            const panelId = btn.getAttribute("data-panel-close");
+            if (panelId) close(panelId);
+          });
+        });
+
+        Object.values(panelEls).forEach((panelEl) => {
+          if (!panelEl) return;
+          attachDrag(panelEl);
+          attachFocus(panelEl);
+        });
+
+        window.addEventListener("resize", () => {
+          Object.values(panelEls).forEach((panelEl) => {
+            if (!panelEl) return;
+            if (!panelEl.classList.contains("is-open")) return;
+            fitOnScreen(panelEl);
+          });
+        });
+
+        document.addEventListener("keydown", (e) => {
+          if (e.key !== "Escape") return;
+          const openPanels = Object.values(panelEls)
+            .filter(Boolean)
+            .filter((p) => p.classList.contains("is-open"))
+            .map((p) => ({ el: p, z: Number.parseInt(p.style.zIndex || "0", 10) || 0 }))
+            .sort((a, b) => a.z - b.z);
+          const top = openPanels[openPanels.length - 1];
+          if (!top) return;
+          const id = top.el.getAttribute("data-panel");
+          if (id) close(id);
+        });
+
+        refreshDockActiveStates();
+      }
+
+      return { init, open, close, toggle, bringToFront };
+    })();
+
     document.getElementById("creditYear").textContent = String(new Date().getFullYear());
 
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       maxZoom: 19,
       attribution: "&copy; OpenStreetMap contributors"
     }).addTo(map);
+
+    FloatPanels.init();
+
+    function syncHeaderHeightVar() {
+      const el = document.querySelector("header");
+      if (!el) return;
+      const h = Math.ceil(el.getBoundingClientRect().height);
+      document.documentElement.style.setProperty("--header-h", `${Math.min(140, Math.max(72, h))}px`);
+    }
+
+    window.addEventListener("resize", () => {
+      syncHeaderHeightVar();
+    });
 
     function escapeHtml(value) {
       return String(value ?? "")
@@ -529,9 +1337,135 @@
         .replaceAll("'", "&#39;");
     }
 
+    function parseAisTimestampMs(value) {
+      if (value == null || value === "") return null;
+      let s = String(value).trim();
+      s = s.replace(/\s+UTC\s*$/i, "");
+      if (/^\d{4}-\d{2}-\d{2}\s+[0-9]/.test(s)) {
+        s = s.replace(/^(\d{4}-\d{2}-\d{2})\s+/, "$1T");
+      }
+      s = s.replace(/([+-]\d{2})(\d{2})$/, "$1:$2");
+      if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?(\.\d+)?$/i.test(s)) {
+        s += "Z";
+      }
+      const d = Date.parse(s);
+      if (!Number.isFinite(d)) return null;
+      return d;
+    }
+
+    function formatRelativeAge(msAgo) {
+      if (!Number.isFinite(msAgo) || msAgo < 0) return "-";
+      const sec = Math.floor(msAgo / 1000);
+      if (sec < 60) return `${sec}s`;
+      const min = Math.floor(sec / 60);
+      if (min < 60) return `${min}min`;
+      const h = Math.floor(min / 60);
+      return `${h}h`;
+    }
+
+    function isMmsiInsideRebocadorBaseGeofence(mmsi) {
+      const key = String(mmsi);
+      for (const [geofenceId, g] of geofenceById) {
+        if (g.type !== "base_rebocador" || g.isActive === false) continue;
+        const occ = occupancyByGeofenceId.get(geofenceId);
+        if (!occ || !Array.isArray(occ.insideVessels) || !occ.insideVessels.length) continue;
+        if (occ.insideVessels.some((vi) => String(vi.mmsi) === key)) return true;
+      }
+      return false;
+    }
+
+    function getSaamHeaderLampState(mmsi, now = Date.now()) {
+      const entry = markers.get(String(mmsi));
+      const v = entry?.vessel;
+      const online = Boolean(v && Number.isFinite(v.latitude) && Number.isFinite(v.longitude));
+      if (!online) return "offline";
+      const tsMs = parseAisTimestampMs(v.timestamp);
+      if (tsMs != null && now - tsMs > SAAM_STALE_MS) return "offline";
+      const inBase = isMmsiInsideRebocadorBaseGeofence(mmsi) || Boolean(v.inRebocadorBase);
+      if (inBase) return "base";
+      return "away";
+    }
+
+    function renderSaamHeaderLamps() {
+      const root = document.getElementById("saamHeaderLamps");
+      if (!root) return;
+      const now = Date.now();
+      const buttons = SAAM_BGRA_ROSTER.map((ship) => {
+        const state = getSaamHeaderLampState(ship.mmsi, now);
+        const label = state === "base" ? "Na base" : state === "away" ? "Fora da base" : "Offline";
+        const cls = state === "base" ? "saam-lamp--base" : state === "away" ? "saam-lamp--away" : "saam-lamp--offline";
+        const dis = state === "offline" ? "disabled" : "";
+        const abbr = ship.abbr || ship.mmsi;
+        return `<button type="button" class="saam-lamp ${cls}" data-mmsi="${escapeHtml(ship.mmsi)}" title="${escapeHtml(ship.name)} — ${escapeHtml(label)}" aria-label="${escapeHtml(ship.name)}, ${escapeHtml(label)}" ${dis}>${escapeHtml(abbr)}</button>`;
+      });
+      root.innerHTML = buttons.join("");
+      requestAnimationFrame(() => syncHeaderHeightVar());
+    }
+
+    function renderSaamBgraFleetPanel() {
+      if (!saamFleetListEl) {
+        renderSaamHeaderLamps();
+        return;
+      }
+      const now = Date.now();
+      const rows = SAAM_BGRA_ROSTER.map((ship) => {
+        const entry = markers.get(ship.mmsi);
+        const v = entry?.vessel;
+        const online = Boolean(v && Number.isFinite(v.latitude) && Number.isFinite(v.longitude));
+        const tsMs = online ? parseAisTimestampMs(v.timestamp) : null;
+        const stale = online && tsMs != null && now - tsMs > SAAM_STALE_MS;
+        const statusLabel = !online ? "Offline" : stale ? "Atrasado" : "Online";
+        const pillClass = !online || stale ? "saam-status-offline" : "saam-status-online";
+        const sog = online ? `${Number(v.sog || 0).toFixed(1)} kn` : "-";
+        const loa = online && Number.isFinite(Number(v.lengthMeters)) ? `${Number(v.lengthMeters).toFixed(0)} m` : "-";
+        const gfs = online && Array.isArray(v.geofencesInside) && v.geofencesInside.length
+          ? v.geofencesInside.join(", ")
+          : "-";
+        const age = online && tsMs != null ? formatRelativeAge(now - tsMs) : "-";
+
+        const displayName = online && v.shipName ? String(v.shipName).trim() : ship.name;
+
+        return `
+          <div class="saam-fleet-row" data-mmsi="${escapeHtml(ship.mmsi)}">
+            <div class="row-head">
+              <div style="min-width:0;">
+                <div class="name">${escapeHtml(displayName)}</div>
+                <div class="mmsi">MMSI ${escapeHtml(ship.mmsi)}</div>
+              </div>
+              <div class="saam-status-pill ${pillClass}">${escapeHtml(statusLabel)}</div>
+            </div>
+            <div class="saam-fleet-meta">
+              SOG: ${escapeHtml(sog)} · LOA: ${escapeHtml(loa)}<br>
+              Geofences: ${escapeHtml(gfs)}<br>
+              Última AIS: ${escapeHtml(age)}
+            </div>
+            <button type="button" class="btn-locate-saam tiny-btn" data-mmsi="${escapeHtml(ship.mmsi)}" ${online ? "" : "disabled"}>
+              Localizar no mapa
+            </button>
+          </div>
+        `;
+      });
+      saamFleetListEl.innerHTML = rows.join("");
+      renderSaamHeaderLamps();
+    }
+
+    function locateSaamVessel(mmsi) {
+      const entry = markers.get(mmsi);
+      if (!entry) return;
+      const v = entry.vessel;
+      if (!Number.isFinite(v.latitude) || !Number.isFinite(v.longitude)) return;
+      const latlng = L.latLng(v.latitude, v.longitude);
+      const targetZoom = Math.max(map.getZoom(), 15);
+      map.setView(latlng, targetZoom, { animate: true });
+      try {
+        entry.marker.openPopup();
+      } catch (_) {}
+    }
+
     function clearAllMarkers() {
       markers.forEach((entry) => map.removeLayer(entry.marker));
       markers.clear();
+      renderSaamBgraFleetPanel();
     }
 
     function setConnectionStatus(payload) {
@@ -553,6 +1487,10 @@
       if (payload.areaKey !== lastAreaKeyApplied && payload.area?.center && payload.area?.zoom) {
         lastAreaKeyApplied = payload.areaKey;
         map.setView(payload.area.center, payload.area.zoom);
+      }
+
+      if (modeState === "live" && !wasLiveConnected && liveConnectedState) {
+        hydrateVesselsFromApi().catch(() => {});
       }
 
       if (modeState === "live" && wasLiveConnected && !liveConnectedState) {
@@ -599,15 +1537,73 @@
       return symbols[category] || "O";
     }
 
+    function isValidHeadingDeg(h) {
+      return Number.isFinite(h) && h >= 0 && h <= 359;
+    }
+
+    /** Preferir sempre Heading AIS para orientação do ícone; COG só se heading inválido. */
+    function getIconBearingDegrees(v) {
+      const heading = Number(v.heading);
+      if (isValidHeadingDeg(heading)) return heading;
+      const cog = Number(v.cog);
+      if (Number.isFinite(cog)) {
+        if (cog >= 0 && cog <= 359) return cog;
+        if (cog === 360) return 0;
+      }
+      return 0;
+    }
+
+    /** Rotação CSS: proa do ícone aponta ao norte em 0°; +180° alinha arte (proa/popa) ao rumo. */
+    function getIconRotationDegrees(v) {
+      const bearing = getIconBearingDegrees(v);
+      return (bearing + 180) % 360;
+    }
+
+    function getShipLengthMeters(v) {
+      const loa = Number(v?.lengthMeters);
+      if (Number.isFinite(loa) && loa > 0) return loa;
+      return 90;
+    }
+
+    function getShipIconDimensionsPx(v) {
+      const loa = getShipLengthMeters(v);
+      const t = Math.min(1, Math.max(0, (Math.log10(loa) - Math.log10(18)) / (Math.log10(360) - Math.log10(18))));
+      const hullH = 18 + t * 30;
+      const hullW = Math.max(8, Math.min(18, hullH * 0.42));
+      const bowH = hullH * 0.33;
+      const sternH = hullH * 0.17;
+      const totalH = bowH + hullH + sternH;
+      const wrap = Math.ceil(Math.max(totalH, hullW) + 6);
+      return { hullW, hullH, wrap };
+    }
+
     function createVesselIcon(category) {
       const safeCategory = category || "outros";
-      return L.divIcon({
-        className: "vessel-div-icon",
-        html: `<div class="vessel-icon vessel-${safeCategory}">${getShipSymbol(safeCategory)}</div>`,
-        iconSize: [24, 24],
-        iconAnchor: [12, 12],
-        popupAnchor: [0, -12]
-      });
+      const vesselColorClass = `vessel-${safeCategory}`;
+      return function iconForVessel(vessel) {
+        const rotation = getIconRotationDegrees(vessel);
+        const isSaam = Boolean(vessel?.isSaamBgra || vessel?.fleet === "SAAM-BGRA");
+        const saamClass = isSaam ? "ship-saam" : "";
+        const badge = isSaam ? "S" : getShipSymbol(safeCategory);
+        const { hullW, hullH, wrap } = getShipIconDimensionsPx(vessel);
+        const half = Math.round(wrap / 2);
+        return L.divIcon({
+          className: "vessel-div-icon",
+          html: `
+            <div class="ship-wrap" style="width:${wrap}px;height:${wrap}px;transform: rotate(${rotation}deg);">
+              <div class="ship-shape ${vesselColorClass} ${saamClass}" style="--ship-w:${hullW}px;--ship-h:${hullH}px;">
+                <span class="ship-badge">${badge}</span>
+                <span class="bow"></span>
+                <span class="hull"></span>
+                <span class="stern"></span>
+              </div>
+            </div>
+          `,
+          iconSize: [wrap, wrap],
+          iconAnchor: [half, half],
+          popupAnchor: [0, -12]
+        });
+      };
     }
 
     function vesselPopup(v) {
@@ -616,11 +1612,27 @@
       const messageType = escapeHtml(v.messageType || "-");
       const shipCategory = escapeHtml(getShipCategoryLabel(getShipCategory(v)));
       const shipTypeCode = v.shipTypeCode == null ? "-" : escapeHtml(String(v.shipTypeCode));
+      const fleet = escapeHtml(v.fleet || "-");
+      const geofence = escapeHtml(v.geofence || "-");
+      const geofencesInside = Array.isArray(v.geofencesInside) && v.geofencesInside.length
+        ? escapeHtml(v.geofencesInside.join(", "))
+        : "-";
+      const loa = Number(v.lengthMeters);
+      const loaText = Number.isFinite(loa) ? `${loa.toFixed(1)} m` : "-";
+      const beam = Number(v.beamMeters);
+      const beamText = Number.isFinite(beam) ? `${beam.toFixed(1)} m` : "-";
+      const lengthSource = escapeHtml(v.lengthSource || "-");
       return `
         <strong>${shipName}</strong><br>
         MMSI: ${mmsi}<br>
         Tipo: ${messageType}<br>
         Categoria: ${shipCategory}<br>
+        Frota: ${fleet}<br>
+        Geofence: ${geofence}<br>
+        Geofences dentro: ${geofencesInside}<br>
+        LOA (mapa): ${loaText}<br>
+        Boca: ${beamText}<br>
+        Fonte LOA: ${lengthSource}<br>
         Tipo AIS: ${shipTypeCode}<br>
         SOG: ${Number(v.sog || 0).toFixed(1)} kn<br>
         COG: ${Number(v.cog || 0).toFixed(1)}°<br>
@@ -662,7 +1674,7 @@
       const vesselData = { ...v, shipCategory };
 
       if (!markers.has(key)) {
-        const marker = L.marker(latLng, { icon: createVesselIcon(shipCategory) }).bindPopup(vesselPopup(vesselData));
+        const marker = L.marker(latLng, { icon: createVesselIcon(shipCategory)(vesselData) }).bindPopup(vesselPopup(vesselData));
         marker.bindTooltip(vesselData.shipName || "Sem nome", {
           permanent: true,
           direction: "right",
@@ -676,11 +1688,12 @@
         const entry = markers.get(key);
         entry.vessel = vesselData;
         entry.marker.setLatLng(latLng);
-        entry.marker.setIcon(createVesselIcon(shipCategory));
+        entry.marker.setIcon(createVesselIcon(shipCategory)(vesselData));
         entry.marker.setPopupContent(vesselPopup(vesselData));
         entry.marker.setTooltipContent(vesselData.shipName || "Sem nome");
         applyMarkerFilter(entry);
       }
+      renderSaamBgraFleetPanel();
     }
 
     async function loadAreas() {
@@ -708,7 +1721,6 @@
       if (!data.ok) return;
       setConnectionStatus(data.status);
       clearAllMarkers();
-      closeMenuOnMobile();
     }
 
     async function setMode(mode) {
@@ -739,6 +1751,19 @@
         return;
       }
       socket.close();
+    }
+
+    async function hydrateVesselsFromApi() {
+      try {
+        const res = await fetch(apiUrl("/api/vessels?snapshot=1"));
+        if (!res.ok) return;
+        const data = await res.json();
+        (data.vessels || []).forEach((v) => upsertMarker(v));
+        if (typeof data.lastSeq === "number") {
+          lastSeq = data.lastSeq;
+        }
+      } catch (_) {
+      }
     }
 
     async function pollOnce() {
@@ -811,34 +1836,282 @@
       });
     }
 
-    function setActiveTab(tabName) {
-      document.querySelectorAll(".tab-btn").forEach((btn) => {
-        btn.classList.toggle("active", btn.dataset.tab === tabName);
-      });
-      document.getElementById("tab-monitor").classList.toggle("active", tabName === "monitor");
-      document.getElementById("tab-filtro").classList.toggle("active", tabName === "filtro");
-    }
-
-    function openMenuOnMobile() {
-      if (window.innerWidth > 980) return;
-      sideMenu.classList.add("open");
-      menuBackdrop.classList.add("active");
-    }
-
-    function closeMenuOnMobile() {
-      if (window.innerWidth > 980) return;
-      sideMenu.classList.remove("open");
-      menuBackdrop.classList.remove("active");
-    }
-
-    menuToggle.addEventListener("click", () => {
-      if (sideMenu.classList.contains("open")) {
-        closeMenuOnMobile();
-      } else {
-        openMenuOnMobile();
+    function clearDraftLayer() {
+      if (geofenceDraftLayer) {
+        map.removeLayer(geofenceDraftLayer);
+        geofenceDraftLayer = null;
       }
+    }
+
+    function redrawDraftLayer() {
+      clearDraftLayer();
+      if (geofenceDrawPoints.length < 2) return;
+      geofenceDraftLayer = L.polygon(geofenceDrawPoints, {
+        color: "#35c8ff",
+        weight: 2,
+        dashArray: "6 4",
+        fillOpacity: 0.1
+      }).addTo(map);
+    }
+
+    function startGeofenceDraw() {
+      clearEditSession();
+      geofenceDrawMode = true;
+      geofenceDrawPoints = [];
+      clearDraftLayer();
+      if (geofenceEditorHintEl) {
+        geofenceEditorHintEl.textContent =
+          "Clique no mapa para adicionar vértices. Finalize e salve como novo geofence.";
+      }
+    }
+
+    function finishGeofenceDraw() {
+      if (geofenceDrawPoints.length < 3) return;
+      redrawDraftLayer();
+      geofenceDrawMode = false;
+    }
+
+    function cancelGeofenceDraw() {
+      geofenceDrawMode = false;
+      geofenceDrawPoints = [];
+      clearDraftLayer();
+      if (geofenceEditorHintEl && !editingGeofenceId) {
+        geofenceEditorHintEl.textContent =
+          "Clique no mapa para adicionar vértices. Finalize e salve.";
+      }
+    }
+
+    function clearEditSession() {
+      editingGeofenceId = null;
+      editLatLngs = [];
+      editVertexMarkers.forEach((m) => {
+        try {
+          map.removeLayer(m);
+        } catch (_) {}
+      });
+      editVertexMarkers = [];
+      if (editPolygonLayer) {
+        try {
+          map.removeLayer(editPolygonLayer);
+        } catch (_) {}
+        editPolygonLayer = null;
+      }
+      if (geofenceEditorHintEl && !geofenceDrawMode) {
+        geofenceEditorHintEl.textContent =
+          "Clique no mapa para adicionar vértices. Finalize e salve.";
+      }
+    }
+
+    function rebuildEditPolygonLayer(color) {
+      if (editPolygonLayer) {
+        map.removeLayer(editPolygonLayer);
+        editPolygonLayer = null;
+      }
+      if (editLatLngs.length < 2) return;
+      editPolygonLayer = L.polygon(editLatLngs, {
+        color: color || "#ffcd6b",
+        weight: 3,
+        dashArray: "4 6",
+        fillOpacity: 0.12
+      }).addTo(map);
+    }
+
+    function syncEditPolygonFromMarkers() {
+      editLatLngs = editVertexMarkers.map((m) => m.getLatLng());
+      const gf = editingGeofenceId ? geofenceById.get(editingGeofenceId) : null;
+      rebuildEditPolygonLayer(gf?.color);
+    }
+
+    function refreshEditPreviewLine() {
+      if (!editPolygonLayer || editVertexMarkers.length < 2) return;
+      editPolygonLayer.setLatLngs(editVertexMarkers.map((m) => m.getLatLng()));
+    }
+
+    function attachVertexEvents(marker) {
+      marker.on("drag", () => {
+        refreshEditPreviewLine();
+      });
+      marker.on("dragend", () => {
+        syncEditPolygonFromMarkers();
+      });
+      marker.on("contextmenu", (e) => {
+        L.DomEvent.preventDefault(e.originalEvent);
+        if (editVertexMarkers.length <= 3) return;
+        const j = editVertexMarkers.indexOf(marker);
+        if (j < 0) return;
+        map.removeLayer(marker);
+        editVertexMarkers.splice(j, 1);
+        syncEditPolygonFromMarkers();
+      });
+    }
+
+    function beginEditGeofence(geofenceId) {
+      const geofence = geofenceById.get(geofenceId);
+      if (!geofence) return;
+      const geometry = geofence.geometry || {};
+      const coords = geometry.coordinates || [];
+      if (coords.length < 3) return;
+
+      cancelGeofenceDraw();
+      clearEditSession();
+      editingGeofenceId = geofenceId;
+
+      geofenceNameEl.value = geofence.name || "";
+      geofenceTypeEl.value = geofence.type || "berco";
+      geofenceFleetScopeEl.value = geofence.fleetScope || "all";
+
+      editLatLngs = coords.map((c) => L.latLng(c[0], c[1]));
+      rebuildEditPolygonLayer(geofence.color);
+
+      editVertexMarkers = editLatLngs.map((ll) => {
+        const marker = L.marker(ll, { icon: vertexHandleIcon, draggable: true, zIndexOffset: 800 });
+        marker.bindTooltip("Arraste o vértice. Botão direito: remover (mín. 3).", { direction: "top" });
+        marker.addTo(map);
+        attachVertexEvents(marker);
+        return marker;
+      });
+
+      try {
+        map.fitBounds(L.latLngBounds(editLatLngs), { padding: [28, 28], maxZoom: 15 });
+      } catch (_) {}
+
+      if (geofenceEditorHintEl) {
+        geofenceEditorHintEl.textContent =
+          "Edição ativa: arraste os pontos azuis. Botão direito remove vértice (mínimo 3). Salve a edição quando terminar.";
+      }
+      FloatPanels.open("geofence");
+    }
+
+    async function saveGeofenceEdit() {
+      if (!editingGeofenceId) return;
+      if (editVertexMarkers.length < 3) return;
+      const coords = editVertexMarkers.map((m) => {
+        const p = m.getLatLng();
+        return [p.lat, p.lng];
+      });
+      const existing = geofenceById.get(editingGeofenceId) || {};
+      const payload = {
+        name: geofenceNameEl.value || existing.name || "Geofence",
+        type: geofenceTypeEl.value || existing.type || "berco",
+        fleetScope: geofenceFleetScopeEl.value || existing.fleetScope || "all",
+        geometry: { coordinates: coords },
+        isActive: existing.isActive !== false,
+        color: existing.color || "#35c8ff"
+      };
+      const response = await fetch(apiUrl(`/api/geofences/${editingGeofenceId}`), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const data = await response.json();
+      if (!data.ok) return;
+      clearEditSession();
+      await loadGeofences();
+      await loadGeofenceOccupancy();
+    }
+
+    async function cancelGeofenceEdit() {
+      clearEditSession();
+      await loadGeofences();
+      await loadGeofenceOccupancy();
+    }
+
+    async function loadGeofences() {
+      const response = await fetch(apiUrl("/api/geofences"));
+      const data = await response.json();
+      geofenceById.clear();
+      (data.geofences || []).forEach((g) => geofenceById.set(g.id, g));
+      renderGeofences();
+      renderGeofenceList();
+    }
+
+    async function loadGeofenceOccupancy() {
+      const response = await fetch(apiUrl("/api/geofences/occupancy"));
+      const data = await response.json();
+      occupancyByGeofenceId.clear();
+      (data.occupancy || []).forEach((item) => occupancyByGeofenceId.set(item.geofenceId, item));
+      renderGeofenceList();
+      renderSaamHeaderLamps();
+    }
+
+    function renderGeofences() {
+      geofenceLayers.forEach((layer) => map.removeLayer(layer));
+      geofenceLayers.clear();
+      geofenceById.forEach((geofence, geofenceId) => {
+        if (editingGeofenceId && geofenceId === editingGeofenceId) return;
+        const geometry = geofence.geometry || {};
+        const coords = geometry.coordinates || [];
+        if (coords.length < 3) return;
+        const layer = L.polygon(coords, {
+          color: geofence.color || "#35c8ff",
+          weight: 2,
+          fillOpacity: 0.08
+        }).addTo(map);
+        layer.bindTooltip(`${geofence.name} (${geofence.type})`, { direction: "top" });
+        geofenceLayers.set(geofenceId, layer);
+      });
+    }
+
+    function renderGeofenceList() {
+      const items = [];
+      geofenceById.forEach((geofence, geofenceId) => {
+        const occupancy = occupancyByGeofenceId.get(geofenceId);
+        const count = occupancy ? occupancy.vesselCount : 0;
+        const names = occupancy && occupancy.insideVessels.length
+          ? occupancy.insideVessels.map((v) => v.shipName || v.mmsi).slice(0, 4).join(", ")
+          : "-";
+        items.push(`
+          <div class="geofence-item" data-geofence-id="${escapeHtml(geofenceId)}">
+            <strong>${escapeHtml(geofence.name || "Sem nome")}</strong><br>
+            Tipo: ${escapeHtml(geofence.type || "-")}<br>
+            Escopo: ${escapeHtml(geofence.fleetScope || "all")}<br>
+            Dentro agora: ${count}<br>
+            Navios: ${escapeHtml(names)}
+            <div class="geofence-item-actions">
+              <button type="button" class="btn-edit-geofence" data-geofence-id="${escapeHtml(geofenceId)}">Editar polígono</button>
+            </div>
+          </div>
+        `);
+      });
+      geofenceListEl.innerHTML = items.length ? items.join("") : '<div style="font-size:0.75rem;color:var(--muted);">Nenhum geofence salvo.</div>';
+    }
+
+    async function saveCurrentGeofence() {
+      if (geofenceDrawPoints.length < 3) return;
+      const payload = {
+        name: geofenceNameEl.value || "Novo geofence",
+        type: geofenceTypeEl.value || "berco",
+        fleetScope: geofenceFleetScopeEl.value || "all",
+        geometry: { coordinates: geofenceDrawPoints.map((p) => [p.lat, p.lng]) },
+        isActive: true,
+        color: "#35c8ff"
+      };
+      const response = await fetch(apiUrl("/api/geofences"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const data = await response.json();
+      if (!data.ok) return;
+      cancelGeofenceDraw();
+      geofenceNameEl.value = "";
+      await loadGeofences();
+      await loadGeofenceOccupancy();
+    }
+
+    saamFleetListEl.addEventListener("click", (event) => {
+      const btn = event.target.closest(".btn-locate-saam");
+      if (!btn) return;
+      const mmsi = btn.getAttribute("data-mmsi");
+      if (mmsi) locateSaamVessel(mmsi);
     });
-    menuBackdrop.addEventListener("click", closeMenuOnMobile);
+
+    document.getElementById("saamHeaderLamps")?.addEventListener("click", (event) => {
+      const btn = event.target.closest(".saam-lamp[data-mmsi]");
+      if (!btn || btn.disabled) return;
+      const mmsi = btn.getAttribute("data-mmsi");
+      if (mmsi) locateSaamVessel(mmsi);
+    });
     toggleNamesBtn.addEventListener("click", () => {
       showVesselNames = !showVesselNames;
       toggleNamesBtn.classList.toggle("active", showVesselNames);
@@ -848,25 +2121,34 @@
       applyNameVisibilityToAllMarkers();
     });
 
-    document.querySelectorAll(".tab-btn").forEach((btn) => {
-      btn.addEventListener("click", () => setActiveTab(btn.dataset.tab));
-    });
-
     document.getElementById("applyAreaBtn").addEventListener("click", applyArea);
     shipTypeFilterEl.addEventListener("change", () => {
       currentShipFilter = shipTypeFilterEl.value;
       applyFilterToAllMarkers();
-      closeMenuOnMobile();
+    });
+    startGeofenceDrawBtn.addEventListener("click", startGeofenceDraw);
+    finishGeofenceDrawBtn.addEventListener("click", finishGeofenceDraw);
+    cancelGeofenceDrawBtn.addEventListener("click", cancelGeofenceDraw);
+    saveGeofenceBtn.addEventListener("click", saveCurrentGeofence);
+    saveGeofenceEditBtn.addEventListener("click", saveGeofenceEdit);
+    cancelGeofenceEditBtn.addEventListener("click", cancelGeofenceEdit);
+
+    map.on("click", (event) => {
+      if (!geofenceDrawMode || editingGeofenceId) return;
+      geofenceDrawPoints.push(event.latlng);
+      redrawDraftLayer();
     });
 
-    window.addEventListener("resize", () => {
-      if (window.innerWidth > 980) {
-        sideMenu.classList.remove("open");
-        menuBackdrop.classList.remove("active");
-      }
+    geofenceListEl.addEventListener("click", (event) => {
+      const btn = event.target.closest(".btn-edit-geofence");
+      if (!btn) return;
+      const id = btn.getAttribute("data-geofence-id");
+      if (id) beginEditGeofence(id);
     });
 
     loadAreas()
+      .then(() => loadGeofences())
+      .then(() => loadGeofenceOccupancy())
       .then(() => setMode("live"))
       .then(() => {
         if (appConfig.FORCE_POLLING) {
@@ -874,6 +2156,16 @@
         } else {
           connectFrontendSocket();
         }
+        setInterval(() => {
+          loadGeofenceOccupancy().catch(() => {});
+        }, 5000);
+        setInterval(() => {
+          renderSaamBgraFleetPanel();
+        }, 2000);
+        renderSaamBgraFleetPanel();
+        requestAnimationFrame(() => {
+          syncHeaderHeightVar();
+        });
       })
       .catch(() => {
         startPollingMode();

@@ -1,23 +1,85 @@
 import os
+import math
+from datetime import datetime
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from dotenv import load_dotenv
 import asyncio
 import json
 import websockets
 import time
 import threading
+import uuid
+from pathlib import Path
 from collections import deque
 from websockets.exceptions import ConnectionClosed
 
+import praticagem_saa
+
 load_dotenv()
+
+APP_ROOT = Path(__file__).resolve().parent
+FRONTEND_DIR = APP_ROOT / "frontend"
 
 PORT = int(os.getenv("PORT", 8080))
 AIS_MODE = os.getenv("AIS_MODE", "mock").lower()
 AISSTREAM_API_KEY = os.getenv("AISSTREAM_API_KEY", "")
-DEFAULT_AREA = os.getenv("DEFAULT_AREA", "suape").lower()
+DEFAULT_AREA = os.getenv("DEFAULT_AREA", "rio").lower()
 AISSTREAM_URL = "wss://stream.aisstream.io/v0/stream"
+SAAM_BGRA_FLEET_NAME = "SAAM-BGRA"
+SAAM_BGRA_MMSI_SET = {
+    "710020280",  # SAAM ARIES
+    "710000348",  # SAAM ITABIRA
+    "710021750",  # SAAM CHILE
+    "710001593",  # SAAM HOLANDA
+    "710016030",  # SAAM LANCELOT
+    "710015310",  # SAAM ARTHUR
+}
+# BBox operacional da Baia de Guanabara (lon/lat aproximados)
+GUANABARA_GEOFENCE = {
+    "name": "Baia de Guanabara",
+    "minLat": -23.08,
+    "maxLat": -22.75,
+    "minLon": -43.35,
+    "maxLon": -43.05,
+}
+LEGACY_GEOFENCE_STORAGE_PATH = APP_ROOT / "data" / "geofences.json"
+DASHBOARD_USER_ID = (os.getenv("DASHBOARD_USER_ID") or "default").strip() or "default"
+SAAM_MMSI_ABBR = {
+    "710020280": "AR",
+    "710000348": "IT",
+    "710021750": "CH",
+    "710001593": "HL",
+    "710016030": "LT",
+    "710015310": "AT",
+}
+# Estatísticas persistidas (tug_geofence_stats.json): só berço e polígono contam manobra + tempo.
+# Saída da base rebocador não soma manobra nem horas nesse ficheiro.
+SAAM_MANEUVER_STATS_GEOFENCE_TYPES = frozenset({"berco", "polygon"})
+# Navio comercial (não SAAM-BGRA) → indicador «manobra SAA» no dashboard (berço/polígono/base)
+SAA_MANEUVER_SHIP_CATEGORIES = frozenset(
+    {"carga", "petroleiro", "passageiros", "lazer", "pesca", "outros"}
+)
+
+
+def _vessel_matches_saa_maneuver_lamp(vessel):
+    if not isinstance(vessel, dict):
+        return False
+    if bool(vessel.get("isSaamBgra")):
+        return False
+    cat = vessel.get("shipCategory") or "outros"
+    return cat in SAA_MANEUVER_SHIP_CATEGORIES
+
+
+def _vessel_display_name_for_tooltip(vessel):
+    if not isinstance(vessel, dict):
+        return "—"
+    name = (vessel.get("shipName") or "").strip()
+    if name:
+        return name
+    mmsi = vessel.get("mmsi")
+    return f"MMSI {mmsi}" if mmsi is not None else "—"
 
 AREAS = {
     "suape": {
@@ -234,12 +296,13 @@ AREAS = {
 
 
 from fastapi.staticfiles import StaticFiles
+
 app = FastAPI()
-app.mount("/frontend", StaticFiles(directory="frontend"), name="frontend")
+
 
 @app.get("/")
 def root():
-    return FileResponse("frontend/index.html", media_type="text/html")
+    return FileResponse(FRONTEND_DIR / "index.html", media_type="text/html")
 
 app.add_middleware(
     CORSMiddleware,
@@ -249,7 +312,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-current_area_key = DEFAULT_AREA if DEFAULT_AREA in AREAS else "suape"
+current_area_key = DEFAULT_AREA if DEFAULT_AREA in AREAS else "rio"
 current_mode = "live"
 live_connected = False
 last_error = None
@@ -258,11 +321,433 @@ total_messages = 0
 live_subscription_update_event = asyncio.Event()
 last_subscription_update_monotonic = 0.0
 vessel_state_by_mmsi = {}
+latest_vessel_by_mmsi = {}
 recent_vessels = deque(maxlen=4000)
 last_vessel_seq = 0
 live_worker_task = None
+_praticagem_auto_sync_task: asyncio.Task | None = None
 live_worker_thread = None
 live_worker_lock = threading.Lock()
+geofences = []
+geofence_lock = threading.Lock()
+saam_geofence_stats_lock = threading.Lock()
+last_saam_inside_geofences = {}
+saam_geofence_sessions = {}
+saam_last_position_for_nm = {}
+_nm_save_budget = {"n": 0, "last_mono": 0.0}
+tug_stats_state = {"byMmsi": {}, "updatedAt": None}
+saa_maneuvers_lock = threading.RLock()
+saa_maneuvers_list = []
+
+
+def user_data_dir(user_id: str) -> Path:
+    p = APP_ROOT / "data" / "users" / user_id
+    p.mkdir(parents=True, exist_ok=True)
+    return p
+
+
+def geofences_file_for_user(user_id: str) -> Path:
+    return user_data_dir(user_id) / "geofences.json"
+
+
+def ensure_data_dir():
+    (APP_ROOT / "data").mkdir(parents=True, exist_ok=True)
+
+
+def migrate_legacy_geofences_if_needed(user_id: str):
+    dest = geofences_file_for_user(user_id)
+    if dest.exists():
+        return
+    if LEGACY_GEOFENCE_STORAGE_PATH.exists():
+        try:
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_text(LEGACY_GEOFENCE_STORAGE_PATH.read_text(encoding="utf-8"), encoding="utf-8")
+        except Exception:
+            pass
+
+
+def load_geofences():
+    global geofences
+    ensure_data_dir()
+    uid = DASHBOARD_USER_ID
+    migrate_legacy_geofences_if_needed(uid)
+    path = geofences_file_for_user(uid)
+    if not path.exists():
+        geofences = []
+        return
+    try:
+        content = json.loads(path.read_text(encoding="utf-8"))
+        if isinstance(content, list):
+            geofences = content
+        else:
+            geofences = []
+    except Exception:
+        geofences = []
+
+
+def save_geofences():
+    uid = DASHBOARD_USER_ID
+    path = geofences_file_for_user(uid)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(geofences, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+
+def tug_stats_file_for_user(user_id: str) -> Path:
+    return user_data_dir(user_id) / "tug_geofence_stats.json"
+
+
+def load_tug_stats():
+    global tug_stats_state
+    path = tug_stats_file_for_user(DASHBOARD_USER_ID)
+    if not path.exists():
+        tug_stats_state = {"byMmsi": {}, "updatedAt": get_now_iso()}
+        return
+    try:
+        tug_stats_state = json.loads(path.read_text(encoding="utf-8"))
+        if "byMmsi" not in tug_stats_state:
+            tug_stats_state["byMmsi"] = {}
+    except Exception:
+        tug_stats_state = {"byMmsi": {}, "updatedAt": get_now_iso()}
+
+
+def save_tug_stats():
+    path = tug_stats_file_for_user(DASHBOARD_USER_ID)
+    with saam_geofence_stats_lock:
+        tug_stats_state["updatedAt"] = get_now_iso()
+        path.write_text(
+            json.dumps(tug_stats_state, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+
+
+def saa_maneuvers_file_for_user(user_id: str) -> Path:
+    return user_data_dir(user_id) / "saa_maneuvers.json"
+
+
+def load_saa_maneuvers():
+    global saa_maneuvers_list
+    path = saa_maneuvers_file_for_user(DASHBOARD_USER_ID)
+    if not path.exists():
+        saa_maneuvers_list = []
+        return
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        saa_maneuvers_list = raw if isinstance(raw, list) else raw.get("items", [])
+    except Exception:
+        saa_maneuvers_list = []
+
+
+def save_saa_maneuvers():
+    path = saa_maneuvers_file_for_user(DASHBOARD_USER_ID)
+    with saa_maneuvers_lock:
+        path.write_text(json.dumps(saa_maneuvers_list, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def _saa_dim_defaults() -> dict:
+    """Dimensões / programação; vazios na fila «Pedra» sem tabela."""
+    return {"pob": "", "cal": "", "loa": "", "dwt": "", "m": "", "boca": "", "gt": ""}
+
+
+def _saa_dims_from_payload(payload: dict) -> dict:
+    d = _saa_dim_defaults()
+    for k in d:
+        v = payload.get(k)
+        if v is not None and str(v).strip():
+            d[k] = str(v).strip()
+    return d
+
+
+def _haversine_nm(lat1, lon1, lat2, lon2):
+    """Distância ortodrómica aproximada (esfera) em milhas náuticas (MN)."""
+    r_nm = 3440.065  # raio médio da Terra em MN
+    p1, p2 = math.radians(lat1), math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
+    dlmb = math.radians(lon2 - lon1)
+    h = math.sin(dphi / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dlmb / 2) ** 2
+    c = 2 * math.atan2(math.sqrt(h), math.sqrt(max(0.0, 1.0 - h)))
+    return r_nm * c
+
+
+def _parse_vessel_timestamp_unix(vessel):
+    raw = vessel.get("timestamp")
+    if raw is None:
+        return None
+    s = str(raw).strip()
+    if not s:
+        return None
+    if s.endswith("Z"):
+        s = s[:-1] + "+00:00"
+    try:
+        return datetime.fromisoformat(s).timestamp()
+    except ValueError:
+        return None
+
+
+def _accumulate_saam_exit(mmsi, geofence_id, geofence_name, duration_sec, vessel):
+    bym = tug_stats_state.setdefault("byMmsi", {})
+    ent = bym.setdefault(
+        mmsi,
+        {
+            "abbr": SAAM_MMSI_ABBR.get(mmsi, mmsi[-3:]),
+            "name": vessel.get("shipName") or "",
+            "totalSeconds": 0.0,
+            "totalManeuvers": 0,
+            "totalNauticalMiles": 0.0,
+            "byGeofence": {},
+        },
+    )
+    ent["name"] = vessel.get("shipName") or ent.get("name")
+    gf = ent["byGeofence"].setdefault(
+        geofence_id,
+        {"name": geofence_name, "seconds": 0.0, "maneuvers": 0},
+    )
+    gf["name"] = geofence_name
+    gf["seconds"] = float(gf.get("seconds", 0)) + duration_sec
+    gf["maneuvers"] = int(gf.get("maneuvers", 0)) + 1
+    ent["totalSeconds"] = float(ent.get("totalSeconds", 0)) + duration_sec
+    ent["totalManeuvers"] = int(ent.get("totalManeuvers", 0)) + 1
+
+
+def _bump_saam_nautical_miles(mmsi, vessel, delta_nm):
+    if delta_nm <= 0:
+        return False
+    bym = tug_stats_state.setdefault("byMmsi", {})
+    ent = bym.setdefault(
+        mmsi,
+        {
+            "abbr": SAAM_MMSI_ABBR.get(mmsi, mmsi[-3:]),
+            "name": vessel.get("shipName") or "",
+            "totalSeconds": 0.0,
+            "totalManeuvers": 0,
+            "totalNauticalMiles": 0.0,
+            "byGeofence": {},
+        },
+    )
+    ent["name"] = vessel.get("shipName") or ent.get("name")
+    ent["totalNauticalMiles"] = float(ent.get("totalNauticalMiles", 0)) + float(delta_nm)
+    return True
+
+
+def _maybe_persist_nm_stats():
+    global _nm_save_budget
+    _nm_save_budget["n"] = _nm_save_budget.get("n", 0) + 1
+    now = time.monotonic()
+    last = float(_nm_save_budget.get("last_mono", 0.0))
+    if _nm_save_budget["n"] >= 35 or (now - last) >= 150.0:
+        _nm_save_budget["n"] = 0
+        _nm_save_budget["last_mono"] = now
+        save_tug_stats()
+
+
+def update_saam_nautical_miles(vessel):
+    """Soma milhas náuticas percorridas entre posições AIS consecutivas (rebocadores SAAM-BGRA)."""
+    if not vessel.get("isSaamBgra"):
+        return
+    mmsi = str(vessel.get("mmsi"))
+    lat = vessel.get("latitude")
+    lon = vessel.get("longitude")
+    if not isinstance(lat, (int, float)) or not isinstance(lon, (int, float)):
+        return
+    lat = float(lat)
+    lon = float(lon)
+    t_cur = _parse_vessel_timestamp_unix(vessel)
+    try:
+        sog = float(vessel.get("sog") or 0)
+    except (TypeError, ValueError):
+        sog = 0.0
+
+    did_nm = False
+    mono_now = time.monotonic()
+    with saam_geofence_stats_lock:
+        prev = saam_last_position_for_nm.get(mmsi)
+        saam_last_position_for_nm[mmsi] = {
+            "lat": lat,
+            "lon": lon,
+            "t_ais": t_cur,
+            "sog": sog,
+            "mono": mono_now,
+        }
+        if not prev:
+            return
+        lat0, lon0 = float(prev["lat"]), float(prev["lon"])
+        t0 = prev.get("t_ais")
+        if t_cur is not None and t0 is not None:
+            dt_s = t_cur - t0
+        else:
+            pm = prev.get("mono")
+            dt_s = (mono_now - float(pm)) if pm is not None else 0.0
+        if dt_s <= 0 or dt_s > 6 * 3600:
+            return
+        nm = _haversine_nm(lat0, lon0, lat, lon)
+        sog_ref = max(sog, float(prev.get("sog") or 0), 2.0)
+        max_nm = max(0.08, min(100.0, (dt_s / 3600.0) * max(28.0, sog_ref * 1.6)))
+        if nm > max_nm:
+            return
+        if nm < 1e-6:
+            return
+        did_nm = _bump_saam_nautical_miles(mmsi, vessel, nm)
+
+    if did_nm:
+        _maybe_persist_nm_stats()
+
+
+def update_saam_fleet_geofence_stats(vessel):
+    if not vessel.get("isSaamBgra"):
+        return
+    mmsi = str(vessel.get("mmsi"))
+    now = time.time()
+    inside_ids = set()
+    id_to_name = {}
+    valid_maneuver_gids = set()
+    with geofence_lock:
+        maneuver_geofences = [
+            g
+            for g in geofences
+            if g.get("isActive", True) and g.get("type") in SAAM_MANEUVER_STATS_GEOFENCE_TYPES
+        ]
+        for g in maneuver_geofences:
+            gid = g.get("id")
+            if gid:
+                valid_maneuver_gids.add(gid)
+        for g in maneuver_geofences:
+            if not geofence_matches_vessel_scope(vessel, g):
+                continue
+            gid = g.get("id")
+            if not gid:
+                continue
+            id_to_name[gid] = g.get("name", gid)
+            if is_inside_geofence(vessel, g):
+                inside_ids.add(gid)
+    had_exit = False
+    with saam_geofence_stats_lock:
+        for key in list(saam_geofence_sessions.keys()):
+            if key[0] == mmsi and key[1] not in valid_maneuver_gids:
+                saam_geofence_sessions.pop(key, None)
+        prev_stored = last_saam_inside_geofences.get(mmsi, set())
+        prev = {gid for gid in prev_stored if gid in valid_maneuver_gids}
+        for gid in prev - inside_ids:
+            had_exit = True
+            sess = saam_geofence_sessions.pop((mmsi, gid), None)
+            if sess:
+                dt = max(0.0, now - sess["t0"])
+                _accumulate_saam_exit(mmsi, gid, id_to_name.get(gid, str(gid)), dt, vessel)
+        for gid in inside_ids - prev:
+            saam_geofence_sessions[(mmsi, gid)] = {"t0": now}
+        last_saam_inside_geofences[mmsi] = set(inside_ids)
+    if had_exit:
+        save_tug_stats()
+
+
+def point_in_polygon(latitude, longitude, polygon):
+    # polygon: [[lat, lon], [lat, lon], ...]
+    if not polygon or len(polygon) < 3:
+        return False
+    inside = False
+    j = len(polygon) - 1
+    for i in range(len(polygon)):
+        yi, xi = polygon[i][0], polygon[i][1]
+        yj, xj = polygon[j][0], polygon[j][1]
+        intersects = ((yi > latitude) != (yj > latitude)) and (
+            longitude < (xj - xi) * (latitude - yi) / ((yj - yi) or 1e-12) + xi
+        )
+        if intersects:
+            inside = not inside
+        j = i
+    return inside
+
+
+def is_inside_geofence(vessel, geofence):
+    geometry = geofence.get("geometry") or {}
+    gtype = geofence.get("type")
+    latitude = vessel.get("latitude")
+    longitude = vessel.get("longitude")
+    if latitude is None or longitude is None:
+        return False
+    if gtype in {"berco", "base_rebocador", "polygon"}:
+        polygon = geometry.get("coordinates") or []
+        return point_in_polygon(latitude, longitude, polygon)
+    if gtype == "circle":
+        center = geometry.get("center") or []
+        radius_m = geometry.get("radiusMeters") or 0
+        if len(center) != 2 or radius_m <= 0:
+            return False
+        # aprox. metros por grau
+        dy = (latitude - center[0]) * 111_320
+        dx = (longitude - center[1]) * 111_320
+        return (dx * dx + dy * dy) ** 0.5 <= radius_m
+    return False
+
+
+def geofence_matches_vessel_scope(vessel, geofence):
+    scope = geofence.get("fleetScope", "all")
+    if scope == "all":
+        return True
+    if scope == SAAM_BGRA_FLEET_NAME:
+        return bool(vessel.get("isSaamBgra"))
+    return False
+
+
+def get_vessel_geofences(vessel):
+    names = []
+    with geofence_lock:
+        active_geofences = [g for g in geofences if g.get("isActive", True)]
+    for geofence in active_geofences:
+        if not geofence_matches_vessel_scope(vessel, geofence):
+            continue
+        if is_inside_geofence(vessel, geofence):
+            names.append(geofence.get("name", "Sem nome"))
+    return names
+
+
+def vessel_in_rebocador_base(vessel):
+    """Dentro de algum geofence ativo tipo base_rebocador (escopo respeitado)."""
+    with geofence_lock:
+        active_geofences = [g for g in geofences if g.get("isActive", True)]
+    for geofence in active_geofences:
+        if geofence.get("type") != "base_rebocador":
+            continue
+        if not geofence_matches_vessel_scope(vessel, geofence):
+            continue
+        if is_inside_geofence(vessel, geofence):
+            return True
+    return False
+
+
+def build_geofence_occupancy():
+    with geofence_lock:
+        active_geofences = [g for g in geofences if g.get("isActive", True)]
+    vessels = list(latest_vessel_by_mmsi.values())
+    occupancy = []
+    for geofence in active_geofences:
+        inside = []
+        for vessel in vessels:
+            if not geofence_matches_vessel_scope(vessel, geofence):
+                continue
+            if is_inside_geofence(vessel, geofence):
+                inside.append(
+                    {
+                        "mmsi": vessel.get("mmsi"),
+                        "shipName": vessel.get("shipName"),
+                        "shipCategory": vessel.get("shipCategory"),
+                        "fleet": vessel.get("fleet"),
+                        "timestamp": vessel.get("timestamp"),
+                        "isSaamBgra": bool(vessel.get("isSaamBgra")),
+                    }
+                )
+        occupancy.append(
+            {
+                "geofenceId": geofence.get("id"),
+                "name": geofence.get("name"),
+                "type": geofence.get("type"),
+                "fleetScope": geofence.get("fleetScope", "all"),
+                "vesselCount": len(inside),
+                "insideVessels": inside,
+            }
+        )
+    return occupancy
 
 
 def build_live_subscription():
@@ -295,9 +780,11 @@ def ensure_live_worker_started():
 
 
 def normalize_ship_type_code(metadata, message_body):
+    report_b = message_body.get("ReportB") if isinstance(message_body, dict) else None
     raw_type = (
         metadata.get("ShipType")
         or metadata.get("ship_type")
+        or (report_b.get("ShipType") if isinstance(report_b, dict) else None)
         or message_body.get("TypeAndCargo")
         or message_body.get("ShipType")
         or message_body.get("Type")
@@ -326,17 +813,84 @@ def infer_ship_category(ship_type_code, ship_name):
             return "petroleiro"
 
     name = (ship_name or "").upper()
-    if "TUG" in name or "REBOC" in name:
+    if (
+        "TUG" in name
+        or "REBOC" in name
+        or "AHTS" in name
+        or "PSV" in name
+        or "OSRV" in name
+        or "SUPPLY" in name
+        or "SVITZER" in name
+        or "SAAM" in name
+        or "CBO" in name
+        or "HOS " in name
+    ):
         return "rebocador_servico"
     if "TANK" in name or "PETRO" in name:
         return "petroleiro"
-    if "CARGO" in name or "BULK" in name or "CONTAINER" in name:
+    if "CARGO" in name or "BULK" in name or "CONTAINER" in name or "BARGE" in name:
         return "carga"
     if "FISH" in name or "PESCA" in name:
         return "pesca"
-    if "PASSENGER" in name or "FERRY" in name:
+    if "PASSENGER" in name or "FERRY" in name or "CATAMARAN" in name or "CAT " in name:
         return "passageiros"
     return "outros"
+
+
+def _dim_segment(value):
+    try:
+        if value is None:
+            return None
+        v = int(value)
+        if v < 0 or v > 511:
+            return None
+        return v
+    except Exception:
+        return None
+
+
+def extract_ship_dimensions_meters(message_type, message_body):
+    """
+    Retorna (length_m, beam_m) quando AIS traz dimensões em metros (A/B/C/D).
+    LOA ~= A + B, Boca ~= C + D.
+    """
+    dim = None
+    if isinstance(message_body, dict):
+        dim = message_body.get("Dimension") or message_body.get("dimension")
+    if not isinstance(dim, dict):
+        return None, None
+    a = _dim_segment(dim.get("A"))
+    b = _dim_segment(dim.get("B"))
+    c = _dim_segment(dim.get("C"))
+    d = _dim_segment(dim.get("D"))
+    if a is None or b is None:
+        return None, None
+    length_m = float(a + b)
+    beam_m = None
+    if c is not None and d is not None:
+        beam_m = float(c + d)
+    if length_m <= 0 or length_m > 600:
+        return None, beam_m
+    if beam_m is not None and (beam_m <= 0 or beam_m > 120):
+        beam_m = None
+    return length_m, beam_m
+
+
+def estimate_length_from_category(ship_category):
+    """Fallback visual quando não há dimensão AIS (metros aproximados)."""
+    if ship_category == "rebocador_servico":
+        return 32.0
+    if ship_category == "pesca":
+        return 28.0
+    if ship_category == "lazer":
+        return 18.0
+    if ship_category == "passageiros":
+        return 140.0
+    if ship_category == "carga":
+        return 220.0
+    if ship_category == "petroleiro":
+        return 250.0
+    return 90.0
 
 
 def push_recent_vessel(vessel_payload):
@@ -347,11 +901,22 @@ def push_recent_vessel(vessel_payload):
     recent_vessels.append(item)
 
 
+def classify_geofence(latitude, longitude):
+    if latitude is None or longitude is None:
+        return None
+    if (
+        GUANABARA_GEOFENCE["minLat"] <= latitude <= GUANABARA_GEOFENCE["maxLat"]
+        and GUANABARA_GEOFENCE["minLon"] <= longitude <= GUANABARA_GEOFENCE["maxLon"]
+    ):
+        return GUANABARA_GEOFENCE["name"]
+    return None
+
+
 # --- REST endpoints ---
 @app.get("/api/status")
-def get_status():
+def get_status(expand: str | None = None):
     ensure_live_worker_started()
-    return {
+    out = {
         "app": "AISStream Brasil App",
         "version": "1.0.0",
         "mode": current_mode,
@@ -360,8 +925,105 @@ def get_status():
         "liveConnected": live_connected,
         "lastError": last_error,
         "lastAisMessageAt": last_ais_message_at,
-        "totalMessages": total_messages
+        "totalMessages": total_messages,
     }
+    if expand == "dashboard":
+        out["dashboard"] = build_dashboard_overview_dict()
+    return out
+
+
+async def _sync_saa_from_praticagem_impl():
+    """
+    Substitui apenas entradas com source=praticagem por uma leitura atual do site público.
+    Entradas manuais (sem source ou source diferente) mantêm-se.
+    """
+    url = (os.getenv("PRATICAGEM_RJ_URL") or praticagem_saa.DEFAULT_PRATICAGEM_URL).strip()
+    try:
+        rows, parse_diag = await asyncio.to_thread(
+            praticagem_saa.fetch_parse_praticagem_diagnostics, url
+        )
+    except Exception as e:
+        return JSONResponse(
+            {"ok": False, "error": f"Falha ao aceder Praticagem: {e}"},
+            status_code=502,
+        )
+    if not rows:
+        return {
+            "ok": True,
+            "imported": 0,
+            "warning": (
+                "Nenhuma linha extraída. Verifique PRATICAGEM_RJ_URL, firewall ou bloqueio do site ao servidor; "
+                "veja parseDiagnostics."
+            ),
+            "parseDiagnostics": parse_diag,
+        }
+    now = get_now_iso()
+    new_items = []
+    for r in rows:
+        dims = _saa_dim_defaults()
+        for k in dims:
+            if r.get(k):
+                dims[k] = str(r[k]).strip()
+        if r.get("rowSource") == "programacao":
+            new_items.append(
+                {
+                    "id": str(uuid.uuid4()),
+                    "vesselName": r.get("vesselName") or "—",
+                    "berthName": (r.get("berthName") or "").strip() or "—",
+                    "empRb": (r.get("empRb") or "").strip() or "—",
+                    "status": (r.get("status") or "").strip() or "—",
+                    "note": "Fonte: praticagem-rj.com.br (programação pública)",
+                    "source": "praticagem",
+                    "recordedAt": now,
+                    **dims,
+                }
+            )
+        else:
+            new_items.append(
+                {
+                    "id": str(uuid.uuid4()),
+                    "vesselName": r.get("vesselName") or "—",
+                    "berthName": f"Pedra / {r.get('zone', '—')}",
+                    "empRb": (r.get("empRb") or "SAA").strip() or "SAA",
+                    "status": (r.get("status") or "").strip() or "—",
+                    "note": "Fonte: praticagem-rj.com.br (fila na Pedra)",
+                    "source": "praticagem",
+                    "recordedAt": now,
+                    **dims,
+                }
+            )
+    with saa_maneuvers_lock:
+        kept = [x for x in saa_maneuvers_list if x.get("source") != "praticagem"]
+        saa_maneuvers_list[:] = new_items + kept
+        save_saa_maneuvers()
+    zones = sorted({(r.get("zone") or "").strip() for r in rows if (r.get("zone") or "").strip()})
+    return {
+        "ok": True,
+        "imported": len(new_items),
+        "zones": zones,
+        "parseDiagnostics": parse_diag,
+    }
+
+
+@app.post("/api/status/sync-praticagem-saa")
+async def sync_saa_maneuvers_from_praticagem_status_path():
+    return await _sync_saa_from_praticagem_impl()
+
+
+@app.post("/api/praticagem/saa-sync")
+async def sync_saa_maneuvers_from_praticagem_short_path():
+    return await _sync_saa_from_praticagem_impl()
+
+
+@app.post("/api/dashboard/saa-maneuvers/sync-praticagem")
+async def sync_saa_maneuvers_from_praticagem_dashboard_api():
+    return await _sync_saa_from_praticagem_impl()
+
+
+@app.post("/dashboard/api/saa-maneuvers/sync-praticagem")
+async def sync_saa_maneuvers_from_praticagem_under_dashboard():
+    return await _sync_saa_from_praticagem_impl()
+
 
 @app.get("/healthz")
 def healthz():
@@ -373,8 +1035,19 @@ def get_areas():
     return {"areas": AREAS, "currentAreaKey": current_area_key}
 
 @app.get("/api/vessels")
-def get_vessels(since: int = 0, limit: int = 300):
+def get_vessels(since: int = 0, limit: int = 300, snapshot: bool = False):
     ensure_live_worker_started()
+    if snapshot:
+        items = []
+        for v in latest_vessel_by_mmsi.values():
+            if not isinstance(v, dict):
+                continue
+            items.append({k: val for k, val in v.items() if k != "raw"})
+        return {
+            "vessels": items,
+            "lastSeq": last_vessel_seq,
+            "count": len(items),
+        }
     items = [v for v in recent_vessels if v.get("_seq", 0) > since]
     if limit > 0:
         items = items[-limit:]
@@ -385,10 +1058,293 @@ def get_vessels(since: int = 0, limit: int = 300):
         "count": len(items)
     }
 
+
+def _dashboard_geofence_status_rows():
+    occ = {o.get("geofenceId"): o for o in build_geofence_occupancy()}
+    with geofence_lock:
+        snapshot = list(geofences)
+    vessels_full = list(latest_vessel_by_mmsi.values())
+    # Linhas «base_rebocador»: SAA acende também se houver navio SAA em qualquer berço **ativo**
+    # (geometria só; escopo «SAAM-BGRA» não esconde navio comercial do indicador SAA)
+    saa_in_any_berco = False
+    for g in snapshot:
+        if g.get("type") != "berco" or not g.get("isActive", True):
+            continue
+        inside_geo_b = [v for v in vessels_full if is_inside_geofence(v, g)]
+        if any(_vessel_matches_saa_maneuver_lamp(v) for v in inside_geo_b):
+            saa_in_any_berco = True
+            break
+
+    rows = []
+    for g in snapshot:
+        gid = g.get("id")
+        o = occ.get(gid, {})
+        inside = o.get("insideVessels", [])
+        gtype = g.get("type")
+        active = bool(g.get("isActive", True))
+        if active:
+            inside_geo = [v for v in vessels_full if is_inside_geofence(v, g)]
+            lamp_saam = any(bool(v.get("isSaamBgra")) for v in inside_geo)
+            local_saa = any(_vessel_matches_saa_maneuver_lamp(v) for v in inside_geo)
+        else:
+            lamp_saam = False
+            local_saa = False
+        if gtype in ("berco", "polygon"):
+            lamp_saa = local_saa
+        elif gtype == "base_rebocador":
+            lamp_saa = local_saa or saa_in_any_berco
+        else:
+            lamp_saa = False
+
+        lamp_saam_names: list[str] = []
+        lamp_saa_names: list[str] = []
+        if active:
+            lamp_saam_names = [
+                _vessel_display_name_for_tooltip(v)
+                for v in inside_geo
+                if bool(v.get("isSaamBgra"))
+            ]
+            lamp_saam_names = list(dict.fromkeys(lamp_saam_names))[:18]
+
+            if gtype in ("berco", "polygon"):
+                lamp_saa_names = [
+                    _vessel_display_name_for_tooltip(v)
+                    for v in inside_geo
+                    if _vessel_matches_saa_maneuver_lamp(v)
+                ]
+                lamp_saa_names = list(dict.fromkeys(lamp_saa_names))[:18]
+            elif gtype == "base_rebocador" and lamp_saa:
+                seen: set[str] = set()
+                for v in inside_geo:
+                    if not _vessel_matches_saa_maneuver_lamp(v):
+                        continue
+                    label = _vessel_display_name_for_tooltip(v)
+                    if label not in seen:
+                        seen.add(label)
+                        lamp_saa_names.append(label)
+                if saa_in_any_berco:
+                    for gb in snapshot:
+                        if gb.get("type") != "berco" or not gb.get("isActive", True):
+                            continue
+                        bname = (gb.get("name") or "Berço").strip() or "Berço"
+                        for v in vessels_full:
+                            if not is_inside_geofence(v, gb):
+                                continue
+                            if not _vessel_matches_saa_maneuver_lamp(v):
+                                continue
+                            label = f"{bname} — {_vessel_display_name_for_tooltip(v)}"
+                            if label not in seen:
+                                seen.add(label)
+                                lamp_saa_names.append(label)
+                                if len(lamp_saa_names) >= 24:
+                                    break
+                        if len(lamp_saa_names) >= 24:
+                            break
+
+        rows.append(
+            {
+                "id": gid,
+                "name": g.get("name"),
+                "type": g.get("type"),
+                "fleetScope": g.get("fleetScope", "all"),
+                "isActive": bool(g.get("isActive", True)),
+                "vesselCount": o.get("vesselCount", 0),
+                "insideVessels": inside,
+                "lampSaaManeuver": lamp_saa,
+                "lampSaamInside": lamp_saam,
+                "lampSaaNames": lamp_saa_names,
+                "lampSaamNames": lamp_saam_names,
+            }
+        )
+    return rows
+
+
+def build_dashboard_overview_dict():
+    ensure_live_worker_started()
+    with geofence_lock:
+        gfs = list(geofences)
+    with saam_geofence_stats_lock:
+        tug_snapshot = json.loads(json.dumps(tug_stats_state))
+    with saa_maneuvers_lock:
+        saa_snapshot = list(saa_maneuvers_list)
+    chart = []
+    by_m = tug_snapshot.get("byMmsi", {})
+    for mmsi in SAAM_MMSI_ABBR:
+        row = by_m.get(mmsi, {})
+        chart.append(
+            {
+                "mmsi": mmsi,
+                "abbr": row.get("abbr") or SAAM_MMSI_ABBR.get(mmsi, mmsi),
+                "name": row.get("name", ""),
+                "totalManeuvers": int(row.get("totalManeuvers", 0)),
+                "totalHours": round(float(row.get("totalSeconds", 0)) / 3600.0, 2),
+                "totalNauticalMiles": round(float(row.get("totalNauticalMiles", 0)), 2),
+            }
+        )
+    return {
+        "ok": True,
+        "userId": DASHBOARD_USER_ID,
+        "geofences": gfs,
+        "geofenceStatus": _dashboard_geofence_status_rows(),
+        "occupancy": build_geofence_occupancy(),
+        "tugStats": tug_snapshot,
+        "tugChart": chart,
+        "saaManeuvers": saa_snapshot,
+    }
+
+
+@app.get("/api/dashboard/overview")
+def dashboard_overview():
+    return build_dashboard_overview_dict()
+
+
+@app.get("/dashboard/api/overview")
+def dashboard_overview_under_dashboard_path():
+    """Mesmo JSON que /api/dashboard/overview (registado antes das rotas /api/geofences/*)."""
+    return build_dashboard_overview_dict()
+
+
+@app.get("/api/dashboard/saa-maneuvers")
+def get_saa_maneuvers():
+    with saa_maneuvers_lock:
+        return {"ok": True, "items": list(saa_maneuvers_list)}
+
+
+@app.post("/api/dashboard/saa-maneuvers")
+async def append_saa_maneuver(request: Request):
+    payload = await request.json()
+    item = {
+        "id": str(uuid.uuid4()),
+        "vesselName": payload.get("vesselName", "").strip() or "—",
+        "berthName": payload.get("berthName", "").strip() or "—",
+        "empRb": (payload.get("empRb") or "SAA").strip(),
+        "status": payload.get("status", "").strip() or "—",
+        "note": (payload.get("note") or "").strip(),
+        "recordedAt": get_now_iso(),
+        **_saa_dims_from_payload(payload),
+    }
+    with saa_maneuvers_lock:
+        saa_maneuvers_list.insert(0, item)
+        save_saa_maneuvers()
+    return {"ok": True, "item": item}
+
+
+@app.get("/api/geofences")
+def get_geofences():
+    with geofence_lock:
+        return {"geofences": geofences}
+
+
+@app.post("/api/geofences")
+async def create_geofence(request: Request):
+    payload = await request.json()
+    geofence = {
+        "id": str(uuid.uuid4()),
+        "name": payload.get("name", "Novo geofence"),
+        "type": payload.get("type", "berco"),
+        "geometry": payload.get("geometry", {}),
+        "fleetScope": payload.get("fleetScope", "all"),
+        "isActive": bool(payload.get("isActive", True)),
+        "color": payload.get("color", "#35c8ff"),
+        "createdAt": get_now_iso(),
+        "updatedAt": get_now_iso(),
+    }
+    with geofence_lock:
+        geofences.append(geofence)
+        save_geofences()
+    return {"ok": True, "geofence": geofence}
+
+
+@app.put("/api/geofences/{geofence_id}")
+async def update_geofence(geofence_id: str, request: Request):
+    payload = await request.json()
+    with geofence_lock:
+        for geofence in geofences:
+            if geofence.get("id") == geofence_id:
+                geofence["name"] = payload.get("name", geofence.get("name"))
+                geofence["type"] = payload.get("type", geofence.get("type"))
+                geofence["geometry"] = payload.get("geometry", geofence.get("geometry", {}))
+                geofence["fleetScope"] = payload.get("fleetScope", geofence.get("fleetScope", "all"))
+                geofence["isActive"] = bool(payload.get("isActive", geofence.get("isActive", True)))
+                geofence["color"] = payload.get("color", geofence.get("color", "#35c8ff"))
+                geofence["updatedAt"] = get_now_iso()
+                save_geofences()
+                return {"ok": True, "geofence": geofence}
+    return {"ok": False, "error": "Geofence não encontrado"}
+
+
+@app.delete("/api/geofences/{geofence_id}")
+def delete_geofence(geofence_id: str):
+    with geofence_lock:
+        before = len(geofences)
+        geofences[:] = [g for g in geofences if g.get("id") != geofence_id]
+        if len(geofences) == before:
+            return {"ok": False, "error": "Geofence não encontrado"}
+        save_geofences()
+    return {"ok": True}
+
+
+@app.get("/api/geofences/occupancy")
+def geofence_occupancy():
+    return {"occupancy": build_geofence_occupancy()}
+
+
+@app.get("/api/geofences/{geofence_id}/vessels")
+def geofence_vessels(geofence_id: str):
+    occupancy = build_geofence_occupancy()
+    for item in occupancy:
+        if item.get("geofenceId") == geofence_id:
+            return {"ok": True, "vessels": item.get("insideVessels", []), "geofence": item}
+    return {"ok": False, "error": "Geofence não encontrado"}
+
+
+def _read_dashboard_html() -> str:
+    path = FRONTEND_DIR / "dashboard.html"
+    return path.read_text(encoding="utf-8")
+
+
+def _json_for_inline_script(obj) -> str:
+    """JSON seguro dentro de <script> (evita quebra por </script> ou < no payload)."""
+    s = json.dumps(obj, ensure_ascii=False, default=str)
+    return s.replace("<", "\\u003c")
+
+
+def _dashboard_html_with_bootstrap() -> str:
+    """Injeta window.__DASHBOARD_OVERVIEW__ para a página funcionar sem XHR a /api (ex.: proxy na 8080)."""
+    html = _read_dashboard_html()
+    try:
+        payload = _json_for_inline_script(build_dashboard_overview_dict())
+    except Exception:
+        payload = _json_for_inline_script({"ok": False, "error": "Falha ao montar overview"})
+    inject = f"<script>window.__DASHBOARD_OVERVIEW__={payload};</script>"
+    if "</head>" in html:
+        return html.replace("</head>", inject + "\n</head>", 1)
+    return inject + html
+
+
+@app.get("/dashboard")
+def dashboard_page():
+    """HTML com dados embutidos (bootstrap) + fallback por API no cliente."""
+    return HTMLResponse(_dashboard_html_with_bootstrap())
+
+
+@app.get("/dashboard/")
+def dashboard_page_trailing_slash():
+    return HTMLResponse(_dashboard_html_with_bootstrap())
+
+
+@app.get("/dashboard.html")
+def dashboard_page_html_file():
+    """Alias com extensão (útil se o browser ou proxy esperar .html)."""
+    return HTMLResponse(_dashboard_html_with_bootstrap())
+
+
 @app.post("/api/mode")
 async def set_mode(request: Request):
     global current_mode
     data = await request.json()
+    if data.get("syncPraticagemSaa") in (True, 1, "1", "true"):
+        return await _sync_saa_from_praticagem_impl()
     mode = data.get("mode", "live").lower()
     if mode != "live":
         return {"ok": False, "error": "Modo mock removido. Use apenas live."}
@@ -402,7 +1358,7 @@ async def set_mode(request: Request):
 async def set_area(request: Request):
     global current_area_key, last_subscription_update_monotonic
     data = await request.json()
-    area = data.get("areaKey", "suape").lower()
+    area = data.get("areaKey", "rio").lower()
     if area not in AREAS:
         return {"ok": False, "error": f"Área inválida: {area}"}
     if area == current_area_key:
@@ -426,11 +1382,30 @@ async def set_area(request: Request):
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
     try:
-        await relay_live(websocket)
+        await relay_cached_stream(websocket)
     except WebSocketDisconnect:
         pass
     except Exception as e:
         await websocket.send_json({"type": "ais_error", "payload": {"error": str(e)}})
+
+async def relay_cached_stream(websocket: WebSocket):
+    """
+    Relay para o frontend usando apenas o buffer local (`recent_vessels`).
+    A conexão com AISStream fica centralizada no worker de background.
+    """
+    ensure_live_worker_started()
+    last_sent_seq = 0
+    if recent_vessels:
+        last_sent_seq = recent_vessels[-1]["_seq"]
+    await websocket.send_json({"type": "status", "payload": get_status()})
+
+    while True:
+        await asyncio.sleep(1.0)
+        new_items = [v for v in recent_vessels if v.get("_seq", 0) > last_sent_seq]
+        for vessel_payload in new_items:
+            await websocket.send_json({"type": "ais", "payload": vessel_payload})
+            last_sent_seq = vessel_payload.get("_seq", last_sent_seq)
+        await websocket.send_json({"type": "status", "payload": get_status()})
 
 async def relay_live(websocket: WebSocket):
     global live_connected, last_error, last_ais_message_at, total_messages
@@ -579,65 +1554,102 @@ def extract_normalized_vessel(data):
         ship_name = incoming_name or cached.get("shipName") or "Sem nome"
         incoming_ship_type_code = normalize_ship_type_code(metadata, message_body)
         ship_type_code = incoming_ship_type_code if incoming_ship_type_code is not None else cached.get("shipTypeCode")
-        ship_category = infer_ship_category(ship_type_code, ship_name)
+        is_saam_bgra = mmsi in SAAM_BGRA_MMSI_SET
+        ship_category = "rebocador_servico" if is_saam_bgra else infer_ship_category(ship_type_code, ship_name)
+        latitude_f = float(latitude)
+        longitude_f = float(longitude)
+        fallback_geofence = classify_geofence(latitude_f, longitude_f)
+
+        ais_length_m, ais_beam_m = extract_ship_dimensions_meters(message_type, message_body)
+        cached_ais_length = cached.get("lengthMetersAis")
+        cached_ais_beam = cached.get("beamMetersAis")
+
+        if ais_length_m is not None:
+            length_source = "ais_dimension"
+            length_m = ais_length_m
+            beam_m = ais_beam_m if ais_beam_m is not None else cached_ais_beam
+        elif cached_ais_length is not None:
+            length_source = "ais_dimension_cached"
+            length_m = float(cached_ais_length)
+            beam_m = cached_ais_beam
+        else:
+            length_source = "estimated_category"
+            length_m = estimate_length_from_category(ship_category)
+            beam_m = None
 
         vessel_state_by_mmsi[mmsi] = {
             "shipName": ship_name,
             "shipTypeCode": ship_type_code,
             "shipCategory": ship_category,
+            "fleet": SAAM_BGRA_FLEET_NAME if is_saam_bgra else None,
+            "lengthMetersAis": ais_length_m if ais_length_m is not None else cached_ais_length,
+            "beamMetersAis": ais_beam_m if ais_beam_m is not None else cached_ais_beam,
         }
+        vessel_data = {
+            "source": current_mode,
+            "messageType": message_type,
+            "mmsi": mmsi,
+            "shipName": ship_name,
+            "shipTypeCode": ship_type_code,
+            "shipCategory": ship_category,
+            "fleet": SAAM_BGRA_FLEET_NAME if is_saam_bgra else None,
+            "isSaamBgra": is_saam_bgra,
+            "geofence": fallback_geofence,
+            "latitude": latitude_f,
+            "longitude": longitude_f,
+            "sog": float(message_body.get("Sog") or message_body.get("SpeedOverGround") or 0),
+            "cog": float(message_body.get("Cog") or message_body.get("CourseOverGround") or 0),
+            "heading": float(message_body.get("TrueHeading") or message_body.get("Heading") or 0),
+            "navStatus": message_body.get("NavigationalStatus"),
+            "lengthMeters": length_m,
+            "beamMeters": beam_m,
+            "lengthSource": length_source,
+            "timestamp": metadata.get("time_utc") or metadata.get("timeUTC") or get_now_iso(),
+            "raw": data
+        }
+        vessel_data["geofencesInside"] = get_vessel_geofences(vessel_data)
+        vessel_data["inRebocadorBase"] = vessel_in_rebocador_base(vessel_data)
+        if vessel_data["geofencesInside"] and not vessel_data.get("geofence"):
+            vessel_data["geofence"] = vessel_data["geofencesInside"][0]
+        latest_vessel_by_mmsi[mmsi] = vessel_data
+        update_saam_nautical_miles(vessel_data)
+        update_saam_fleet_geofence_stats(vessel_data)
 
         return {
             "type": "ais",
-            "payload": {
-                "source": current_mode,
-                "messageType": message_type,
-                "mmsi": mmsi,
-                "shipName": ship_name,
-                "shipTypeCode": ship_type_code,
-                "shipCategory": ship_category,
-                "latitude": float(latitude),
-                "longitude": float(longitude),
-                "sog": float(message_body.get("Sog") or message_body.get("SpeedOverGround") or 0),
-                "cog": float(message_body.get("Cog") or message_body.get("CourseOverGround") or 0),
-                "heading": float(message_body.get("TrueHeading") or message_body.get("Heading") or 0),
-                "navStatus": message_body.get("NavigationalStatus"),
-                "timestamp": metadata.get("time_utc") or metadata.get("timeUTC") or get_now_iso(),
-                "raw": data
-            }
+            "payload": vessel_data
         }
     except Exception:
         return None
 
 def get_now_iso():
-    from datetime import datetime
     return datetime.utcnow().isoformat()
 
 def generate_mock_vessels(area_key):
     presets = {
         "suape": [
-            {"mmsi": "710000101", "shipName": "TUG SUAPE ALFA", "shipTypeCode": 52, "latitude": -8.403, "longitude": -34.969, "sog": 8.2, "cog": 112},
-            {"mmsi": "710000102", "shipName": "NAVIO RECIFE STAR", "shipTypeCode": 70, "latitude": -8.377, "longitude": -34.912, "sog": 11.4, "cog": 221}
+            {"mmsi": "710000101", "shipName": "TUG SUAPE ALFA", "shipTypeCode": 52, "latitude": -8.403, "longitude": -34.969, "sog": 8.2, "cog": 112, "lengthMeters": 32, "beamMeters": 11, "lengthSource": "mock"},
+            {"mmsi": "710000102", "shipName": "NAVIO RECIFE STAR", "shipTypeCode": 70, "latitude": -8.377, "longitude": -34.912, "sog": 11.4, "cog": 221, "lengthMeters": 190, "beamMeters": 28, "lengthSource": "mock"}
         ],
         "santos": [
-            {"mmsi": "710000201", "shipName": "TUG SANTOS BRAVO", "shipTypeCode": 52, "latitude": -23.992, "longitude": -46.307, "sog": 7.1, "cog": 41},
-            {"mmsi": "710000202", "shipName": "CARGUEIRO ATLANTICO SUL", "shipTypeCode": 70, "latitude": -24.038, "longitude": -46.283, "sog": 9.8, "cog": 78}
+            {"mmsi": "710000201", "shipName": "TUG SANTOS BRAVO", "shipTypeCode": 52, "latitude": -23.992, "longitude": -46.307, "sog": 7.1, "cog": 41, "lengthMeters": 30, "beamMeters": 10, "lengthSource": "mock"},
+            {"mmsi": "710000202", "shipName": "CARGUEIRO ATLANTICO SUL", "shipTypeCode": 70, "latitude": -24.038, "longitude": -46.283, "sog": 9.8, "cog": 78, "lengthMeters": 210, "beamMeters": 32, "lengthSource": "mock"}
         ],
         "rio": [
-            {"mmsi": "710000301", "shipName": "TUG GUANABARA", "shipTypeCode": 52, "latitude": -22.882, "longitude": -43.146, "sog": 6.8, "cog": 132},
-            {"mmsi": "710000302", "shipName": "RIO BAY TRADER", "shipTypeCode": 70, "latitude": -22.930, "longitude": -43.180, "sog": 10.6, "cog": 212}
+            {"mmsi": "710000301", "shipName": "TUG GUANABARA", "shipTypeCode": 52, "latitude": -22.882, "longitude": -43.146, "sog": 6.8, "cog": 132, "lengthMeters": 28, "beamMeters": 9, "lengthSource": "mock"},
+            {"mmsi": "710000302", "shipName": "RIO BAY TRADER", "shipTypeCode": 70, "latitude": -22.930, "longitude": -43.180, "sog": 10.6, "cog": 212, "lengthMeters": 200, "beamMeters": 30, "lengthSource": "mock"}
         ],
         "paranagua": [
-            {"mmsi": "710000401", "shipName": "TUG PARANAGUA DELTA", "shipTypeCode": 52, "latitude": -25.522, "longitude": -48.501, "sog": 5.2, "cog": 94},
-            {"mmsi": "710000402", "shipName": "PR PORT CONTAINER", "shipTypeCode": 70, "latitude": -25.565, "longitude": -48.472, "sog": 8.7, "cog": 176}
+            {"mmsi": "710000401", "shipName": "TUG PARANAGUA DELTA", "shipTypeCode": 52, "latitude": -25.522, "longitude": -48.501, "sog": 5.2, "cog": 94, "lengthMeters": 29, "beamMeters": 10, "lengthSource": "mock"},
+            {"mmsi": "710000402", "shipName": "PR PORT CONTAINER", "shipTypeCode": 70, "latitude": -25.565, "longitude": -48.472, "sog": 8.7, "cog": 176, "lengthMeters": 205, "beamMeters": 31, "lengthSource": "mock"}
         ],
         "bahia": [
-            {"mmsi": "710000501", "shipName": "TUG TODOS OS SANTOS", "shipTypeCode": 52, "latitude": -12.915, "longitude": -38.661, "sog": 4.7, "cog": 63},
-            {"mmsi": "710000502", "shipName": "BAHIA MINERAL", "shipTypeCode": 80, "latitude": -12.806, "longitude": -38.485, "sog": 12.0, "cog": 149}
+            {"mmsi": "710000501", "shipName": "TUG TODOS OS SANTOS", "shipTypeCode": 52, "latitude": -12.915, "longitude": -38.661, "sog": 4.7, "cog": 63, "lengthMeters": 27, "beamMeters": 9, "lengthSource": "mock"},
+            {"mmsi": "710000502", "shipName": "BAHIA MINERAL", "shipTypeCode": 80, "latitude": -12.806, "longitude": -38.485, "sog": 12.0, "cog": 149, "lengthMeters": 240, "beamMeters": 40, "lengthSource": "mock"}
         ],
         "brasil_sudeste": [
-            {"mmsi": "710000601", "shipName": "COSTA SUDESTE 01", "shipTypeCode": 70, "latitude": -23.300, "longitude": -42.500, "sog": 13.6, "cog": 205},
-            {"mmsi": "710000602", "shipName": "COSTA SUDESTE 02", "shipTypeCode": 60, "latitude": -24.200, "longitude": -44.100, "sog": 12.9, "cog": 35}
+            {"mmsi": "710000601", "shipName": "COSTA SUDESTE 01", "shipTypeCode": 70, "latitude": -23.300, "longitude": -42.500, "sog": 13.6, "cog": 205, "lengthMeters": 215, "beamMeters": 33, "lengthSource": "mock"},
+            {"mmsi": "710000602", "shipName": "COSTA SUDESTE 02", "shipTypeCode": 60, "latitude": -24.200, "longitude": -44.100, "sog": 12.9, "cog": 35, "lengthMeters": 160, "beamMeters": 26, "lengthSource": "mock"}
         ]
     }
     from datetime import datetime
@@ -654,16 +1666,70 @@ def generate_mock_vessels(area_key):
         yield vessel
 
 
+async def _praticagem_auto_sync_loop():
+    sec = int(os.getenv("PRATICAGEM_AUTO_SYNC_SECONDS", "60") or "60")
+    if sec <= 0:
+        return
+    await asyncio.sleep(10)
+    while True:
+        try:
+            await _sync_saa_from_praticagem_impl()
+        except asyncio.CancelledError:
+            break
+        except Exception:
+            pass
+        try:
+            await asyncio.sleep(sec)
+        except asyncio.CancelledError:
+            break
+
+
 @app.on_event("startup")
 async def startup_event():
-    global live_worker_task
+    global live_worker_task, _praticagem_auto_sync_task
+    load_geofences()
+    load_tug_stats()
+    load_saa_maneuvers()
     if current_mode == "live" and AISSTREAM_API_KEY and live_worker_task is None:
         live_worker_task = asyncio.create_task(live_background_worker())
+    if int(os.getenv("PRATICAGEM_AUTO_SYNC_SECONDS", "60") or "60") > 0:
+        _praticagem_auto_sync_task = asyncio.create_task(_praticagem_auto_sync_loop())
 
 
 @app.on_event("shutdown")
 async def shutdown_event():
-    global live_worker_task
+    global live_worker_task, _praticagem_auto_sync_task
+    try:
+        save_tug_stats()
+    except Exception:
+        pass
+    if _praticagem_auto_sync_task:
+        _praticagem_auto_sync_task.cancel()
+        try:
+            await _praticagem_auto_sync_task
+        except (asyncio.CancelledError, Exception):
+            pass
+        _praticagem_auto_sync_task = None
     if live_worker_task:
         live_worker_task.cancel()
         live_worker_task = None
+
+
+@app.get("/frontend/dashboard.html")
+def redirect_frontend_dashboard_to_canonical():
+    """Ficheiro estático não inclui dados embutidos; força a rota /dashboard."""
+    return RedirectResponse(url="/dashboard", status_code=307)
+
+
+app.mount("/frontend", StaticFiles(directory=str(FRONTEND_DIR)), name="frontend")
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run(
+        "main:app",
+        host="0.0.0.0",
+        port=int(os.getenv("PORT", "8080")),
+        reload=False,
+    )
