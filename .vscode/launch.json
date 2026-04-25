@@ -1,0 +1,28 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "AISStream: Chrome (só browser — inicie uvicorn à parte)",
+      "type": "chrome",
+      "request": "launch",
+      "url": "http://localhost:8080/",
+      "webRoot": "${workspaceFolder}"
+    },
+    {
+      "name": "AISStream: Chrome + Uvicorn (mapa)",
+      "type": "chrome",
+      "request": "launch",
+      "url": "http://localhost:8080/",
+      "webRoot": "${workspaceFolder}",
+      "preLaunchTask": "aisstream-uvicorn"
+    },
+    {
+      "name": "AISStream: Chrome + Uvicorn (dashboard)",
+      "type": "chrome",
+      "request": "launch",
+      "url": "http://localhost:8080/dashboard",
+      "webRoot": "${workspaceFolder}",
+      "preLaunchTask": "aisstream-uvicorn"
+    }
+  ]
+}
