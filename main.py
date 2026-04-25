@@ -385,6 +385,16 @@ def load_geofences():
         geofences = []
 
 
+def ensure_geofences_loaded():
+    """Lazy-load defensivo para ambientes Passenger onde startup pode não hidratar estado."""
+    if geofences:
+        return
+    with geofence_lock:
+        if geofences:
+            return
+        load_geofences()
+
+
 def save_geofences():
     uid = DASHBOARD_USER_ID
     path = geofences_file_for_user(uid)
@@ -691,6 +701,7 @@ def geofence_matches_vessel_scope(vessel, geofence):
 
 
 def get_vessel_geofences(vessel):
+    ensure_geofences_loaded()
     names = []
     with geofence_lock:
         active_geofences = [g for g in geofences if g.get("isActive", True)]
@@ -704,6 +715,7 @@ def get_vessel_geofences(vessel):
 
 def vessel_in_rebocador_base(vessel):
     """Dentro de algum geofence ativo tipo base_rebocador (escopo respeitado)."""
+    ensure_geofences_loaded()
     with geofence_lock:
         active_geofences = [g for g in geofences if g.get("isActive", True)]
     for geofence in active_geofences:
@@ -717,6 +729,7 @@ def vessel_in_rebocador_base(vessel):
 
 
 def build_geofence_occupancy():
+    ensure_geofences_loaded()
     with geofence_lock:
         active_geofences = [g for g in geofences if g.get("isActive", True)]
     vessels = list(latest_vessel_by_mmsi.values())
@@ -1060,6 +1073,7 @@ def get_vessels(since: int = 0, limit: int = 300, snapshot: bool = False):
 
 
 def _dashboard_geofence_status_rows():
+    ensure_geofences_loaded()
     occ = {o.get("geofenceId"): o for o in build_geofence_occupancy()}
     with geofence_lock:
         snapshot = list(geofences)
@@ -1161,6 +1175,7 @@ def _dashboard_geofence_status_rows():
 
 def build_dashboard_overview_dict():
     ensure_live_worker_started()
+    ensure_geofences_loaded()
     with geofence_lock:
         gfs = list(geofences)
     with saam_geofence_stats_lock:
@@ -1231,6 +1246,7 @@ async def append_saa_maneuver(request: Request):
 
 @app.get("/api/geofences")
 def get_geofences():
+    ensure_geofences_loaded()
     with geofence_lock:
         return {"geofences": geofences}
 
