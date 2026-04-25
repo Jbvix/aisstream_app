@@ -11,6 +11,8 @@ import websockets
 import time
 import threading
 import uuid
+import urllib.request
+import urllib.error
 from pathlib import Path
 from collections import deque
 from websockets.exceptions import ConnectionClosed
@@ -54,6 +56,21 @@ SAAM_MMSI_ABBR = {
     "710016030": "LT",
     "710015310": "AT",
 }
+COMPETITOR_TUGS = {
+    "WIL": [
+        {"mmsi": "710005290", "name": "LYRA"},
+        {"mmsi": "710000009", "name": "HERCULES"},
+        {"mmsi": "710000391", "name": "WEZEN"},
+        {"mmsi": "710018340", "name": "PEGASUS"},
+    ],
+    "CAM": [
+        {"mmsi": "710009550", "name": "C NEBLINA"},
+        {"mmsi": "710008322", "name": "C HARPIA"},
+        {"mmsi": "710010250", "name": "C ARRAIAL / C SALVADOR"},
+    ],
+}
+GROK_API_KEY = (os.getenv("XAI_API_KEY") or "").strip()
+GROK_MODEL = (os.getenv("XAI_MODEL") or "grok-3-mini").strip()
 # Estatísticas persistidas (tug_geofence_stats.json): só berço e polígono contam manobra + tempo.
 # Saída da base rebocador não soma manobra nem horas nesse ficheiro.
 SAAM_MANEUVER_STATS_GEOFENCE_TYPES = frozenset({"berco", "polygon"})
@@ -80,6 +97,33 @@ def _vessel_display_name_for_tooltip(vessel):
         return name
     mmsi = vessel.get("mmsi")
     return f"MMSI {mmsi}" if mmsi is not None else "—"
+
+
+def _distance_m_approx(v1, v2):
+    lat1, lon1 = v1.get("latitude"), v1.get("longitude")
+    lat2, lon2 = v2.get("latitude"), v2.get("longitude")
+    if not all(isinstance(x, (int, float)) for x in (lat1, lon1, lat2, lon2)):
+        return float("inf")
+    dy = (float(lat1) - float(lat2)) * 111_320.0
+    dx = (float(lon1) - float(lon2)) * 111_320.0
+    return (dx * dx + dy * dy) ** 0.5
+
+
+def _berco_em_manobra_text(inside_geo):
+    tugs = [v for v in inside_geo if bool(v.get("isSaamBgra"))]
+    ships = [v for v in inside_geo if not bool(v.get("isSaamBgra"))]
+    if not tugs:
+        return "—"
+    if not ships:
+        tug_names = ", ".join(_vessel_display_name_for_tooltip(v) for v in tugs[:4])
+        return f"{tug_names} (sem navio)"
+    pairs = []
+    for tug in tugs[:4]:
+        nearest_ship = min(ships, key=lambda ship: _distance_m_approx(tug, ship))
+        pairs.append(
+            f"{_vessel_display_name_for_tooltip(tug)} + {_vessel_display_name_for_tooltip(nearest_ship)}"
+        )
+    return " | ".join(pairs)
 
 AREAS = {
     "suape": {
@@ -437,6 +481,14 @@ def saa_maneuvers_file_for_user(user_id: str) -> Path:
     return user_data_dir(user_id) / "saa_maneuvers.json"
 
 
+def strategy_memory_file_for_user(user_id: str) -> Path:
+    return user_data_dir(user_id) / "strategy_memory.json"
+
+
+def schedule_monitor_file_for_user(user_id: str) -> Path:
+    return user_data_dir(user_id) / "saa_schedule_monitor.json"
+
+
 def load_saa_maneuvers():
     global saa_maneuvers_list
     path = saa_maneuvers_file_for_user(DASHBOARD_USER_ID)
@@ -454,6 +506,27 @@ def save_saa_maneuvers():
     path = saa_maneuvers_file_for_user(DASHBOARD_USER_ID)
     with saa_maneuvers_lock:
         path.write_text(json.dumps(saa_maneuvers_list, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def load_strategy_memory():
+    path = strategy_memory_file_for_user(DASHBOARD_USER_ID)
+    if not path.exists():
+        return []
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        return raw if isinstance(raw, list) else []
+    except Exception:
+        return []
+
+
+def append_strategy_memory(note: str, author: str = "user"):
+    note = (note or "").strip()
+    if not note:
+        return
+    items = load_strategy_memory()
+    items.insert(0, {"at": get_now_iso(), "author": author, "note": note})
+    path = strategy_memory_file_for_user(DASHBOARD_USER_ID)
+    path.write_text(json.dumps(items[:200], ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 def _saa_dim_defaults() -> dict:
@@ -748,6 +821,8 @@ def build_geofence_occupancy():
                         "fleet": vessel.get("fleet"),
                         "timestamp": vessel.get("timestamp"),
                         "isSaamBgra": bool(vessel.get("isSaamBgra")),
+                        "latitude": vessel.get("latitude"),
+                        "longitude": vessel.get("longitude"),
                     }
                 )
         occupancy.append(
@@ -1110,6 +1185,14 @@ def _dashboard_geofence_status_rows():
         else:
             lamp_saa = False
 
+        gname = (g.get("name") or "").strip().lower()
+        if gname == "base brasco":
+            em_manobra = "stand-by"
+        elif gtype == "berco" and active:
+            em_manobra = _berco_em_manobra_text(inside_geo)
+        else:
+            em_manobra = "—"
+
         lamp_saam_names: list[str] = []
         lamp_saa_names: list[str] = []
         if active:
@@ -1168,9 +1251,435 @@ def _dashboard_geofence_status_rows():
                 "lampSaamInside": lamp_saam,
                 "lampSaaNames": lamp_saa_names,
                 "lampSaamNames": lamp_saam_names,
+                "emManobra": em_manobra,
             }
         )
     return rows
+
+
+def _in_maneuver_geofence(vessel, geofence_snapshot):
+    for g in geofence_snapshot:
+        if not g.get("isActive", True):
+            continue
+        if g.get("type") not in ("berco", "polygon"):
+            continue
+        try:
+            if is_inside_geofence(vessel, g):
+                return g
+        except Exception:
+            continue
+    return None
+
+
+def _competitor_status_rows(geofence_snapshot):
+    rows = []
+    for company, tugs in COMPETITOR_TUGS.items():
+        for tug in tugs:
+            mmsi = tug.get("mmsi")
+            vessel = latest_vessel_by_mmsi.get(mmsi) if mmsi else None
+            if vessel:
+                geo = _in_maneuver_geofence(vessel, geofence_snapshot)
+                geofence_name = geo.get("name", "—") if geo else "—"
+                manobra = bool(geo)
+                ship_name = (vessel.get("shipName") or "").strip() or tug.get("name", "")
+                lat = vessel.get("latitude")
+                lon = vessel.get("longitude")
+            else:
+                geofence_name = "—"
+                manobra = False
+                ship_name = tug.get("name", "")
+                lat = None
+                lon = None
+            rows.append(
+                {
+                    "company": company,
+                    "mmsi": mmsi,
+                    "name": ship_name,
+                    "insideManeuverGeofence": manobra,
+                    "maneuverGeofenceName": geofence_name,
+                    "latitude": lat,
+                    "longitude": lon,
+                }
+            )
+    return rows
+
+
+def _market_share_rows(saa_snapshot):
+    counts = {}
+    for item in saa_snapshot:
+        key = str(item.get("empRb") or "N/A").strip().upper() or "N/A"
+        counts[key] = counts.get(key, 0) + 1
+    total = sum(counts.values())
+    rows = []
+    for key, cnt in sorted(counts.items(), key=lambda kv: kv[1], reverse=True):
+        share = (100.0 * cnt / total) if total else 0.0
+        rows.append({"empRb": key, "count": cnt, "sharePct": round(share, 2)})
+    return {"rows": rows, "total": total}
+
+
+def _parse_recorded_at_iso(value):
+    if not value:
+        return None
+    try:
+        txt = str(value).strip()
+        if txt.endswith("Z"):
+            txt = txt[:-1] + "+00:00"
+        return datetime.fromisoformat(txt)
+    except Exception:
+        return None
+
+
+def _market_share_windows(saa_snapshot):
+    now = datetime.now()
+    midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    w7 = now.timestamp() - 7 * 86400
+    w30 = now.timestamp() - 30 * 86400
+
+    today_items = []
+    w7_items = []
+    w30_items = []
+    for item in saa_snapshot:
+        dt = _parse_recorded_at_iso(item.get("recordedAt"))
+        if dt is None:
+            continue
+        ts = dt.timestamp()
+        if dt >= midnight:
+            today_items.append(item)
+        if ts >= w7:
+            w7_items.append(item)
+        if ts >= w30:
+            w30_items.append(item)
+    return {
+        "today": _market_share_rows(today_items),
+        "last7d": _market_share_rows(w7_items),
+        "last30d": _market_share_rows(w30_items),
+    }
+
+
+def _estimate_tugs_required(maneuver):
+    def _f(v):
+        if v is None:
+            return 0.0
+        txt = str(v).replace(",", ".").strip()
+        try:
+            return float(txt)
+        except Exception:
+            return 0.0
+
+    loa = _f(maneuver.get("loa"))
+    dwt = _f(maneuver.get("dwt"))
+    if loa >= 300 or dwt >= 100000:
+        return 4
+    if loa >= 230 or dwt >= 60000:
+        return 3
+    if loa > 0:
+        return 2
+    return 2
+
+
+def _parse_pob_to_datetime(pob):
+    s = str(pob or "").strip()
+    if not s:
+        return None
+    m = None
+    # dd/mm HH:MM
+    try:
+        import re
+
+        m = re.match(r"^(\d{1,2})/(\d{1,2})[^\d]?(\d{1,2}):(\d{2})", s)
+        if not m:
+            return None
+        day, mon, hh, mm = int(m.group(1)), int(m.group(2)), int(m.group(3)), int(m.group(4))
+        y = datetime.now().year
+        dt = datetime(y, mon, day, hh, mm)
+        # ajuste simples de virada de ano
+        if dt.timestamp() < datetime.now().timestamp() - 14 * 86400:
+            dt = datetime(y + 1, mon, day, hh, mm)
+        return dt
+    except Exception:
+        return None
+
+
+def _simultaneous_maneuvers_summary(saa_snapshot):
+    buckets = {}
+    for item in saa_snapshot:
+        dt = _parse_pob_to_datetime(item.get("pob"))
+        if not dt:
+            continue
+        key = dt.strftime("%Y-%m-%d %H:00")
+        buckets.setdefault(key, []).append(item)
+    rows = []
+    for key, items in buckets.items():
+        if len(items) < 2:
+            continue
+        tug_demand = sum(_estimate_tugs_required(x) for x in items)
+        rows.append(
+            {
+                "timeSlot": key,
+                "maneuvers": len(items),
+                "estimatedTugsNeeded": tug_demand,
+                "vessels": [x.get("vesselName", "—") for x in items[:10]],
+            }
+        )
+    rows.sort(key=lambda x: x["timeSlot"])
+    return rows[:24]
+
+
+def _schedule_row_key_without_pob(item):
+    return "|".join(
+        [
+            str(item.get("vesselName") or "").strip().upper(),
+            str(item.get("berthName") or "").strip().upper(),
+            str(item.get("empRb") or "").strip().upper(),
+            str(item.get("m") or "").strip().upper(),
+            str(item.get("loa") or "").strip(),
+            str(item.get("dwt") or "").strip(),
+            str(item.get("status") or "").strip().upper(),
+        ]
+    )
+
+
+def _schedule_signature(item):
+    return _schedule_row_key_without_pob(item) + "|" + str(item.get("pob") or "").strip()
+
+
+def _load_schedule_monitor_state():
+    path = schedule_monitor_file_for_user(DASHBOARD_USER_ID)
+    if not path.exists():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+
+def _save_schedule_monitor_state(state):
+    path = schedule_monitor_file_for_user(DASHBOARD_USER_ID)
+    path.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def _build_schedule_changes(saa_snapshot):
+    prev = _load_schedule_monitor_state()
+    prev_rows = prev.get("rows") or []
+    prev_ts = prev.get("updatedAt")
+
+    now = get_now_iso()
+    new_rows = []
+    for item in saa_snapshot:
+        new_rows.append(
+            {
+                "keyNoPob": _schedule_row_key_without_pob(item),
+                "signature": _schedule_signature(item),
+                "pob": str(item.get("pob") or "").strip(),
+                "vesselName": item.get("vesselName") or "—",
+                "berthName": item.get("berthName") or "—",
+                "empRb": item.get("empRb") or "N/A",
+            }
+        )
+
+    prev_sigs = {str(r.get("signature") or "") for r in prev_rows}
+    new_sigs = {str(r.get("signature") or "") for r in new_rows}
+
+    added = [r for r in new_rows if r["signature"] not in prev_sigs][:60]
+    removed = [r for r in prev_rows if str(r.get("signature") or "") not in new_sigs][:60]
+
+    prev_by_key = {}
+    for r in prev_rows:
+        k = str(r.get("keyNoPob") or "")
+        if not k:
+            continue
+        prev_by_key.setdefault(k, []).append(r)
+    new_by_key = {}
+    for r in new_rows:
+        k = r["keyNoPob"]
+        new_by_key.setdefault(k, []).append(r)
+
+    delayed = []
+    advanced = []
+    touched_keys = set(prev_by_key.keys()) & set(new_by_key.keys())
+    for k in touched_keys:
+        olds = sorted(prev_by_key[k], key=lambda x: str(x.get("pob") or ""))
+        news = sorted(new_by_key[k], key=lambda x: str(x.get("pob") or ""))
+        pairs = min(len(olds), len(news))
+        for i in range(pairs):
+            old_pob = str(olds[i].get("pob") or "")
+            new_pob = str(news[i].get("pob") or "")
+            if old_pob == new_pob:
+                continue
+            old_dt = _parse_pob_to_datetime(old_pob)
+            new_dt = _parse_pob_to_datetime(new_pob)
+            if not old_dt or not new_dt:
+                continue
+            delta_min = int(round((new_dt.timestamp() - old_dt.timestamp()) / 60.0))
+            row = {
+                "vesselName": news[i].get("vesselName") or "—",
+                "berthName": news[i].get("berthName") or "—",
+                "empRb": news[i].get("empRb") or "N/A",
+                "oldPob": old_pob,
+                "newPob": new_pob,
+                "deltaMinutes": delta_min,
+            }
+            if delta_min > 0:
+                delayed.append(row)
+            elif delta_min < 0:
+                advanced.append(row)
+
+    changed = delayed[:40] + advanced[:40]
+    summary = {
+        "previousUpdatedAt": prev_ts,
+        "currentUpdatedAt": now,
+        "addedCount": len(added),
+        "removedCount": len(removed),
+        "delayedCount": len(delayed),
+        "advancedCount": len(advanced),
+        "anyChange": bool(added or removed or delayed or advanced),
+        "added": added,
+        "removed": removed,
+        "delayed": delayed[:60],
+        "advanced": advanced[:60],
+        "changed": changed[:80],
+    }
+
+    _save_schedule_monitor_state({"updatedAt": now, "rows": new_rows})
+    return summary
+
+
+def _fetch_metocean_context():
+    # Dados operacionais basicos para a baia de Guanabara (ponto medio)
+    lat, lon = -22.90, -43.17
+    url = (
+        "https://api.open-meteo.com/v1/forecast"
+        f"?latitude={lat}&longitude={lon}"
+        "&current=wind_speed_10m,wind_direction_10m"
+        "&hourly=wind_speed_10m"
+        "&timezone=America%2FSao_Paulo"
+    )
+    try:
+        req = urllib.request.Request(url, headers={"Accept": "application/json"}, method="GET")
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            body = json.loads(resp.read().decode("utf-8"))
+        cur = body.get("current") or {}
+        return {
+            "source": "open-meteo",
+            "windSpeedKmh": cur.get("wind_speed_10m"),
+            "windDirectionDeg": cur.get("wind_direction_10m"),
+            "tide": "Integração de maré pendente (fonte local/hidrográfica).",
+        }
+    except Exception as exc:
+        return {
+            "source": "fallback",
+            "windSpeedKmh": None,
+            "windDirectionDeg": None,
+            "tide": "Sem dados de maré online.",
+            "error": str(exc),
+        }
+
+
+def _strategy_context_dict():
+    ensure_geofences_loaded()
+    with geofence_lock:
+        geofence_snapshot = list(geofences)
+    with saa_maneuvers_lock:
+        saa_snapshot = list(saa_maneuvers_list)
+    saam_positions = []
+    for mmsi in SAAM_BGRA_MMSI_SET:
+        v = latest_vessel_by_mmsi.get(mmsi)
+        if not v:
+            continue
+        saam_positions.append(
+            {
+                "mmsi": mmsi,
+                "name": (v.get("shipName") or "").strip() or f"MMSI {mmsi}",
+                "latitude": v.get("latitude"),
+                "longitude": v.get("longitude"),
+                "speed": v.get("speed"),
+                "heading": v.get("heading"),
+                "insideGeofences": get_vessel_geofences(v),
+            }
+        )
+    upcoming = sorted(
+        saa_snapshot,
+        key=lambda x: str(x.get("pob") or ""),
+    )[:40]
+    competitors = _competitor_status_rows(geofence_snapshot)
+    schedule_changes = _build_schedule_changes(saa_snapshot)
+    memory_items = load_strategy_memory()
+    return {
+        "timestamp": get_now_iso(),
+        "saamTugs": saam_positions,
+        "scheduledManeuvers": upcoming,
+        "competitors": competitors,
+        "marketShare": _market_share_rows(saa_snapshot),
+        "simultaneousManeuvers": _simultaneous_maneuvers_summary(saa_snapshot),
+        "scheduleChanges": schedule_changes,
+        "metocean": _fetch_metocean_context(),
+        "userLearnedNotes": memory_items[:30],
+    }
+
+
+def _strategy_fallback_answer(question: str, context: dict) -> str:
+    saam = context.get("saamTugs") or []
+    comps = context.get("competitors") or []
+    maneuvers = context.get("scheduledManeuvers") or []
+    manobrando = [c for c in comps if c.get("insideManeuverGeofence")]
+    top = (context.get("marketShare") or {}).get("rows") or []
+    top_txt = ", ".join(f"{x['empRb']}: {x['count']}" for x in top[:4]) if top else "sem dados"
+    return (
+        "Assistente estrategico (modo local):\n"
+        f"- Rebocadores SAAM rastreados agora: {len(saam)}\n"
+        f"- Manobras programadas (Praticagem): {len(maneuvers)}\n"
+        f"- Concorrentes em geofence de manobra: {len(manobrando)}\n"
+        f"- Market share por EMP.RB (contagem): {top_txt}\n"
+        f"- Pergunta recebida: {question}\n"
+        "Defina XAI_API_KEY para habilitar resposta Grok contextual."
+    )
+
+
+def _ask_grok_with_context(question: str, context: dict) -> str:
+    if not GROK_API_KEY:
+        return _strategy_fallback_answer(question, context)
+    payload = {
+        "model": GROK_MODEL,
+        "temperature": 0.2,
+        "messages": [
+            {
+                "role": "system",
+                "content": (
+                    "Voce e um assistente de estrategia portuaria. "
+                    "Use apenas o contexto fornecido para responder de forma objetiva em portugues."
+                ),
+            },
+            {
+                "role": "user",
+                "content": (
+                    "Contexto operacional JSON:\n"
+                    + json.dumps(context, ensure_ascii=False)
+                    + "\n\nPergunta:\n"
+                    + question
+                ),
+            },
+        ],
+    }
+    req = urllib.request.Request(
+        url="https://api.x.ai/v1/chat/completions",
+        data=json.dumps(payload).encode("utf-8"),
+        headers={
+            "Authorization": f"Bearer {GROK_API_KEY}",
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=25) as resp:
+            body = json.loads(resp.read().decode("utf-8"))
+        return (
+            (((body.get("choices") or [{}])[0]).get("message") or {}).get("content")
+            or "Sem resposta do Grok."
+        )
+    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
+        return _strategy_fallback_answer(question, context) + f"\n\nErro Grok: {exc}"
 
 
 def build_dashboard_overview_dict():
@@ -1196,6 +1705,10 @@ def build_dashboard_overview_dict():
                 "totalNauticalMiles": round(float(row.get("totalNauticalMiles", 0)), 2),
             }
         )
+    market_share = _market_share_rows(saa_snapshot)
+    market_share_windows = _market_share_windows(saa_snapshot)
+    competitors = _competitor_status_rows(gfs)
+    schedule_changes = _build_schedule_changes(saa_snapshot)
     return {
         "ok": True,
         "userId": DASHBOARD_USER_ID,
@@ -1205,6 +1718,10 @@ def build_dashboard_overview_dict():
         "tugStats": tug_snapshot,
         "tugChart": chart,
         "saaManeuvers": saa_snapshot,
+        "marketShare": market_share,
+        "marketShareWindows": market_share_windows,
+        "competitors": competitors,
+        "scheduleChanges": schedule_changes,
     }
 
 
@@ -1242,6 +1759,39 @@ async def append_saa_maneuver(request: Request):
         saa_maneuvers_list.insert(0, item)
         save_saa_maneuvers()
     return {"ok": True, "item": item}
+
+
+@app.post("/api/dashboard/strategy-assistant")
+async def strategy_assistant(request: Request):
+    payload = await request.json()
+    question = str(payload.get("question") or "").strip()
+    action = str(payload.get("action") or "ask").strip().lower()
+    learn_note = str(payload.get("learnNote") or "").strip()
+    if learn_note:
+        append_strategy_memory(learn_note, author="user")
+    if not question:
+        return JSONResponse({"ok": False, "error": "question obrigatoria"}, status_code=400)
+    context = _strategy_context_dict()
+    if action == "report":
+        question = (
+            "Gere um relatorio executivo com: panorama operacional, market share (hoje/7d/30d), "
+            "concorrentes manobrando, riscos meteoceanicos (vento/mare) e recomendacoes de alocacao. "
+            + question
+        )
+    elif action == "insights":
+        question = (
+            "Gere insights acionaveis e hipoteses de ganho competitivo com base no contexto. "
+            + question
+        )
+    answer = await asyncio.to_thread(_ask_grok_with_context, question, context)
+    append_strategy_memory(f"Pergunta: {question}\nResposta: {answer[:1200]}", author="assistant")
+    return {"ok": True, "answer": answer, "context": context}
+
+
+@app.post("/dashboard/api/strategy-assistant")
+async def strategy_assistant_under_dashboard_path(request: Request):
+    """Mesmo comportamento de /api/dashboard/strategy-assistant para subpath /dashboard."""
+    return await strategy_assistant(request)
 
 
 @app.get("/api/geofences")

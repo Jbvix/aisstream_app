@@ -19,8 +19,9 @@
   - Persistencia em `tug_geofence_stats.json`.
   - Nova serie no grafico do dashboard (`MN`).
 - Tabela **Manobras SAA (EMP.RB)** com destaque temporal:
-  - Amarelo ate 30 min antes da POB.
-  - Verde piscando apos inicio (janela operacional).
+  - Azul antes dos 30 min da POB.
+  - Amarelo faltando 30 min para a POB.
+  - Verde piscando apos inicio (apenas linhas EMP.RB = SAA).
   - Refresh de dados ajustado para 5 min e atualizacao visual intermediaria.
 - Hotfix de producao para Passenger:
   - `ensure_geofences_loaded()` (lazy-load defensivo) para evitar API vazia quando startup nao hidrata estado.

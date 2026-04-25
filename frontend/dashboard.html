@@ -148,6 +148,12 @@
       text-align: right;
       font-variant-numeric: tabular-nums;
     }
+    #tblSaa tbody tr.saa-row--future td {
+      background: rgba(53, 200, 255, 0.12);
+    }
+    #tblSaa tbody tr.saa-row--future {
+      box-shadow: inset 0 0 0 1px rgba(53, 200, 255, 0.32);
+    }
     #tblSaa tbody tr.saa-row--soon td {
       background: rgba(255, 210, 90, 0.14);
     }
@@ -205,6 +211,65 @@
       background: #5a6a7e;
       box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.35);
     }
+    .strategy-box {
+      display: grid;
+      gap: 8px;
+    }
+    .strategy-box textarea {
+      width: 100%;
+      min-height: 90px;
+      resize: vertical;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      background: rgba(9, 22, 37, 0.85);
+      color: var(--text);
+      padding: 10px;
+      font: inherit;
+    }
+    .strategy-box button {
+      width: fit-content;
+      padding: 8px 12px;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      background: rgba(53, 200, 255, 0.12);
+      color: var(--accent);
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .strategy-box button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    #strategyAnswer {
+      white-space: pre-wrap;
+      background: rgba(9, 22, 37, 0.65);
+      border: 1px solid rgba(47, 79, 109, 0.5);
+      border-radius: 8px;
+      padding: 10px;
+      color: var(--text);
+      font-size: 0.78rem;
+      line-height: 1.45;
+      min-height: 56px;
+    }
+    .strategy-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .hint-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 0.75rem;
+    }
+    .hint-row select {
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      background: rgba(9, 22, 37, 0.85);
+      color: var(--text);
+      padding: 5px 8px;
+    }
   </style>
 </head>
 <body>
@@ -231,6 +296,7 @@
             <th>Ativo</th>
             <th class="geo-lamp" title="Navio comercial SAA (não SAAM-BGRA): nesta geofence em berço/polígono; na base, também se houver SAA em qualquer berço">SAA</th>
             <th class="geo-lamp" title="Rebocador SAAM-BGRA dentro da geofence">SAAM</th>
+            <th title="Rebocadores SAAM e navio mais próximo dentro do berço. Para BASE BRASCO: stand-by">EM MANOBRA</th>
             <th>EMB DENTRO</th>
           </tr>
         </thead>
@@ -242,7 +308,7 @@
   <section>
     <h2>Manobras SAA (EMP.RB)</h2>
     <div class="sync-row">
-      <p class="hint" style="margin:0;flex:1;min-width:200px;">Registros em <code>data/users/&lt;id&gt;/saa_maneuvers.json</code>. A sincronização lê a <strong>tabela de programação</strong> (POB = horário previsto, …); se não existir no HTML, usa a fila «Navios na Pedra» (sem POB → sem destaque). <strong>Destaque:</strong> amarelo nos 30 min antes da POB; verde a piscar após a hora da POB (até 8 h). O painel recarrega dados a cada <strong>5 min</strong>; as cores atualizam a cada <strong>30 s</strong> no navegador. Servidor: <code>PRATICAGEM_AUTO_SYNC_SECONDS</code> (ex.: 60; <code>0</code> desliga).</p>
+      <p class="hint" style="margin:0;flex:1;min-width:200px;">Registros em <code>data/users/&lt;id&gt;/saa_maneuvers.json</code>. A sincronização lê a <strong>tabela de programação</strong> (POB = horário previsto, …); se não existir no HTML, usa a fila «Navios na Pedra» (sem POB → sem destaque). <strong>Destaque (somente EMP.RB = SAA):</strong> azul antes dos 30 min; amarelo faltando 30 min; verde a piscar após a hora da POB. O painel recarrega dados a cada <strong>5 min</strong>; as cores atualizam a cada <strong>30 s</strong> no navegador. Servidor: <code>PRATICAGEM_AUTO_SYNC_SECONDS</code> (ex.: 60; <code>0</code> desliga).</p>
       <button type="button" class="sync-praticagem" id="btnSyncPraticagem">Sincronizar Praticagem-RJ</button>
     </div>
     <div id="saaSyncMsg"></div>
@@ -275,6 +341,43 @@
     <div class="chart-wrap">
       <canvas id="chartTugs" aria-label="Comparativo rebocadores"></canvas>
     </div>
+  </section>
+
+  <section>
+    <h2>Market share (Praticagem-RJ)</h2>
+    <div class="hint-row">
+      <span>Participação por <code>EMP.RB</code> usando a tabela da praticagem.</span>
+      <label for="marketWindow">Janela:</label>
+      <select id="marketWindow">
+        <option value="today">Hoje</option>
+        <option value="last7d">7 dias</option>
+        <option value="last30d" selected>30 dias</option>
+      </select>
+    </div>
+    <div class="chart-wrap">
+      <canvas id="chartMarketShare" aria-label="Market share de manobras"></canvas>
+    </div>
+  </section>
+
+  <section>
+    <h2>Assistente de estratégias (Grok)</h2>
+    <p class="hint">Pergunte sobre posição dos rebocadores, manobras programadas e concorrentes em geofence de manobra.</p>
+    <div class="strategy-box">
+      <textarea id="strategyQuestion" placeholder="Ex.: Quais concorrentes estão manobrando agora e qual o impacto no market share?"></textarea>
+      <textarea id="strategyLearnNote" placeholder="Aprendizado opcional para memória do assistente (ex.: Em navio >300m, priorizar 4 rebocadores)."></textarea>
+      <div class="strategy-actions">
+        <button type="button" id="btnStrategyAsk">Consultar assistente</button>
+        <button type="button" id="btnStrategyReport">Gerar relatório</button>
+        <button type="button" id="btnStrategyInsights">Gerar insights</button>
+      </div>
+      <div id="strategyAnswer">Aguardando pergunta.</div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Monitor de alterações da programação</h2>
+    <p class="hint">Acompanha a cada refresh: simultaneidade, atrasos, adiantamentos e mudanças (entrada/saída) na programação.</p>
+    <div id="scheduleChangesBox" class="hint">Aguardando atualização...</div>
   </section>
 
   <script>
@@ -317,6 +420,8 @@
     back.href = `${basePathForApi()}/`;
 
     let chartInstance = null;
+    let marketShareChart = null;
+    let latestMarketShareWindows = null;
 
     function esc(s) {
       return String(s ?? "")
@@ -350,7 +455,7 @@
     function renderGeofences(rows) {
       const tb = document.querySelector("#tblGeofences tbody");
       if (!rows || !rows.length) {
-        tb.innerHTML = '<tr><td colspan="7" style="color:var(--muted);">Nenhuma geofence cadastrada.</td></tr>';
+        tb.innerHTML = '<tr><td colspan="8" style="color:var(--muted);">Nenhuma geofence cadastrada.</td></tr>';
         return;
       }
       tb.innerHTML = rows
@@ -362,6 +467,7 @@
           const lampSaam = Boolean(r.lampSaamInside);
           const saaNames = r.lampSaaNames || [];
           const saamNames = r.lampSaamNames || [];
+          const emManobra = r.emManobra || "—";
           return `<tr>
             <td>${esc(r.name)}</td>
             <td>${esc(r.type)}</td>
@@ -369,6 +475,7 @@
             <td>${pill}</td>
             <td class="geo-lamp">${geoLampCell(lampSaa, "saa", saaNames)}</td>
             <td class="geo-lamp">${geoLampCell(lampSaam, "saam", saamNames)}</td>
+            <td>${esc(emManobra)}</td>
             <td>${n}</td>
           </tr>`;
         })
@@ -382,25 +489,33 @@
     }
 
     const SAA_WARN_BEFORE_MS = 30 * 60 * 1000;
-    const SAA_LIVE_WINDOW_MS = 8 * 3600 * 1000;
 
     function parseSaaPobToMs(pob) {
       const raw = String(pob || "").trim();
       if (!raw) return null;
       const s = raw.replace(/\s+/g, " ").replace(/h/gi, ":");
-      const iso = Date.parse(s);
-      if (!Number.isNaN(iso)) return iso;
+      // Regra de destaque exige data + hora (hh:mm) válidas.
+      if (!/\d{1,2}:\d{2}/.test(s)) return null;
       const now = new Date();
       const y0 = now.getFullYear();
       const tryDate = (d, m, y, hh, mm) => {
         const dt = new Date(y, m - 1, d, hh, mm, 0, 0);
         const t = dt.getTime();
-        return Number.isNaN(t) ? null : t;
+        if (Number.isNaN(t)) return null;
+        // Garante que a data não "rolou" para outro dia/mês por valor inválido.
+        if (
+          dt.getFullYear() !== y ||
+          dt.getMonth() !== (m - 1) ||
+          dt.getDate() !== d ||
+          dt.getHours() !== hh ||
+          dt.getMinutes() !== mm
+        ) {
+          return null;
+        }
+        return t;
       };
       let m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})[^\d]?(\d{1,2}):(\d{2})(?::(\d{2}))?/);
       if (m) return tryDate(+m[1], +m[2], +m[3], +m[4], +m[5]);
-      m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-      if (m) return tryDate(+m[1], +m[2], +m[3], 0, 0);
       m = s.match(/^(\d{1,2})\/(\d{1,2})[^\d]?(\d{1,2}):(\d{2})(?::(\d{2}))?/);
       if (m) {
         let t = tryDate(+m[1], +m[2], y0, +m[3], +m[4]);
@@ -409,15 +524,29 @@
       }
       m = s.match(/^(\d{4})-(\d{2})-(\d{2})[T\s](\d{1,2}):(\d{2})/);
       if (m) return tryDate(+m[3], +m[2], +m[1], +m[4], +m[5]);
+      // Fallback seguro: só tenta Date.parse quando o formato começa com ano (ISO/RFC-like),
+      // evitando ambiguidade de dd/mm vs mm/dd que causava "verde" indevido.
+      if (/^\d{4}[-/]/.test(s)) {
+        const iso = Date.parse(s);
+        if (!Number.isNaN(iso)) {
+          const dt = new Date(iso);
+          if (!Number.isNaN(dt.getTime())) return iso;
+        }
+      }
       return null;
+    }
+
+    function isSaaManeuverRow(r) {
+      return String(r?.empRb || "")
+        .toUpperCase()
+        .includes("SAA");
     }
 
     function saaRowHighlightFromPobMs(pobMs, nowMs) {
       if (pobMs == null || !Number.isFinite(pobMs)) return "";
-      if (nowMs < pobMs - SAA_WARN_BEFORE_MS) return "";
+      if (nowMs < pobMs - SAA_WARN_BEFORE_MS) return "saa-row--future";
       if (nowMs < pobMs) return "saa-row--soon";
-      if (nowMs <= pobMs + SAA_LIVE_WINDOW_MS) return "saa-row--live";
-      return "";
+      return "saa-row--live";
     }
 
     function applySaaRowHighlights() {
@@ -427,7 +556,7 @@
       tb.querySelectorAll("tr[data-saa-pob-ms]").forEach((tr) => {
         const raw = tr.getAttribute("data-saa-pob-ms");
         const ms = raw ? Number(raw) : NaN;
-        tr.classList.remove("saa-row--soon", "saa-row--live");
+        tr.classList.remove("saa-row--future", "saa-row--soon", "saa-row--live");
         if (!Number.isFinite(ms)) return;
         const cls = saaRowHighlightFromPobMs(ms, now);
         if (cls) tr.classList.add(cls);
@@ -444,8 +573,9 @@
       tb.innerHTML = items
         .map((r) => {
           const pobMs = parseSaaPobToMs(r.pob);
-          const cls = saaRowHighlightFromPobMs(pobMs, now);
-          const attr = pobMs != null && Number.isFinite(pobMs) ? ` data-saa-pob-ms="${pobMs}"` : "";
+          const isSaa = isSaaManeuverRow(r);
+          const cls = isSaa ? saaRowHighlightFromPobMs(pobMs, now) : "";
+          const attr = isSaa && pobMs != null && Number.isFinite(pobMs) ? ` data-saa-pob-ms="${pobMs}"` : "";
           return `<tr class="${cls}"${attr}>
           <td>${saaCell(r, "pob")}</td>
           <td>${saaCell(r, "vesselName")}</td>
@@ -545,6 +675,119 @@
       });
     }
 
+    function renderMarketShare(marketShare) {
+      const rows = marketShare?.rows || [];
+      const labels = rows.map((r) => r.empRb);
+      const values = rows.map((r) => Number(r.count) || 0);
+      const ctx = document.getElementById("chartMarketShare");
+      if (!ctx) return;
+      if (marketShareChart) marketShareChart.destroy();
+      marketShareChart = new Chart(ctx, {
+        type: "doughnut",
+        data: {
+          labels,
+          datasets: [
+            {
+              data: values,
+              backgroundColor: [
+                "rgba(53, 200, 255, 0.75)",
+                "rgba(55, 217, 137, 0.75)",
+                "rgba(255, 184, 107, 0.75)",
+                "rgba(255, 99, 132, 0.75)",
+                "rgba(180, 140, 255, 0.75)",
+              ],
+              borderColor: "rgba(7, 20, 36, 0.9)",
+              borderWidth: 1,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { labels: { color: "#eaf4ff" } } },
+        },
+      });
+    }
+
+    function renderScheduleChanges(changes) {
+      const box = document.getElementById("scheduleChangesBox");
+      if (!box) return;
+      const c = changes || {};
+      const delayed = Number(c.delayedCount || 0);
+      const advanced = Number(c.advancedCount || 0);
+      const added = Number(c.addedCount || 0);
+      const removed = Number(c.removedCount || 0);
+      const upd = c.currentUpdatedAt || "—";
+      const topDelayed = (c.delayed || []).slice(0, 3).map((x) => `${x.vesselName} (${x.oldPob} -> ${x.newPob}, +${x.deltaMinutes} min)`);
+      const topAdvanced = (c.advanced || []).slice(0, 3).map((x) => `${x.vesselName} (${x.oldPob} -> ${x.newPob}, ${x.deltaMinutes} min)`);
+      const lines = [
+        `Atualizado: ${upd}`,
+        `Entradas: ${added} | Saídas: ${removed} | Atrasos: ${delayed} | Adiantamentos: ${advanced}`,
+      ];
+      if (topDelayed.length) lines.push(`Atrasos recentes: ${topDelayed.join(" · ")}`);
+      if (topAdvanced.length) lines.push(`Adiantamentos recentes: ${topAdvanced.join(" · ")}`);
+      box.textContent = lines.join("\n");
+    }
+
+    function getSelectedMarketShare() {
+      const key = document.getElementById("marketWindow")?.value || "last30d";
+      const wins = latestMarketShareWindows || {};
+      return wins[key] || wins.last30d || { rows: [] };
+    }
+
+    async function askStrategyAssistant(action) {
+      const qEl = document.getElementById("strategyQuestion");
+      const learnEl = document.getElementById("strategyLearnNote");
+      const out = document.getElementById("strategyAnswer");
+      const btn = document.getElementById("btnStrategyAsk");
+      const btnReport = document.getElementById("btnStrategyReport");
+      const btnInsights = document.getElementById("btnStrategyInsights");
+      const question = String(qEl?.value || "").trim();
+      const learnNote = String(learnEl?.value || "").trim();
+      if (!question) {
+        out.textContent = "Digite uma pergunta para o assistente.";
+        return;
+      }
+      btn.disabled = true;
+      btnReport.disabled = true;
+      btnInsights.disabled = true;
+      out.textContent = "Consultando assistente...";
+      try {
+        const payload = JSON.stringify({ question, action: action || "ask", learnNote });
+        const paths = [
+          "/api/dashboard/strategy-assistant",
+          "/dashboard/api/strategy-assistant",
+        ];
+        let res = null;
+        for (const p of paths) {
+          const attempt = await fetch(apiUrl(p), {
+            method: "POST",
+            headers: {
+              Accept: "application/json",
+              "Content-Type": "application/json",
+            },
+            body: payload,
+          });
+          if (attempt.status !== 404) {
+            res = attempt;
+            break;
+          }
+          res = attempt;
+        }
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok || !body.ok) {
+          throw new Error(body.error || `HTTP ${res.status}`);
+        }
+        out.textContent = String(body.answer || "Sem resposta.");
+      } catch (e) {
+        out.textContent = `Falha no assistente: ${String(e.message || e)}`;
+      } finally {
+        btn.disabled = false;
+        btnReport.disabled = false;
+        btnInsights.disabled = false;
+      }
+    }
+
     let dashboardBootstrapped = false;
     let hadSuccessfulRender = false;
 
@@ -585,6 +828,9 @@
         renderGeofences(data.geofenceStatus || []);
         renderSaa(data.saaManeuvers || []);
         renderChart(data.tugChart || []);
+        latestMarketShareWindows = data.marketShareWindows || null;
+        renderMarketShare(getSelectedMarketShare());
+        renderScheduleChanges(data.scheduleChanges || {});
         hadSuccessfulRender = true;
       } catch (e) {
         if (hadSuccessfulRender) {
@@ -655,6 +901,12 @@
       } finally {
         btn.disabled = false;
       }
+    });
+    document.getElementById("btnStrategyAsk").addEventListener("click", () => askStrategyAssistant("ask"));
+    document.getElementById("btnStrategyReport").addEventListener("click", () => askStrategyAssistant("report"));
+    document.getElementById("btnStrategyInsights").addEventListener("click", () => askStrategyAssistant("insights"));
+    document.getElementById("marketWindow").addEventListener("change", () => {
+      renderMarketShare(getSelectedMarketShare());
     });
 
     load();
