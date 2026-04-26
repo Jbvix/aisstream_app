@@ -4,6 +4,8 @@ RELATORIO_SESSAO_*.md
 # Runtime no servidor (Praticagem sync / AIS); versionar quebra deploy cPanel (working tree limpa)
 data/users/default/saa_maneuvers.json
 data/users/default/tug_geofence_stats.json
+data/users/default/saa_schedule_monitor.json
+data/users/default/strategy_memory.json
 
 __pycache__/
 *.pyc
