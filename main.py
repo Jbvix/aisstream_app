@@ -1,5 +1,6 @@
 import os
 import math
+import unicodedata
 from datetime import datetime
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -71,6 +72,7 @@ COMPETITOR_TUGS = {
 }
 GROK_API_KEY = (os.getenv("XAI_API_KEY") or "").strip()
 GROK_MODEL = (os.getenv("XAI_MODEL") or "grok-3-mini").strip()
+ASSISTANT_PROFILE = (os.getenv("ASSISTANT_PROFILE") or "hibrido").strip().lower()
 # Estatísticas persistidas (tug_geofence_stats.json): só berço e polígono contam manobra + tempo.
 # Saída da base rebocador não soma manobra nem horas nesse ficheiro.
 SAAM_MANEUVER_STATS_GEOFENCE_TYPES = frozenset({"berco", "polygon"})
@@ -500,6 +502,23 @@ def load_saa_maneuvers():
         saa_maneuvers_list = raw if isinstance(raw, list) else raw.get("items", [])
     except Exception:
         saa_maneuvers_list = []
+
+
+def ensure_saa_maneuvers_loaded():
+    """Se a lista em memória estiver vazia, relê saa_maneuvers.json (startup parcial ou processo sem on_event)."""
+    path = saa_maneuvers_file_for_user(DASHBOARD_USER_ID)
+    if not path.exists():
+        return
+    with saa_maneuvers_lock:
+        if saa_maneuvers_list:
+            return
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8"))
+            data = raw if isinstance(raw, list) else raw.get("items", [])
+            if data:
+                saa_maneuvers_list[:] = data
+        except Exception:
+            pass
 
 
 def save_saa_maneuvers():
@@ -1576,8 +1595,89 @@ def _fetch_metocean_context():
         }
 
 
+def _question_normalized(question: str) -> str:
+    q = (question or "").strip().lower()
+    return "".join(
+        c for c in unicodedata.normalize("NFD", q) if unicodedata.category(c) != "Mn"
+    )
+
+
+def _question_asks_about_competitors(question: str) -> bool:
+    q = _question_normalized(question)
+    if not q:
+        return False
+    if "concorrent" in q or "competidor" in q or "rival" in q:
+        return True
+    if "quem sao" in q or "quem e " in q or "quem e o" in q:
+        if "nosso" in q or "nossa" in q or "nos " in q or "empresa" in q:
+            return True
+    return False
+
+
+def _competitor_fleet_catalog_text() -> str:
+    lines = []
+    for company in sorted(COMPETITOR_TUGS.keys()):
+        bits = []
+        for tug in COMPETITOR_TUGS[company]:
+            label = (tug.get("name") or "").strip() or "—"
+            mmsi = str(tug.get("mmsi") or "").strip()
+            bits.append(f"{label} (MMSI {mmsi})" if mmsi else label)
+        lines.append(f"- {company}: " + ", ".join(bits))
+    return "\n".join(lines)
+
+
+def _strategy_fallback_local_followup(question: str, context: dict) -> str:
+    if not _question_asks_about_competitors(question):
+        return ""
+    comps = context.get("competitors") or []
+    manobrando = [c for c in comps if c.get("insideManeuverGeofence")]
+    lines_manobra = []
+    for c in manobrando[:12]:
+        nm = (c.get("name") or "—").strip()
+        co = c.get("company") or "—"
+        gf = (c.get("maneuverGeofenceName") or "—").strip()
+        lines_manobra.append(f"  • {co} — {nm} (geofence: {gf})")
+    manobra_txt = (
+        "\nAgora em geofence de manobra (AIS):\n" + "\n".join(lines_manobra)
+        if lines_manobra
+        else "\nNeste momento nenhum rebocador concorrente da lista aparece com AIS dentro de geofence de manobra."
+    )
+    return (
+        "\n\n---\n\n"
+        "Resposta local (sem Grok)\n\n"
+        "Os concorrentes que este dashboard acompanha por AIS são os rebocadores das empresas WIL e CAM "
+        "(além da frota SAAM-BGRA, a vossa). Catálogo configurado:\n\n"
+        f"{_competitor_fleet_catalog_text()}\n"
+        "Na programação da Praticagem, o campo EMP.RB associa cada manobra a uma empresa (ex.: SAA, WIL, CAM); "
+        "o resumo «Market share» no quadro acima conta quantas linhas na base existem por código EMP.RB.\n"
+        f"{manobra_txt}"
+    )
+
+
+def _is_simple_greeting(question: str) -> bool:
+    q = _question_normalized(question)
+    if not q:
+        return False
+    for ch in "!?.,;:":
+        q = q.replace(ch, " ")
+    parts = [p for p in q.split() if p]
+    if not parts:
+        return False
+    if len(parts) <= 2 and parts[0] in ("ola", "oi", "hi", "hello", "hey", "eai"):
+        return True
+    if (
+        len(parts) >= 2
+        and len(parts) <= 4
+        and parts[0] in ("bom", "boa")
+        and parts[1] in ("dia", "tarde", "noite")
+    ):
+        return True
+    return False
+
+
 def _strategy_context_dict():
     ensure_geofences_loaded()
+    ensure_saa_maneuvers_loaded()
     with geofence_lock:
         geofence_snapshot = list(geofences)
     with saa_maneuvers_lock:
@@ -1609,6 +1709,7 @@ def _strategy_context_dict():
         "timestamp": get_now_iso(),
         "saamTugs": saam_positions,
         "scheduledManeuvers": upcoming,
+        "scheduledManeuverTotal": len(saa_snapshot),
         "competitors": competitors,
         "marketShare": _market_share_rows(saa_snapshot),
         "simultaneousManeuvers": _simultaneous_maneuvers_summary(saa_snapshot),
@@ -1622,17 +1723,50 @@ def _strategy_fallback_answer(question: str, context: dict) -> str:
     saam = context.get("saamTugs") or []
     comps = context.get("competitors") or []
     maneuvers = context.get("scheduledManeuvers") or []
+    m_total = int(context.get("scheduledManeuverTotal", len(maneuvers)))
     manobrando = [c for c in comps if c.get("insideManeuverGeofence")]
     top = (context.get("marketShare") or {}).get("rows") or []
     top_txt = ", ".join(f"{x['empRb']}: {x['count']}" for x in top[:4]) if top else "sem dados"
+    intro = (
+        "Olá. Bora olhar o cenário operacional agora (modo local, sem chamada ao Grok):\n\n"
+        if _is_simple_greeting(question)
+        else "Leitura rápida do cenário operacional (modo local, sem Grok):\n\n"
+    )
+    hint = (
+        "Opcional: defina a variável de ambiente XAI_API_KEY (API xAI) para respostas com Grok "
+        "usando este contexto — por exemplo num ficheiro `.env` na raiz do projeto ou nas variáveis do servidor."
+    )
+    follow = _strategy_fallback_local_followup(question, context)
     return (
-        "Assistente estrategico (modo local):\n"
-        f"- Rebocadores SAAM rastreados agora: {len(saam)}\n"
-        f"- Manobras programadas (Praticagem): {len(maneuvers)}\n"
-        f"- Concorrentes em geofence de manobra: {len(manobrando)}\n"
-        f"- Market share por EMP.RB (contagem): {top_txt}\n"
-        f"- Pergunta recebida: {question}\n"
-        "Defina XAI_API_KEY para habilitar resposta Grok contextual."
+        intro
+        + f"Neste momento temos {len(saam)} rebocadores SAAM com posição AIS e {m_total} manobras na base da Praticagem.\n"
+        + f"Concorrentes em geofence de manobra agora: {len(manobrando)}. Market share por EMP.RB (contagem): {top_txt}.\n"
+        + f"Sobre a sua pergunta ('{question}'), com este recorte eu começaria por estes pontos práticos:\n"
+        + "- priorizar janelas com sobreposição de manobras e necessidade de mais rebocadores;\n"
+        + "- monitorar entradas simultâneas de concorrentes nas geofences críticas;\n"
+        + "- revisar alocação com base no mix SAA/WIL/CAM do turno.\n"
+        + follow
+        + "\n\n"
+        + hint
+    )
+
+
+def _assistant_profile_instruction() -> str:
+    profile = ASSISTANT_PROFILE
+    if profile == "executivo":
+        return (
+            "Perfil executivo: comece pelo impacto e recomendacao, use poucas frases e priorize decisao."
+        )
+    if profile == "operacional":
+        return (
+            "Perfil operacional de patio: detalhe janelas, geofences, alocacao e risco de conflito."
+        )
+    if profile == "despacho":
+        return (
+            "Perfil despacho: resposta curta, direta e orientada a acao imediata."
+        )
+    return (
+        "Perfil hibrido: seja objetivo, mas inclua contexto essencial quando ajudar na decisao."
     )
 
 
@@ -1641,13 +1775,16 @@ def _ask_grok_with_context(question: str, context: dict) -> str:
         return _strategy_fallback_answer(question, context)
     payload = {
         "model": GROK_MODEL,
-        "temperature": 0.2,
+        "temperature": 0.45,
         "messages": [
             {
                 "role": "system",
                 "content": (
-                    "Voce e um assistente de estrategia portuaria. "
-                    "Use apenas o contexto fornecido para responder de forma objetiva em portugues."
+                    "Voce e um assistente de estrategia portuaria experiente, consultivo e natural. "
+                    "Responda em portugues com linguagem clara, direta e mais solta (sem rigidez excessiva). "
+                    "Baseie-se no contexto fornecido; se faltar dado, diga isso com transparencia. "
+                    "Priorize insights acionaveis e recomendacoes praticas para operacao. "
+                    + _assistant_profile_instruction()
                 ),
             },
             {
@@ -1685,6 +1822,7 @@ def _ask_grok_with_context(question: str, context: dict) -> str:
 def build_dashboard_overview_dict():
     ensure_live_worker_started()
     ensure_geofences_loaded()
+    ensure_saa_maneuvers_loaded()
     with geofence_lock:
         gfs = list(geofences)
     with saam_geofence_stats_lock:
