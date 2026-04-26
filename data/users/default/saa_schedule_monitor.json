@@ -1,0 +1,277 @@
+{
+  "updatedAt": "2026-04-26T02:48:26.795135",
+  "rows": [
+    {
+      "keyNoPob": "XIN CHONG QING|TECONT1|CAM|E|263,23|50188|BE",
+      "signature": "XIN CHONG QING|TECONT1|CAM|E|263,23|50188|BE|26/04 03:30",
+      "pob": "26/04 03:30",
+      "vesselName": "XIN CHONG QING",
+      "berthName": "TECONT1",
+      "empRb": "CAM"
+    },
+    {
+      "keyNoPob": "BOW COUGAR|COSAN|WIL|E|156,53|25921|COSAN",
+      "signature": "BOW COUGAR|COSAN|WIL|E|156,53|25921|COSAN|26/04 10:00",
+      "pob": "26/04 10:00",
+      "vesselName": "BOW COUGAR",
+      "berthName": "COSAN",
+      "empRb": "WIL"
+    },
+    {
+      "keyNoPob": "CMA CGM VERACRUZ|TECONTPROLONG|SAA|E|228,62|42598|BE",
+      "signature": "CMA CGM VERACRUZ|TECONTPROLONG|SAA|E|228,62|42598|BE|26/04 10:00",
+      "pob": "26/04 10:00",
+      "vesselName": "CMA CGM VERACRUZ",
+      "berthName": "TECONTPROLONG",
+      "empRb": "SAA"
+    },
+    {
+      "keyNoPob": "ANGRA DOS REIS|PP-1|SAA|E|248,00|105165|PP-1",
+      "signature": "ANGRA DOS REIS|PP-1|SAA|E|248,00|105165|PP-1|26/04 12:00",
+      "pob": "26/04 12:00",
+      "vesselName": "ANGRA DOS REIS",
+      "berthName": "PP-1",
+      "empRb": "SAA"
+    },
+    {
+      "keyNoPob": "MSC BREMEN|TECONT2|WIL|E|294,15|76017|BB",
+      "signature": "MSC BREMEN|TECONT2|WIL|E|294,15|76017|BB|26/04 12:00",
+      "pob": "26/04 12:00",
+      "vesselName": "MSC BREMEN",
+      "berthName": "TECONT2",
+      "empRb": "WIL"
+    },
+    {
+      "keyNoPob": "XIN CHONG QING|TECONT1|CAM|S|263,23|50188|BE",
+      "signature": "XIN CHONG QING|TECONT1|CAM|S|263,23|50188|BE|26/04 15:00",
+      "pob": "26/04 15:00",
+      "vesselName": "XIN CHONG QING",
+      "berthName": "TECONT1",
+      "empRb": "CAM"
+    },
+    {
+      "keyNoPob": "JACQUES STOSSKOPF|BNIC-AMRJ|CAM|S|194,00|30000|BNIC-AMRJ",
+      "signature": "JACQUES STOSSKOPF|BNIC-AMRJ|CAM|S|194,00|30000|BNIC-AMRJ|26/04 17:00",
+      "pob": "26/04 17:00",
+      "vesselName": "JACQUES STOSSKOPF",
+      "berthName": "BNIC-AMRJ",
+      "empRb": "CAM"
+    },
+    {
+      "keyNoPob": "LOG-IN DISCOVERY|TECONT3|WIL|S|208,85|34022|BE",
+      "signature": "LOG-IN DISCOVERY|TECONT3|WIL|S|208,85|34022|BE|27/04 06:00",
+      "pob": "27/04 06:00",
+      "vesselName": "LOG-IN DISCOVERY",
+      "berthName": "TECONT3",
+      "empRb": "WIL"
+    },
+    {
+      "keyNoPob": "MSC BREMEN|TECONT2|WIL|S|294,15|76017|BB",
+      "signature": "MSC BREMEN|TECONT2|WIL|S|294,15|76017|BB|27/04 08:00",
+      "pob": "27/04 08:00",
+      "vesselName": "MSC BREMEN",
+      "berthName": "TECONT2",
+      "empRb": "WIL"
+    },
+    {
+      "keyNoPob": "DIXMUDE|A7PARTE2|CAM|S|199,00|21500|BE",
+      "signature": "DIXMUDE|A7PARTE2|CAM|S|199,00|21500|BE|27/04 08:30",
+      "pob": "27/04 08:30",
+      "vesselName": "DIXMUDE",
+      "berthName": "A7PARTE2",
+      "empRb": "CAM"
+    },
+    {
+      "keyNoPob": "SURCOUF|A6PARTE1|CAM|S|125,00|3850|BB",
+      "signature": "SURCOUF|A6PARTE1|CAM|S|125,00|3850|BB|27/04 09:00",
+      "pob": "27/04 09:00",
+      "vesselName": "SURCOUF",
+      "berthName": "A6PARTE1",
+      "empRb": "CAM"
+    },
+    {
+      "keyNoPob": "BOCHEM CASABLANCA|TOLEO │ TECON RIO|CAM|E|158,98|26644|BE",
+      "signature": "BOCHEM CASABLANCA|TOLEO │ TECON RIO|CAM|E|158,98|26644|BE|27/04 10:00",
+      "pob": "27/04 10:00",
+      "vesselName": "BOCHEM CASABLANCA",
+      "berthName": "TOLEO │ TECON RIO",
+      "empRb": "CAM"
+    },
+    {
+      "keyNoPob": "BOW COUGAR|COSAN │ PS-2|CAM|M|156,53|25921|COSAN │ PS-2",
+      "signature": "BOW COUGAR|COSAN │ PS-2|CAM|M|156,53|25921|COSAN │ PS-2|27/04 12:00",
+      "pob": "27/04 12:00",
+      "vesselName": "BOW COUGAR",
+      "berthName": "COSAN │ PS-2",
+      "empRb": "CAM"
+    },
+    {
+      "keyNoPob": "MAERSK MONTE ALEGRE|TECONT1|SAA|E|272,05|83440|BE",
+      "signature": "MAERSK MONTE ALEGRE|TECONT1|SAA|E|272,05|83440|BE|27/04 12:00",
+      "pob": "27/04 12:00",
+      "vesselName": "MAERSK MONTE ALEGRE",
+      "berthName": "TECONT1",
+      "empRb": "SAA"
+    },
+    {
+      "keyNoPob": "CMA CGM VERACRUZ|TECONTPROLONG|SAA|S|228,62|42598|BE",
+      "signature": "CMA CGM VERACRUZ|TECONTPROLONG|SAA|S|228,62|42598|BE|27/04 14:00",
+      "pob": "27/04 14:00",
+      "vesselName": "CMA CGM VERACRUZ",
+      "berthName": "TECONTPROLONG",
+      "empRb": "SAA"
+    },
+    {
+      "keyNoPob": "COSCO SHIPPING BRAZIL|TECONTPROLONG|CAM|E|335,93|144774|BE",
+      "signature": "COSCO SHIPPING BRAZIL|TECONTPROLONG|CAM|E|335,93|144774|BE|27/04 16:00",
+      "pob": "27/04 16:00",
+      "vesselName": "COSCO SHIPPING BRAZIL",
+      "berthName": "TECONTPROLONG",
+      "empRb": "CAM"
+    },
+    {
+      "keyNoPob": "MAERSK MONTE ALEGRE|TECONT1|SAA|S|272,05|83440|BE",
+      "signature": "MAERSK MONTE ALEGRE|TECONT1|SAA|S|272,05|83440|BE|28/04 06:00",
+      "pob": "28/04 06:00",
+      "vesselName": "MAERSK MONTE ALEGRE",
+      "berthName": "TECONT1",
+      "empRb": "SAA"
+    },
+    {
+      "keyNoPob": "COSCO SHIPPING BRAZIL|TECONTPROLONG|CAM|S|335,93|144774|BE",
+      "signature": "COSCO SHIPPING BRAZIL|TECONTPROLONG|CAM|S|335,93|144774|BE|28/04 14:00",
+      "pob": "28/04 14:00",
+      "vesselName": "COSCO SHIPPING BRAZIL",
+      "berthName": "TECONTPROLONG",
+      "empRb": "CAM"
+    },
+    {
+      "keyNoPob": "CMA CGM COBALT|TECONTPROLONG|SAA|E|335,23|147196|BE",
+      "signature": "CMA CGM COBALT|TECONTPROLONG|SAA|E|335,23|147196|BE|28/04 16:00",
+      "pob": "28/04 16:00",
+      "vesselName": "CMA CGM COBALT",
+      "berthName": "TECONTPROLONG",
+      "empRb": "SAA"
+    },
+    {
+      "keyNoPob": "CMA CGM COBALT|TECONTPROLONG|SAA|S|335,23|147196|BE",
+      "signature": "CMA CGM COBALT|TECONTPROLONG|SAA|S|335,23|147196|BE|29/04 14:00",
+      "pob": "29/04 14:00",
+      "vesselName": "CMA CGM COBALT",
+      "berthName": "TECONTPROLONG",
+      "empRb": "SAA"
+    },
+    {
+      "keyNoPob": "KOTA EBONY|TECONTPROLONG|CAM|E|335,00|156597|BE",
+      "signature": "KOTA EBONY|TECONTPROLONG|CAM|E|335,00|156597|BE|29/04 16:00",
+      "pob": "29/04 16:00",
+      "vesselName": "KOTA EBONY",
+      "berthName": "TECONTPROLONG",
+      "empRb": "CAM"
+    },
+    {
+      "keyNoPob": "KOTA EBONY|TECONTPROLONG|CAM|S|335,00|156597|TECONTPROLONG",
+      "signature": "KOTA EBONY|TECONTPROLONG|CAM|S|335,00|156597|TECONTPROLONG|30/04 14:00",
+      "pob": "30/04 14:00",
+      "vesselName": "KOTA EBONY",
+      "berthName": "TECONTPROLONG",
+      "empRb": "CAM"
+    },
+    {
+      "keyNoPob": "MSC BIANCA|TECONT2|WIL|E|328,46|141630|BB",
+      "signature": "MSC BIANCA|TECONT2|WIL|E|328,46|141630|BB|02/05 06:30",
+      "pob": "02/05 06:30",
+      "vesselName": "MSC BIANCA",
+      "berthName": "TECONT2",
+      "empRb": "WIL"
+    },
+    {
+      "keyNoPob": "MSC BIANCA|TECONT2|WIL|S|328,46|141630|BB",
+      "signature": "MSC BIANCA|TECONT2|WIL|S|328,46|141630|BB|03/05 06:30",
+      "pob": "03/05 06:30",
+      "vesselName": "MSC BIANCA",
+      "berthName": "TECONT2",
+      "empRb": "WIL"
+    },
+    {
+      "keyNoPob": "MSC INSA|TECONT3|WIL|E|335,00|139641|BE",
+      "signature": "MSC INSA|TECONT3|WIL|E|335,00|139641|BE|03/05 08:30",
+      "pob": "03/05 08:30",
+      "vesselName": "MSC INSA",
+      "berthName": "TECONT3",
+      "empRb": "WIL"
+    },
+    {
+      "keyNoPob": "MSC INSA|TECONT3|WIL|S|335,00|139641|BE",
+      "signature": "MSC INSA|TECONT3|WIL|S|335,00|139641|BE|04/05 06:00",
+      "pob": "04/05 06:00",
+      "vesselName": "MSC INSA",
+      "berthName": "TECONT3",
+      "empRb": "WIL"
+    },
+    {
+      "keyNoPob": "CMA CGM THORIUM|TECONTPROLONG|SAA|E|335,23|147196|BE",
+      "signature": "CMA CGM THORIUM|TECONTPROLONG|SAA|E|335,23|147196|BE|05/05 08:00",
+      "pob": "05/05 08:00",
+      "vesselName": "CMA CGM THORIUM",
+      "berthName": "TECONTPROLONG",
+      "empRb": "SAA"
+    },
+    {
+      "keyNoPob": "CMA CGM THORIUM|TECONTPROLONG|SAA|S|335,23|147196|BE",
+      "signature": "CMA CGM THORIUM|TECONTPROLONG|SAA|S|335,23|147196|BE|06/05 06:30",
+      "pob": "06/05 06:30",
+      "vesselName": "CMA CGM THORIUM",
+      "berthName": "TECONTPROLONG",
+      "empRb": "SAA"
+    },
+    {
+      "keyNoPob": "EVER FEAT|TECONTPROLONG|CAM|E|333,95|130573|BE",
+      "signature": "EVER FEAT|TECONTPROLONG|CAM|E|333,95|130573|BE|06/05 08:30",
+      "pob": "06/05 08:30",
+      "vesselName": "EVER FEAT",
+      "berthName": "TECONTPROLONG",
+      "empRb": "CAM"
+    },
+    {
+      "keyNoPob": "SANTA LORETTA|TECONT2|WIL|E|336,67|133086|BB",
+      "signature": "SANTA LORETTA|TECONT2|WIL|E|336,67|133086|BB|06/05 10:30",
+      "pob": "06/05 10:30",
+      "vesselName": "SANTA LORETTA",
+      "berthName": "TECONT2",
+      "empRb": "WIL"
+    },
+    {
+      "keyNoPob": "EVER FEAT|TECONTPROLONG|CAM|S|333,95|130573|BE",
+      "signature": "EVER FEAT|TECONTPROLONG|CAM|S|333,95|130573|BE|07/05 06:00",
+      "pob": "07/05 06:00",
+      "vesselName": "EVER FEAT",
+      "berthName": "TECONTPROLONG",
+      "empRb": "CAM"
+    },
+    {
+      "keyNoPob": "SANTA LORETTA|TECONT2|WIL|S|336,67|133086|BB",
+      "signature": "SANTA LORETTA|TECONT2|WIL|S|336,67|133086|BB|07/05 09:00",
+      "pob": "07/05 09:00",
+      "vesselName": "SANTA LORETTA",
+      "berthName": "TECONT2",
+      "empRb": "WIL"
+    },
+    {
+      "keyNoPob": "COSCO SHIPPING MEXICO|TECONTPROLONG|CAM|E|335,90|144652|BE",
+      "signature": "COSCO SHIPPING MEXICO|TECONTPROLONG|CAM|E|335,90|144652|BE|12/05 08:00",
+      "pob": "12/05 08:00",
+      "vesselName": "COSCO SHIPPING MEXICO",
+      "berthName": "TECONTPROLONG",
+      "empRb": "CAM"
+    },
+    {
+      "keyNoPob": "COSCO SHIPPING MEXICO|TECONTPROLONG|CAM|S|335,90|144652|BE",
+      "signature": "COSCO SHIPPING MEXICO|TECONTPROLONG|CAM|S|335,90|144652|BE|13/05 06:30",
+      "pob": "13/05 06:30",
+      "vesselName": "COSCO SHIPPING MEXICO",
+      "berthName": "TECONTPROLONG",
+      "empRb": "CAM"
+    }
+  ]
+}
