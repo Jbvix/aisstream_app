@@ -1135,6 +1135,7 @@
     let geofenceById = new Map();
     let occupancyByGeofenceId = new Map();
     let previousBarraInsideByZone = new Map();
+    let previousBarraDirectionByMmsi = new Map();
     let barraEventHistory = [];
     let editingGeofenceId = null;
     let editPolygonLayer = null;
@@ -2231,6 +2232,114 @@
       return null;
     }
 
+    function parseVesselHeading(vessel) {
+      const raw = vessel?.heading ?? vessel?.course;
+      const n = Number(raw);
+      if (!Number.isFinite(n)) return null;
+      const h = ((n % 360) + 360) % 360;
+      return h;
+    }
+
+    function angleDiffDeg(a, b) {
+      const d = Math.abs(a - b) % 360;
+      return d > 180 ? 360 - d : d;
+    }
+
+    function bearingDeg(lat1, lon1, lat2, lon2) {
+      const r = Math.PI / 180;
+      const y = Math.sin((lon2 - lon1) * r) * Math.cos(lat2 * r);
+      const x =
+        Math.cos(lat1 * r) * Math.sin(lat2 * r) -
+        Math.sin(lat1 * r) * Math.cos(lat2 * r) * Math.cos((lon2 - lon1) * r);
+      const brng = (Math.atan2(y, x) * 180) / Math.PI;
+      return ((brng % 360) + 360) % 360;
+    }
+
+    function geofenceCentroidByNormalizedName(targetName) {
+      const target = normalizeGeofenceName(targetName);
+      for (const geofence of geofenceById.values()) {
+        if (normalizeGeofenceName(geofence?.name) !== target) continue;
+        const coords = geofence?.geometry?.coordinates || [];
+        if (!Array.isArray(coords) || !coords.length) return null;
+        let latSum = 0;
+        let lonSum = 0;
+        let c = 0;
+        for (const p of coords) {
+          if (!Array.isArray(p) || p.length < 2) continue;
+          const lat = Number(p[0]);
+          const lon = Number(p[1]);
+          if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+          latSum += lat;
+          lonSum += lon;
+          c += 1;
+        }
+        if (!c) return null;
+        return { lat: latSum / c, lon: lonSum / c };
+      }
+      return null;
+    }
+
+    function buildClassifiedBarraState() {
+      const entradaOcc = findBarraOccupancy("entrada da barra");
+      const saidaOcc = findBarraOccupancy("saida da barra");
+      const entradaRaw = Array.isArray(entradaOcc?.insideVessels) ? entradaOcc.insideVessels : [];
+      const saidaRaw = Array.isArray(saidaOcc?.insideVessels) ? saidaOcc.insideVessels : [];
+
+      const entradaCentroid = geofenceCentroidByNormalizedName("entrada da barra");
+      const saidaCentroid = geofenceCentroidByNormalizedName("saida da barra");
+      const hasDirectionReference = Boolean(entradaCentroid && saidaCentroid);
+      const inboundHeading = hasDirectionReference
+        ? bearingDeg(saidaCentroid.lat, saidaCentroid.lon, entradaCentroid.lat, entradaCentroid.lon)
+        : null;
+      const outboundHeading = inboundHeading == null ? null : (inboundHeading + 180) % 360;
+
+      const byMmsi = new Map();
+      for (const v of entradaRaw) {
+        const mmsi = String(v?.mmsi || "").trim();
+        if (!mmsi) continue;
+        const row = byMmsi.get(mmsi) || { vessel: v, inEntrada: false, inSaida: false };
+        row.vessel = row.vessel || v;
+        row.inEntrada = true;
+        byMmsi.set(mmsi, row);
+      }
+      for (const v of saidaRaw) {
+        const mmsi = String(v?.mmsi || "").trim();
+        if (!mmsi) continue;
+        const row = byMmsi.get(mmsi) || { vessel: v, inEntrada: false, inSaida: false };
+        row.vessel = row.vessel || v;
+        row.inSaida = true;
+        byMmsi.set(mmsi, row);
+      }
+
+      const entrada = [];
+      const saida = [];
+      const directionByMmsi = new Map();
+      byMmsi.forEach((row, mmsi) => {
+        const vessel = row.vessel;
+        const heading = parseVesselHeading(vessel);
+        let side = null;
+
+        if (heading != null && inboundHeading != null && outboundHeading != null) {
+          const dIn = angleDiffDeg(heading, inboundHeading);
+          const dOut = angleDiffDeg(heading, outboundHeading);
+          side = dIn <= dOut ? "entrada" : "saida";
+        } else if (row.inEntrada && !row.inSaida) {
+          side = "entrada";
+        } else if (row.inSaida && !row.inEntrada) {
+          side = "saida";
+        } else {
+          side = previousBarraDirectionByMmsi.get(mmsi) || "entrada";
+        }
+
+        directionByMmsi.set(mmsi, side);
+        if (side === "entrada") entrada.push(vessel);
+        else saida.push(vessel);
+      });
+
+      previousBarraDirectionByMmsi = directionByMmsi;
+      return { entrada, saida };
+    }
+
     function formatBarraEventTime(iso) {
       try {
         return new Date(iso).toLocaleTimeString("pt-BR", { hour12: false });
@@ -2254,16 +2363,15 @@
     }
 
     function updateBarraPassageHistory() {
+      const classified = buildClassifiedBarraState();
       const zones = [
-        { key: "entrada", geofenceName: "entrada da barra", label: "Entrada da Barra" },
-        { key: "saida", geofenceName: "saida da barra", label: "Saída da Barra" }
+        { key: "entrada", label: "Entrada da Barra", vessels: classified.entrada || [] },
+        { key: "saida", label: "Saída da Barra", vessels: classified.saida || [] }
       ];
       const nowIso = new Date().toISOString();
       for (const zone of zones) {
-        const occ = findBarraOccupancy(zone.geofenceName);
-        const vessels = Array.isArray(occ?.insideVessels) ? occ.insideVessels : [];
         const currentByMmsi = new Map();
-        for (const v of vessels) {
+        for (const v of zone.vessels) {
           const key = String(v?.mmsi || "").trim();
           if (!key) continue;
           currentByMmsi.set(key, v);
@@ -2303,11 +2411,11 @@
       const saidaCountEl = document.getElementById("barraSaidaCount");
       if (!entradaEl || !saidaEl || !entradaCountEl || !saidaCountEl) return;
 
-      const entrada = findBarraOccupancy("entrada da barra");
-      const saida = findBarraOccupancy("saida da barra");
+      const classified = buildClassifiedBarraState();
+      const entrada = classified.entrada || [];
+      const saida = classified.saida || [];
 
-      const renderList = (targetEl, countEl, occupancy) => {
-        const vessels = Array.isArray(occupancy?.insideVessels) ? occupancy.insideVessels : [];
+      const renderList = (targetEl, countEl, vessels) => {
         countEl.textContent = `(${vessels.length})`;
         if (!vessels.length) {
           targetEl.innerHTML = '<li class="barra-empty">Nenhuma embarcação dentro agora.</li>';

@@ -871,6 +871,8 @@ def build_geofence_occupancy():
                         "shipCategory": vessel.get("shipCategory"),
                         "fleet": vessel.get("fleet"),
                         "timestamp": vessel.get("timestamp"),
+                        "heading": vessel.get("heading"),
+                        "course": vessel.get("course"),
                         "isSaamBgra": bool(vessel.get("isSaamBgra")),
                         "latitude": vessel.get("latitude"),
                         "longitude": vessel.get("longitude"),
