@@ -545,6 +545,18 @@
       color: var(--muted);
       margin-right: 4px;
     }
+    .barra-confirmed {
+      margin-top: 8px;
+      border: 1px solid var(--line-soft);
+      border-radius: 8px;
+      padding: 6px;
+      background: rgba(255, 255, 255, 0.01);
+      font-size: 0.73rem;
+    }
+    .barra-confirmed-title {
+      margin: 0 0 4px;
+      font-size: 0.75rem;
+    }
     @media (min-width: 860px) {
       .barra-columns {
         grid-template-columns: 1fr 1fr;
@@ -965,6 +977,19 @@
                   <ul id="barraSaidaList" class="barra-list"></ul>
                 </div>
               </div>
+              <div class="barra-confirmed">
+                <h4 class="barra-confirmed-title">Trânsito confirmado (sequência de zonas)</h4>
+                <div class="barra-columns">
+                  <div class="barra-col">
+                    <h4>Entrando no porto <span id="barraConfirmedInCount" class="barra-kind">(0)</span></h4>
+                    <ul id="barraConfirmedInList" class="barra-list"></ul>
+                  </div>
+                  <div class="barra-col">
+                    <h4>Saindo do porto <span id="barraConfirmedOutCount" class="barra-kind">(0)</span></h4>
+                    <ul id="barraConfirmedOutList" class="barra-list"></ul>
+                  </div>
+                </div>
+              </div>
               <div class="barra-events">
                 <h4 class="barra-events-title">Últimos que passaram</h4>
                 <ul id="barraEventsList" class="barra-events-list"></ul>
@@ -1134,9 +1159,11 @@
     let geofenceLayers = new Map();
     let geofenceById = new Map();
     let occupancyByGeofenceId = new Map();
-    let previousBarraInsideByZone = new Map();
     let previousBarraDirectionByMmsi = new Map();
+    let vesselTransitState = new Map();
+    let confirmedTransitByMmsi = new Map();
     let barraEventHistory = [];
+    const BARRA_EVENT_COOLDOWN_MS = 20 * 60 * 1000;
     let editingGeofenceId = null;
     let editPolygonLayer = null;
     let editVertexMarkers = [];
@@ -2232,6 +2259,134 @@
       return null;
     }
 
+    function vesselsByGeofenceName(targetName) {
+      const occ = findBarraOccupancy(targetName);
+      const byMmsi = new Map();
+      const vessels = Array.isArray(occ?.insideVessels) ? occ.insideVessels : [];
+      for (const v of vessels) {
+        const m = String(v?.mmsi || "").trim();
+        if (!m) continue;
+        byMmsi.set(m, v);
+      }
+      return byMmsi;
+    }
+
+    function appendTransitEvent(vessel, action) {
+      barraEventHistory.unshift({
+        at: new Date().toISOString(),
+        name: String(vessel?.shipName || vessel?.mmsi || "—"),
+        kind: classifyVesselKind(vessel),
+        action
+      });
+      barraEventHistory = barraEventHistory.slice(0, 40);
+    }
+
+    function renderConfirmedTransitPanel() {
+      const inListEl = document.getElementById("barraConfirmedInList");
+      const outListEl = document.getElementById("barraConfirmedOutList");
+      const inCountEl = document.getElementById("barraConfirmedInCount");
+      const outCountEl = document.getElementById("barraConfirmedOutCount");
+      if (!inListEl || !outListEl || !inCountEl || !outCountEl) return;
+
+      const now = Date.now();
+      const keepMs = 60 * 60 * 1000;
+      const incoming = [];
+      const outgoing = [];
+      confirmedTransitByMmsi.forEach((item, mmsi) => {
+        const ts = Date.parse(item?.at || "");
+        if (!Number.isFinite(ts) || now - ts > keepMs) {
+          confirmedTransitByMmsi.delete(mmsi);
+          return;
+        }
+        const line = `<li>${escapeHtml(item.name)}<span class="barra-kind">(${escapeHtml(item.kind)})</span></li>`;
+        if (item.direction === "in") incoming.push(line);
+        if (item.direction === "out") outgoing.push(line);
+      });
+
+      inCountEl.textContent = `(${incoming.length})`;
+      outCountEl.textContent = `(${outgoing.length})`;
+      inListEl.innerHTML = incoming.length ? incoming.join("") : '<li class="barra-empty">Nenhuma embarcação.</li>';
+      outListEl.innerHTML = outgoing.length ? outgoing.join("") : '<li class="barra-empty">Nenhuma embarcação.</li>';
+    }
+
+    function updateTransitByZoneSequence() {
+      const zonaEntrada = vesselsByGeofenceName("zona de entrada");
+      const entradaBarra = vesselsByGeofenceName("entrada da barra");
+      const zonaSaida = vesselsByGeofenceName("zona de saida");
+      const saidaBarra = vesselsByGeofenceName("saida da barra");
+
+      const keys = new Set([
+        ...vesselTransitState.keys(),
+        ...zonaEntrada.keys(),
+        ...entradaBarra.keys(),
+        ...zonaSaida.keys(),
+        ...saidaBarra.keys(),
+      ]);
+
+      const nowMs = Date.now();
+      keys.forEach((mmsi) => {
+        const prev = vesselTransitState.get(mmsi) || {
+          inZonaEntrada: false,
+          inEntradaBarra: false,
+          inZonaSaida: false,
+          inSaidaBarra: false,
+          stage: null,
+          cooldownUntil: 0,
+          lastDirection: null,
+        };
+        const vessel =
+          zonaEntrada.get(mmsi) ||
+          entradaBarra.get(mmsi) ||
+          zonaSaida.get(mmsi) ||
+          saidaBarra.get(mmsi) || { mmsi };
+
+        const curr = {
+          inZonaEntrada: zonaEntrada.has(mmsi),
+          inEntradaBarra: entradaBarra.has(mmsi),
+          inZonaSaida: zonaSaida.has(mmsi),
+          inSaidaBarra: saidaBarra.has(mmsi),
+          stage: prev.stage,
+          cooldownUntil: Number(prev.cooldownUntil || 0),
+          lastDirection: prev.lastDirection || null,
+        };
+
+        // Trava de direção por sequência de geofence anterior.
+        if (curr.inZonaEntrada && !prev.inZonaEntrada) curr.stage = "seen_zona_entrada";
+        if (curr.inZonaSaida && !prev.inZonaSaida) curr.stage = "seen_zona_saida";
+
+        // Trava de tempo mínimo (cooldown): evita eventos repetidos na mesma janela.
+        const canEmit = nowMs >= curr.cooldownUntil;
+        if (canEmit) {
+          // Trava de exclusividade: no mesmo ciclo, confirma no máximo um lado.
+          if (curr.inEntradaBarra && !prev.inEntradaBarra && curr.stage === "seen_zona_entrada") {
+            confirmedTransitByMmsi.set(mmsi, {
+              direction: "in",
+              name: String(vessel?.shipName || mmsi),
+              kind: classifyVesselKind(vessel),
+              at: new Date(nowMs).toISOString(),
+            });
+            appendTransitEvent(vessel, "confirmado: entrando no porto");
+            curr.stage = null;
+            curr.lastDirection = "in";
+            curr.cooldownUntil = nowMs + BARRA_EVENT_COOLDOWN_MS;
+          } else if (curr.inSaidaBarra && !prev.inSaidaBarra && curr.stage === "seen_zona_saida") {
+            confirmedTransitByMmsi.set(mmsi, {
+              direction: "out",
+              name: String(vessel?.shipName || mmsi),
+              kind: classifyVesselKind(vessel),
+              at: new Date(nowMs).toISOString(),
+            });
+            appendTransitEvent(vessel, "confirmado: saindo do porto");
+            curr.stage = null;
+            curr.lastDirection = "out";
+            curr.cooldownUntil = nowMs + BARRA_EVENT_COOLDOWN_MS;
+          }
+        }
+
+        vesselTransitState.set(mmsi, curr);
+      });
+    }
+
     function parseVesselHeading(vessel) {
       const raw = vessel?.heading ?? vessel?.course;
       const n = Number(raw);
@@ -2319,14 +2474,16 @@
         const heading = parseVesselHeading(vessel);
         let side = null;
 
-        if (heading != null && inboundHeading != null && outboundHeading != null) {
-          const dIn = angleDiffDeg(heading, inboundHeading);
-          const dOut = angleDiffDeg(heading, outboundHeading);
-          side = dIn <= dOut ? "entrada" : "saida";
-        } else if (row.inEntrada && !row.inSaida) {
+        // Regra principal: se está em apenas um polígono, respeita o polígono atual.
+        if (row.inEntrada && !row.inSaida) {
           side = "entrada";
         } else if (row.inSaida && !row.inEntrada) {
           side = "saida";
+        } else if (heading != null && inboundHeading != null && outboundHeading != null) {
+          // Usa heading apenas quando a embarcação está nas duas geofences em sequência.
+          const dIn = angleDiffDeg(heading, inboundHeading);
+          const dOut = angleDiffDeg(heading, outboundHeading);
+          side = dIn <= dOut ? "entrada" : "saida";
         } else {
           side = previousBarraDirectionByMmsi.get(mmsi) || "entrada";
         }
@@ -2363,45 +2520,9 @@
     }
 
     function updateBarraPassageHistory() {
-      const classified = buildClassifiedBarraState();
-      const zones = [
-        { key: "entrada", label: "Entrada da Barra", vessels: classified.entrada || [] },
-        { key: "saida", label: "Saída da Barra", vessels: classified.saida || [] }
-      ];
-      const nowIso = new Date().toISOString();
-      for (const zone of zones) {
-        const currentByMmsi = new Map();
-        for (const v of zone.vessels) {
-          const key = String(v?.mmsi || "").trim();
-          if (!key) continue;
-          currentByMmsi.set(key, v);
-        }
-        const previousByMmsi = previousBarraInsideByZone.get(zone.key) || new Map();
-
-        currentByMmsi.forEach((v, mmsi) => {
-          if (previousByMmsi.has(mmsi)) return;
-          barraEventHistory.unshift({
-            at: nowIso,
-            name: String(v?.shipName || v?.mmsi || "—"),
-            kind: classifyVesselKind(v),
-            action: `entrou em ${zone.label}`
-          });
-        });
-
-        previousByMmsi.forEach((v, mmsi) => {
-          if (currentByMmsi.has(mmsi)) return;
-          barraEventHistory.unshift({
-            at: nowIso,
-            name: String(v?.shipName || v?.mmsi || "—"),
-            kind: classifyVesselKind(v),
-            action: `saiu de ${zone.label}`
-          });
-        });
-
-        previousBarraInsideByZone.set(zone.key, currentByMmsi);
-      }
-      barraEventHistory = barraEventHistory.slice(0, 40);
+      updateTransitByZoneSequence();
       renderBarraEventHistory();
+      renderConfirmedTransitPanel();
     }
 
     function renderBarraGeofencePanel() {
