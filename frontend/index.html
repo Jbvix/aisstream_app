@@ -467,6 +467,89 @@
       letter-spacing: 0.08em;
       margin-bottom: 3px;
     }
+    .barra-panel {
+      margin-top: 8px;
+      border: 1px solid var(--line-soft);
+      border-radius: 10px;
+      padding: 8px;
+      background: rgba(255, 255, 255, 0.02);
+    }
+    .barra-panel-title {
+      font-size: 0.76rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 6px;
+    }
+    .barra-columns {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 8px;
+    }
+    .barra-col {
+      border: 1px solid var(--line-soft);
+      border-radius: 8px;
+      padding: 6px;
+      background: rgba(255, 255, 255, 0.01);
+      font-size: 0.74rem;
+    }
+    .barra-col h4 {
+      margin: 0 0 4px;
+      font-size: 0.76rem;
+    }
+    .barra-list {
+      margin: 0;
+      padding-left: 16px;
+      max-height: 120px;
+      overflow-y: auto;
+    }
+    .barra-list li {
+      margin: 2px 0;
+    }
+    .barra-group-title {
+      margin-top: 6px;
+      margin-bottom: 3px;
+      font-size: 0.7rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .barra-empty {
+      color: var(--muted);
+      font-size: 0.72rem;
+    }
+    .barra-kind {
+      color: var(--muted);
+      font-size: 0.68rem;
+      margin-left: 4px;
+    }
+    .barra-events {
+      margin-top: 8px;
+      border: 1px solid var(--line-soft);
+      border-radius: 8px;
+      padding: 6px;
+      background: rgba(255, 255, 255, 0.01);
+      font-size: 0.73rem;
+    }
+    .barra-events-title {
+      margin: 0 0 4px;
+      font-size: 0.75rem;
+    }
+    .barra-events-list {
+      margin: 0;
+      padding-left: 16px;
+      max-height: 120px;
+      overflow-y: auto;
+    }
+    .barra-event-time {
+      color: var(--muted);
+      margin-right: 4px;
+    }
+    @media (min-width: 860px) {
+      .barra-columns {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
 
     .geofence-editor {
       margin-top: 8px;
@@ -870,6 +953,23 @@
               <div class="stat-item"><div class="k">Mensagens</div><div id="totalMessages">0</div></div>
               <div class="stat-item"><div class="k">Última AIS</div><div id="lastAis">-</div></div>
             </div>
+            <div class="barra-panel">
+              <div class="barra-panel-title">Barra do Rio de Janeiro (geofences)</div>
+              <div class="barra-columns">
+                <div class="barra-col">
+                  <h4>Entrada da Barra <span id="barraEntradaCount" class="barra-kind">(0)</span></h4>
+                  <ul id="barraEntradaList" class="barra-list"></ul>
+                </div>
+                <div class="barra-col">
+                  <h4>Saída da Barra <span id="barraSaidaCount" class="barra-kind">(0)</span></h4>
+                  <ul id="barraSaidaList" class="barra-list"></ul>
+                </div>
+              </div>
+              <div class="barra-events">
+                <h4 class="barra-events-title">Últimos que passaram</h4>
+                <ul id="barraEventsList" class="barra-events-list"></ul>
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -1034,6 +1134,8 @@
     let geofenceLayers = new Map();
     let geofenceById = new Map();
     let occupancyByGeofenceId = new Map();
+    let previousBarraInsideByZone = new Map();
+    let barraEventHistory = [];
     let editingGeofenceId = null;
     let editPolygonLayer = null;
     let editVertexMarkers = [];
@@ -2066,7 +2168,10 @@
       const data = await response.json();
       occupancyByGeofenceId.clear();
       (data.occupancy || []).forEach((item) => occupancyByGeofenceId.set(item.geofenceId, item));
+      updateBarraPassageHistory();
+      renderGeofences();
       renderGeofenceList();
+      renderBarraGeofencePanel();
       renderSaamHeaderLamps();
     }
 
@@ -2078,14 +2183,153 @@
         const geometry = geofence.geometry || {};
         const coords = geometry.coordinates || [];
         if (coords.length < 3) return;
+        const occ = occupancyByGeofenceId.get(geofenceId);
+        const vesselCount = Number(occ?.vesselCount || 0);
+        const normalized = normalizeGeofenceName(geofence.name);
+        const isBarraEntrada = normalized === "entrada da barra";
+        const isBarraSaida = normalized === "saida da barra";
+        const isBarra = isBarraEntrada || isBarraSaida;
+        const dynamicColor = isBarraEntrada
+          ? (vesselCount > 0 ? "#35c8ff" : "#2f4f6d")
+          : isBarraSaida
+            ? (vesselCount > 0 ? "#ffb86b" : "#2f4f6d")
+            : (geofence.color || "#35c8ff");
         const layer = L.polygon(coords, {
-          color: geofence.color || "#35c8ff",
-          weight: 2,
-          fillOpacity: 0.08
+          color: dynamicColor,
+          weight: isBarra ? (vesselCount > 0 ? 3 : 2) : 2,
+          fillOpacity: isBarra ? (vesselCount > 0 ? 0.18 : 0.08) : 0.08
         }).addTo(map);
-        layer.bindTooltip(`${geofence.name} (${geofence.type})`, { direction: "top" });
+        const suffix = isBarra ? ` • dentro agora: ${vesselCount}` : "";
+        layer.bindTooltip(`${geofence.name} (${geofence.type})${suffix}`, { direction: "top" });
         geofenceLayers.set(geofenceId, layer);
       });
+    }
+
+    function normalizeGeofenceName(value) {
+      return String(value || "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .trim()
+        .toLowerCase();
+    }
+
+    function isTugVessel(vessel) {
+      const cat = String(vessel?.shipCategory || "").toLowerCase();
+      return Boolean(vessel?.isSaamBgra) || cat.includes("reboc");
+    }
+
+    function classifyVesselKind(vessel) {
+      return isTugVessel(vessel) ? "Rebocador" : "Navio";
+    }
+
+    function findBarraOccupancy(targetName) {
+      const target = normalizeGeofenceName(targetName);
+      for (const item of occupancyByGeofenceId.values()) {
+        const name = normalizeGeofenceName(item?.name || "");
+        if (name === target) return item;
+      }
+      return null;
+    }
+
+    function formatBarraEventTime(iso) {
+      try {
+        return new Date(iso).toLocaleTimeString("pt-BR", { hour12: false });
+      } catch (_) {
+        return "--:--:--";
+      }
+    }
+
+    function renderBarraEventHistory() {
+      const listEl = document.getElementById("barraEventsList");
+      if (!listEl) return;
+      if (!barraEventHistory.length) {
+        listEl.innerHTML = '<li class="barra-empty">Sem passagem registrada nesta sessão.</li>';
+        return;
+      }
+      listEl.innerHTML = barraEventHistory
+        .map((ev) => {
+          return `<li><span class="barra-event-time">${formatBarraEventTime(ev.at)}</span>${escapeHtml(ev.name)} <span class="barra-kind">(${escapeHtml(ev.kind)})</span> — ${escapeHtml(ev.action)}</li>`;
+        })
+        .join("");
+    }
+
+    function updateBarraPassageHistory() {
+      const zones = [
+        { key: "entrada", geofenceName: "entrada da barra", label: "Entrada da Barra" },
+        { key: "saida", geofenceName: "saida da barra", label: "Saída da Barra" }
+      ];
+      const nowIso = new Date().toISOString();
+      for (const zone of zones) {
+        const occ = findBarraOccupancy(zone.geofenceName);
+        const vessels = Array.isArray(occ?.insideVessels) ? occ.insideVessels : [];
+        const currentByMmsi = new Map();
+        for (const v of vessels) {
+          const key = String(v?.mmsi || "").trim();
+          if (!key) continue;
+          currentByMmsi.set(key, v);
+        }
+        const previousByMmsi = previousBarraInsideByZone.get(zone.key) || new Map();
+
+        currentByMmsi.forEach((v, mmsi) => {
+          if (previousByMmsi.has(mmsi)) return;
+          barraEventHistory.unshift({
+            at: nowIso,
+            name: String(v?.shipName || v?.mmsi || "—"),
+            kind: classifyVesselKind(v),
+            action: `entrou em ${zone.label}`
+          });
+        });
+
+        previousByMmsi.forEach((v, mmsi) => {
+          if (currentByMmsi.has(mmsi)) return;
+          barraEventHistory.unshift({
+            at: nowIso,
+            name: String(v?.shipName || v?.mmsi || "—"),
+            kind: classifyVesselKind(v),
+            action: `saiu de ${zone.label}`
+          });
+        });
+
+        previousBarraInsideByZone.set(zone.key, currentByMmsi);
+      }
+      barraEventHistory = barraEventHistory.slice(0, 40);
+      renderBarraEventHistory();
+    }
+
+    function renderBarraGeofencePanel() {
+      const entradaEl = document.getElementById("barraEntradaList");
+      const saidaEl = document.getElementById("barraSaidaList");
+      const entradaCountEl = document.getElementById("barraEntradaCount");
+      const saidaCountEl = document.getElementById("barraSaidaCount");
+      if (!entradaEl || !saidaEl || !entradaCountEl || !saidaCountEl) return;
+
+      const entrada = findBarraOccupancy("entrada da barra");
+      const saida = findBarraOccupancy("saida da barra");
+
+      const renderList = (targetEl, countEl, occupancy) => {
+        const vessels = Array.isArray(occupancy?.insideVessels) ? occupancy.insideVessels : [];
+        countEl.textContent = `(${vessels.length})`;
+        if (!vessels.length) {
+          targetEl.innerHTML = '<li class="barra-empty">Nenhuma embarcação dentro agora.</li>';
+          return;
+        }
+        const navios = [];
+        const rebocadores = [];
+        for (const v of vessels) {
+          const line = `<li>${escapeHtml(v?.shipName || v?.mmsi || "—")}</li>`;
+          if (isTugVessel(v)) rebocadores.push(line);
+          else navios.push(line);
+        }
+        const sections = [];
+        sections.push('<div class="barra-group-title">Navios</div>');
+        sections.push(navios.length ? `<ul class="barra-list">${navios.join("")}</ul>` : '<div class="barra-empty">Nenhum navio.</div>');
+        sections.push('<div class="barra-group-title">Rebocadores</div>');
+        sections.push(rebocadores.length ? `<ul class="barra-list">${rebocadores.join("")}</ul>` : '<div class="barra-empty">Nenhum rebocador.</div>');
+        targetEl.innerHTML = sections.join("");
+      };
+
+      renderList(entradaEl, entradaCountEl, entrada);
+      renderList(saidaEl, saidaCountEl, saida);
     }
 
     function renderGeofenceList() {
@@ -2105,11 +2349,32 @@
             Navios: ${escapeHtml(names)}
             <div class="geofence-item-actions">
               <button type="button" class="btn-edit-geofence" data-geofence-id="${escapeHtml(geofenceId)}">Editar polígono</button>
+              <button type="button" class="btn-delete-geofence" data-geofence-id="${escapeHtml(geofenceId)}">Apagar geofence</button>
             </div>
           </div>
         `);
       });
       geofenceListEl.innerHTML = items.length ? items.join("") : '<div style="font-size:0.75rem;color:var(--muted);">Nenhum geofence salvo.</div>';
+    }
+
+    async function deleteGeofence(geofenceId) {
+      if (!geofenceId) return;
+      const geofence = geofenceById.get(geofenceId);
+      const label = geofence?.name ? `"${geofence.name}"` : "esta geofence";
+      const confirmDelete = window.confirm(`Apagar ${label}? Esta ação não pode ser desfeita.`);
+      if (!confirmDelete) return;
+      const response = await fetch(apiUrl(`/api/geofences/${geofenceId}`), {
+        method: "DELETE"
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.ok) {
+        throw new Error(data.error || `Falha ao apagar geofence (HTTP ${response.status})`);
+      }
+      if (editingGeofenceId && editingGeofenceId === geofenceId) {
+        cancelGeofenceEdit();
+      }
+      await loadGeofences();
+      await loadGeofenceOccupancy();
     }
 
     async function saveCurrentGeofence() {
@@ -2176,10 +2441,19 @@
     });
 
     geofenceListEl.addEventListener("click", (event) => {
-      const btn = event.target.closest(".btn-edit-geofence");
-      if (!btn) return;
-      const id = btn.getAttribute("data-geofence-id");
-      if (id) beginEditGeofence(id);
+      const btnEdit = event.target.closest(".btn-edit-geofence");
+      if (btnEdit) {
+        const id = btnEdit.getAttribute("data-geofence-id");
+        if (id) beginEditGeofence(id);
+        return;
+      }
+      const btnDelete = event.target.closest(".btn-delete-geofence");
+      if (!btnDelete) return;
+      const id = btnDelete.getAttribute("data-geofence-id");
+      if (!id) return;
+      deleteGeofence(id).catch((err) => {
+        window.alert(String(err?.message || err));
+      });
     });
 
     loadAreas()
