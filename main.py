@@ -527,6 +527,38 @@ def save_saa_maneuvers():
         path.write_text(json.dumps(saa_maneuvers_list, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
+def _saa_maneuver_dedupe_key(item: dict):
+    def norm(v):
+        return str(v or "").strip().upper()
+
+    return (
+        norm(item.get("source")),
+        norm(item.get("pob")),
+        norm(item.get("vesselName")),
+        norm(item.get("berthName")),
+        norm(item.get("empRb")),
+        norm(item.get("status")),
+        norm(item.get("cal")),
+        norm(item.get("loa")),
+        norm(item.get("boca")),
+        norm(item.get("dwt")),
+        norm(item.get("gt")),
+        norm(item.get("m")),
+    )
+
+
+def _dedupe_saa_maneuvers(items):
+    seen = set()
+    out = []
+    for item in items or []:
+        key = _saa_maneuver_dedupe_key(item if isinstance(item, dict) else {})
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(item)
+    return out
+
+
 def load_strategy_memory():
     path = strategy_memory_file_for_user(DASHBOARD_USER_ID)
     if not path.exists():
@@ -1099,6 +1131,7 @@ async def _sync_saa_from_praticagem_impl():
                     **dims,
                 }
             )
+    new_items = _dedupe_saa_maneuvers(new_items)
     with saa_maneuvers_lock:
         kept = [x for x in saa_maneuvers_list if x.get("source") != "praticagem"]
         saa_maneuvers_list[:] = new_items + kept
@@ -1681,7 +1714,7 @@ def _strategy_context_dict():
     with geofence_lock:
         geofence_snapshot = list(geofences)
     with saa_maneuvers_lock:
-        saa_snapshot = list(saa_maneuvers_list)
+        saa_snapshot = _dedupe_saa_maneuvers(list(saa_maneuvers_list))
     saam_positions = []
     for mmsi in SAAM_BGRA_MMSI_SET:
         v = latest_vessel_by_mmsi.get(mmsi)
@@ -1828,7 +1861,7 @@ def build_dashboard_overview_dict():
     with saam_geofence_stats_lock:
         tug_snapshot = json.loads(json.dumps(tug_stats_state))
     with saa_maneuvers_lock:
-        saa_snapshot = list(saa_maneuvers_list)
+        saa_snapshot = _dedupe_saa_maneuvers(list(saa_maneuvers_list))
     chart = []
     by_m = tug_snapshot.get("byMmsi", {})
     for mmsi in SAAM_MMSI_ABBR:
@@ -1877,7 +1910,7 @@ def dashboard_overview_under_dashboard_path():
 @app.get("/api/dashboard/saa-maneuvers")
 def get_saa_maneuvers():
     with saa_maneuvers_lock:
-        return {"ok": True, "items": list(saa_maneuvers_list)}
+        return {"ok": True, "items": _dedupe_saa_maneuvers(list(saa_maneuvers_list))}
 
 
 @app.post("/api/dashboard/saa-maneuvers")

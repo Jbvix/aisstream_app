@@ -563,20 +563,26 @@
       });
     }
 
-    function renderSaa(items) {
-      const tb = document.querySelector("#tblSaa tbody");
-      if (!items || !items.length) {
-        tb.innerHTML = '<tr><td colspan="12" style="color:var(--muted);">Nenhum registro SAA. Use <strong>Sincronizar Praticagem-RJ</strong> ou POST <code>/api/dashboard/saa-maneuvers</code>.</td></tr>';
-        return;
-      }
-      const now = Date.now();
-      tb.innerHTML = items
-        .map((r) => {
-          const pobMs = parseSaaPobToMs(r.pob);
-          const isSaa = isSaaManeuverRow(r);
-          const cls = isSaa ? saaRowHighlightFromPobMs(pobMs, now) : "";
-          const attr = isSaa && pobMs != null && Number.isFinite(pobMs) ? ` data-saa-pob-ms="${pobMs}"` : "";
-          return `<tr class="${cls}"${attr}>
+    function saaRowKey(r) {
+      const parts = [
+        r?.source,
+        r?.pob,
+        r?.vesselName,
+        r?.berthName,
+        r?.empRb,
+        r?.status,
+        r?.cal,
+        r?.loa,
+        r?.boca,
+        r?.dwt,
+        r?.gt,
+        r?.m
+      ];
+      return parts.map((v) => String(v || "").trim().toUpperCase()).join("|");
+    }
+
+    function setSaaRowContent(tr, r) {
+      tr.innerHTML = `
           <td>${saaCell(r, "pob")}</td>
           <td>${saaCell(r, "vesselName")}</td>
           <td class="num">${saaCell(r, "cal")}</td>
@@ -589,9 +595,64 @@
           <td>${saaCell(r, "empRb")}</td>
           <td>${saaCell(r, "status")}</td>
           <td>${saaCell(r, "recordedAt")}</td>
-        </tr>`;
-        })
-        .join("");
+      `;
+    }
+
+    function applySaaRowMeta(tr, r, now) {
+      const pobMs = parseSaaPobToMs(r.pob);
+      const isSaa = isSaaManeuverRow(r);
+      const cls = isSaa ? saaRowHighlightFromPobMs(pobMs, now) : "";
+      tr.classList.remove("saa-row--future", "saa-row--soon", "saa-row--live");
+      if (cls) tr.classList.add(cls);
+      if (isSaa && pobMs != null && Number.isFinite(pobMs)) {
+        tr.setAttribute("data-saa-pob-ms", String(pobMs));
+      } else {
+        tr.removeAttribute("data-saa-pob-ms");
+      }
+    }
+
+    function renderSaa(items) {
+      const tb = document.querySelector("#tblSaa tbody");
+      if (!items || !items.length) {
+        tb.innerHTML = '<tr><td colspan="12" style="color:var(--muted);">Nenhum registro SAA. Use <strong>Sincronizar Praticagem-RJ</strong> ou POST <code>/api/dashboard/saa-maneuvers</code>.</td></tr>';
+        return;
+      }
+      const now = Date.now();
+      const existing = new Map();
+      tb.querySelectorAll("tr[data-row-key]").forEach((tr) => {
+        existing.set(tr.getAttribute("data-row-key"), tr);
+      });
+
+      const desiredRows = [];
+      const usedKeys = new Set();
+      for (const r of items) {
+        const key = saaRowKey(r);
+        if (usedKeys.has(key)) continue;
+        usedKeys.add(key);
+
+        let tr = existing.get(key);
+        if (!tr) {
+          tr = document.createElement("tr");
+          tr.setAttribute("data-row-key", key);
+        }
+        setSaaRowContent(tr, r);
+        applySaaRowMeta(tr, r, now);
+        desiredRows.push(tr);
+      }
+
+      // Remove linhas antigas não presentes no novo snapshot.
+      existing.forEach((tr, key) => {
+        if (!usedKeys.has(key)) tr.remove();
+      });
+
+      // Reordena/insere sem limpar o tbody inteiro (evita flicker).
+      for (let i = 0; i < desiredRows.length; i++) {
+        const row = desiredRows[i];
+        const currentAtPos = tb.children[i];
+        if (currentAtPos !== row) {
+          tb.insertBefore(row, currentAtPos || null);
+        }
+      }
       applySaaRowHighlights();
     }
 
