@@ -1180,7 +1180,7 @@
       <div class="dock-spacer"></div>
     </aside>
 
-    <div class="float-layer" aria-hidden="true">
+    <div class="float-layer">
       <section id="panel-status" class="float-panel" data-panel="status" role="dialog" aria-label="Status">
         <div class="float-panel__header" data-drag-handle="true">
           <div class="float-panel__title">Status</div>
@@ -1833,6 +1833,7 @@
       function open(panelId) {
         const panelEl = panelEls[panelId];
         if (!panelEl) return;
+        setPanelAccessibility(panelEl, true);
         panelEl.classList.add("is-open");
         ensurePosition(panelEl);
         fitOnScreen(panelEl);
@@ -1843,7 +1844,14 @@
       function close(panelId) {
         const panelEl = panelEls[panelId];
         if (!panelEl) return;
+        const activeEl = document.activeElement;
+        if (activeEl && panelEl.contains(activeEl) && typeof activeEl.blur === "function") {
+          activeEl.blur();
+        }
         panelEl.classList.remove("is-open");
+        setPanelAccessibility(panelEl, false);
+        const dockBtn = dockRoot ? dockRoot.querySelector(`[data-panel="${panelId}"]`) : null;
+        if (dockBtn && typeof dockBtn.focus === "function") dockBtn.focus();
         refreshDockActiveStates();
       }
 
@@ -1914,6 +1922,17 @@
         });
       }
 
+      function setPanelAccessibility(panelEl, isOpen) {
+        panelEl.setAttribute("aria-hidden", isOpen ? "false" : "true");
+        if ("inert" in panelEl) {
+          panelEl.inert = !isOpen;
+        } else if (!isOpen) {
+          panelEl.setAttribute("inert", "");
+        } else {
+          panelEl.removeAttribute("inert");
+        }
+      }
+
       function init() {
         dockButtons.forEach((btn) => {
           btn.addEventListener("click", () => {
@@ -1932,6 +1951,7 @@
 
         Object.values(panelEls).forEach((panelEl) => {
           if (!panelEl) return;
+          setPanelAccessibility(panelEl, panelEl.classList.contains("is-open"));
           attachDrag(panelEl);
           attachFocus(panelEl);
         });
