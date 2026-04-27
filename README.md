@@ -29,3 +29,8 @@ Este projeto é o backend em Python para o AISStream Brasil App, equivalente ao 
 - O modo mock está disponível para testes locais.
 
 Consulte o código e comentários para detalhes de implementação.
+
+## Documentacao complementar
+- Guia de documentacao (PT-BR): `DOCUMENTACAO_CODIGO_PTBR.md`
+- Indice da pasta de docs: `docs/README.md`
+- Contrato inicial da API: `docs/api/openapi.yaml`
