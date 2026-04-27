@@ -1661,10 +1661,15 @@
     function setConnectionStatus(payload) {
       const wasLiveConnected = liveConnectedState;
       modeState = payload.mode || modeState;
-      liveConnectedState = Boolean(payload.liveConnected);
+      const rawLiveConnected = Boolean(payload.liveConnected);
+      // In forced polling mode, keep UI connection stable and avoid flicker
+      // caused by upstream live socket oscillations.
+      liveConnectedState = FORCE_POLLING_ACTIVE ? true : rawLiveConnected;
 
-      const dotClass = payload.liveConnected ? "status-dot online" : "status-dot";
-      const text = payload.liveConnected ? "Conectado ao stream live" : "Desconectado";
+      const dotClass = liveConnectedState ? "status-dot online" : "status-dot";
+      const text = FORCE_POLLING_ACTIVE
+        ? "Conectado (modo polling)"
+        : (liveConnectedState ? "Conectado ao stream live" : "Desconectado");
       connectionStatusEl.innerHTML = `<span class="${dotClass}"></span>${text}`;
 
       modeText.textContent = payload.mode || "live";
@@ -1679,12 +1684,12 @@
         map.setView(payload.area.center, payload.area.zoom);
       }
 
-      if (modeState === "live" && !wasLiveConnected && liveConnectedState) {
+      if (!FORCE_POLLING_ACTIVE && modeState === "live" && !wasLiveConnected && liveConnectedState) {
         cancelDisconnectGrace();
         hydrateVesselsFromApi().catch(() => {});
       }
 
-      if (modeState === "live" && wasLiveConnected && !liveConnectedState) {
+      if (!FORCE_POLLING_ACTIVE && modeState === "live" && wasLiveConnected && !liveConnectedState) {
         scheduleMarkerClearOnDisconnect();
       }
     }
