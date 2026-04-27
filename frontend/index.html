@@ -1512,6 +1512,8 @@
     const refreshWeatherBtn = document.getElementById("refreshWeatherBtn");
     const appConfig = window.APP_CONFIG || {};
     const API_BASE = (appConfig.API_BASE || "").replace(/\/$/, "");
+    const FORCE_POLLING_HOSTS = new Set(["tuglife.live", "www.tuglife.live"]);
+    const FORCE_POLLING_ACTIVE = Boolean(appConfig.FORCE_POLLING) || FORCE_POLLING_HOSTS.has(window.location.hostname);
     const pathSegments = window.location.pathname.split("/").filter(Boolean);
     const BASE_PATH = pathSegments.length > 0 ? `/${pathSegments[0]}` : "";
     const dashboardLinkEl = document.getElementById("dashboardLink");
@@ -2582,6 +2584,10 @@
       if (!data.ok) return;
       setConnectionStatus(data.status);
       clearAllMarkers();
+      if (FORCE_POLLING_ACTIVE) {
+        startPollingMode();
+        return;
+      }
       reconnectSocket();
     }
 
@@ -2594,6 +2600,10 @@
     }
 
     function reconnectSocket() {
+      if (FORCE_POLLING_ACTIVE) {
+        startPollingMode();
+        return;
+      }
       if (pollingMode) return;
       if (!socket) {
         connectFrontendSocket();
@@ -2648,6 +2658,10 @@
     }
 
     function connectFrontendSocket() {
+      if (FORCE_POLLING_ACTIVE) {
+        startPollingMode();
+        return;
+      }
       if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) {
         return;
       }
@@ -3289,7 +3303,7 @@
         weatherRefreshTimer = setInterval(() => {
           refreshWeatherInfo().catch(() => {});
         }, WEATHER_REFRESH_MS);
-        if (appConfig.FORCE_POLLING) {
+        if (FORCE_POLLING_ACTIVE) {
           startPollingMode();
         } else {
           connectFrontendSocket();
