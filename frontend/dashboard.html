@@ -308,8 +308,7 @@
   <section>
     <h2>Manobras SAA (EMP.RB)</h2>
     <div class="sync-row">
-      <p class="hint" style="margin:0;flex:1;min-width:200px;">Registros em <code>data/users/&lt;id&gt;/saa_maneuvers.json</code>. A sincronização lê a <strong>tabela de programação</strong> (POB = horário previsto, …); se não existir no HTML, usa a fila «Navios na Pedra» (sem POB → sem destaque). <strong>Destaque (somente EMP.RB = SAA):</strong> azul antes dos 30 min; amarelo faltando 30 min; verde a piscar após a hora da POB. O painel recarrega dados a cada <strong>5 min</strong>; as cores atualizam a cada <strong>30 s</strong> no navegador. Servidor: <code>PRATICAGEM_AUTO_SYNC_SECONDS</code> (ex.: 60; <code>0</code> desliga).</p>
-      <button type="button" class="sync-praticagem" id="btnSyncPraticagem">Sincronizar Praticagem-RJ</button>
+      <p class="hint" style="margin:0;flex:1;min-width:200px;">Registros em <code>data/users/&lt;id&gt;/saa_maneuvers.json</code>. A sincronização lê a <strong>tabela de programação</strong> (POB = horário previsto, …); se não existir no HTML, usa a fila «Navios na Pedra» (sem POB → sem destaque). <strong>Destaque (somente EMP.RB = SAA):</strong> azul antes dos 30 min; amarelo faltando 30 min; verde a piscar após a hora da POB. A sincronização com Praticagem e o refresh do painel ocorrem automaticamente a cada <strong>5 min</strong>; as cores atualizam a cada <strong>30 s</strong> no navegador.</p>
     </div>
     <div id="saaSyncMsg"></div>
     <div style="overflow-x:auto;">
@@ -614,7 +613,7 @@
     function renderSaa(items) {
       const tb = document.querySelector("#tblSaa tbody");
       if (!items || !items.length) {
-        tb.innerHTML = '<tr><td colspan="12" style="color:var(--muted);">Nenhum registro SAA. Use <strong>Sincronizar Praticagem-RJ</strong> ou POST <code>/api/dashboard/saa-maneuvers</code>.</td></tr>';
+        tb.innerHTML = '<tr><td colspan="12" style="color:var(--muted);">Nenhum registro SAA encontrado no ciclo atual de sincronização automática.</td></tr>';
         return;
       }
       const now = Date.now();
@@ -931,11 +930,9 @@
       return last;
     }
 
-    document.getElementById("btnSyncPraticagem").addEventListener("click", async () => {
-      const btn = document.getElementById("btnSyncPraticagem");
+    async function syncPraticagemAndLoad() {
       const msg = document.getElementById("saaSyncMsg");
-      msg.textContent = "";
-      btn.disabled = true;
+      if (msg) msg.textContent = "";
       try {
         const res = await postPraticagemSync();
         const body = await res.json().catch(() => ({}));
@@ -955,14 +952,13 @@
             `navios (strict/loose) ${d.shipsStrictMatched ?? "?"}/${d.shipsLooseMatched ?? "?"}; ` +
             `divConteudoLateral=${d.hasDivConteudoLateral ? "sim" : "não"}.`;
         }
-        msg.textContent = `Importadas ${n} linha(s).${w}${dbg}`;
+        if (msg) msg.textContent = `Sincronização automática: importadas ${n} linha(s).${w}${dbg}`;
         await load();
       } catch (e) {
-        msg.textContent = String(e.message || e);
-      } finally {
-        btn.disabled = false;
+        if (msg) msg.textContent = `Sincronização automática falhou: ${String(e.message || e)}`;
+        await load();
       }
-    });
+    }
     document.getElementById("btnStrategyAsk").addEventListener("click", () => askStrategyAssistant("ask"));
     document.getElementById("btnStrategyReport").addEventListener("click", () => askStrategyAssistant("report"));
     document.getElementById("btnStrategyInsights").addEventListener("click", () => askStrategyAssistant("insights"));
@@ -970,8 +966,8 @@
       renderMarketShare(getSelectedMarketShare());
     });
 
-    load();
-    setInterval(load, 5 * 60 * 1000);
+    syncPraticagemAndLoad();
+    setInterval(syncPraticagemAndLoad, 5 * 60 * 1000);
     setInterval(applySaaRowHighlights, 30 * 1000);
   </script>
 </body>

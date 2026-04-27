@@ -47,6 +47,8 @@ GUANABARA_GEOFENCE = {
     "minLon": -43.35,
     "maxLon": -43.05,
 }
+BG_INTERNO_GEOFENCE_ID = "bg-interno-persistente"
+BG_INTERNO_GEOFENCE_NAME = "Baia de Guanabara Interno"
 LEGACY_GEOFENCE_STORAGE_PATH = APP_ROOT / "data" / "geofences.json"
 DASHBOARD_USER_ID = (os.getenv("DASHBOARD_USER_ID") or "default").strip() or "default"
 SAAM_MMSI_ABBR = {
@@ -412,6 +414,90 @@ def migrate_legacy_geofences_if_needed(user_id: str):
             pass
 
 
+def _normalize_text(value) -> str:
+    return (
+        unicodedata.normalize("NFD", str(value or ""))
+        .encode("ascii", "ignore")
+        .decode("ascii")
+        .strip()
+        .lower()
+    )
+
+
+def _is_bg_interno_geofence(geofence: dict) -> bool:
+    if not isinstance(geofence, dict):
+        return False
+    if str(geofence.get("id") or "").strip() == BG_INTERNO_GEOFENCE_ID:
+        return True
+    return _normalize_text(geofence.get("name")) == _normalize_text(BG_INTERNO_GEOFENCE_NAME)
+
+
+def _default_bg_interno_geometry():
+    min_lat = GUANABARA_GEOFENCE["minLat"]
+    max_lat = GUANABARA_GEOFENCE["maxLat"]
+    min_lon = GUANABARA_GEOFENCE["minLon"]
+    max_lon = GUANABARA_GEOFENCE["maxLon"]
+    return {
+        "coordinates": [
+            [max_lat, min_lon],
+            [max_lat, max_lon],
+            [min_lat, max_lon],
+            [min_lat, min_lon],
+        ]
+    }
+
+
+def ensure_bg_interno_geofence():
+    changed = False
+    target = None
+    for g in geofences:
+        if _is_bg_interno_geofence(g):
+            target = g
+            break
+    if target is None:
+        now = get_now_iso()
+        geofences.append(
+            {
+                "id": BG_INTERNO_GEOFENCE_ID,
+                "name": BG_INTERNO_GEOFENCE_NAME,
+                "type": "polygon",
+                "geometry": _default_bg_interno_geometry(),
+                "fleetScope": "all",
+                "isActive": True,
+                "color": "#4aa8ff",
+                "persistent": True,
+                "createdAt": now,
+                "updatedAt": now,
+            }
+        )
+        changed = True
+    else:
+        if target.get("id") != BG_INTERNO_GEOFENCE_ID:
+            target["id"] = BG_INTERNO_GEOFENCE_ID
+            changed = True
+        if target.get("name") != BG_INTERNO_GEOFENCE_NAME:
+            target["name"] = BG_INTERNO_GEOFENCE_NAME
+            changed = True
+        if target.get("type") != "polygon":
+            target["type"] = "polygon"
+            changed = True
+        if not isinstance(target.get("geometry"), dict) or not target.get("geometry", {}).get("coordinates"):
+            target["geometry"] = _default_bg_interno_geometry()
+            changed = True
+        if target.get("fleetScope") != "all":
+            target["fleetScope"] = "all"
+            changed = True
+        if target.get("isActive") is not True:
+            target["isActive"] = True
+            changed = True
+        if target.get("persistent") is not True:
+            target["persistent"] = True
+            changed = True
+        if changed:
+            target["updatedAt"] = get_now_iso()
+    return changed
+
+
 def load_geofences():
     global geofences
     ensure_data_dir()
@@ -429,6 +515,8 @@ def load_geofences():
             geofences = []
     except Exception:
         geofences = []
+    if ensure_bg_interno_geofence():
+        save_geofences()
 
 
 def ensure_geofences_loaded():
@@ -2015,6 +2103,9 @@ async def update_geofence(geofence_id: str, request: Request):
 @app.delete("/api/geofences/{geofence_id}")
 def delete_geofence(geofence_id: str):
     with geofence_lock:
+        for g in geofences:
+            if g.get("id") == geofence_id and _is_bg_interno_geofence(g):
+                return {"ok": False, "error": "Geofence persistente nao pode ser apagado"}
         before = len(geofences)
         geofences[:] = [g for g in geofences if g.get("id") != geofence_id]
         if len(geofences) == before:
@@ -2137,14 +2228,18 @@ async def relay_cached_stream(websocket: WebSocket):
     if recent_vessels:
         last_sent_seq = recent_vessels[-1]["_seq"]
     await websocket.send_json({"type": "status", "payload": get_status()})
+    next_status_at = time.monotonic() + 1.0
 
     while True:
-        await asyncio.sleep(1.0)
+        await asyncio.sleep(0.2)
         new_items = [v for v in recent_vessels if v.get("_seq", 0) > last_sent_seq]
         for vessel_payload in new_items:
             await websocket.send_json({"type": "ais", "payload": vessel_payload})
             last_sent_seq = vessel_payload.get("_seq", last_sent_seq)
-        await websocket.send_json({"type": "status", "payload": get_status()})
+        now = time.monotonic()
+        if now >= next_status_at:
+            await websocket.send_json({"type": "status", "payload": get_status()})
+            next_status_at = now + 1.0
 
 async def relay_live(websocket: WebSocket):
     global live_connected, last_error, last_ais_message_at, total_messages
