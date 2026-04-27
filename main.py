@@ -365,6 +365,7 @@ last_error = None
 last_ais_message_at = None
 total_messages = 0
 live_subscription_update_event = asyncio.Event()
+recent_vessel_update_event = asyncio.Event()
 last_subscription_update_monotonic = 0.0
 vessel_state_by_mmsi = {}
 latest_vessel_by_mmsi = {}
@@ -1040,6 +1041,7 @@ def push_recent_vessel(vessel_payload):
     item = dict(vessel_payload)
     item["_seq"] = last_vessel_seq
     recent_vessels.append(item)
+    recent_vessel_update_event.set()
 
 
 def classify_geofence(latitude, longitude):
@@ -2137,14 +2139,22 @@ async def relay_cached_stream(websocket: WebSocket):
     if recent_vessels:
         last_sent_seq = recent_vessels[-1]["_seq"]
     await websocket.send_json({"type": "status", "payload": get_status()})
+    next_status_at = asyncio.get_running_loop().time() + 5.0
 
     while True:
-        await asyncio.sleep(1.0)
+        try:
+            await asyncio.wait_for(recent_vessel_update_event.wait(), timeout=1.0)
+        except asyncio.TimeoutError:
+            pass
+        recent_vessel_update_event.clear()
         new_items = [v for v in recent_vessels if v.get("_seq", 0) > last_sent_seq]
         for vessel_payload in new_items:
             await websocket.send_json({"type": "ais", "payload": vessel_payload})
             last_sent_seq = vessel_payload.get("_seq", last_sent_seq)
-        await websocket.send_json({"type": "status", "payload": get_status()})
+        now = asyncio.get_running_loop().time()
+        if now >= next_status_at:
+            await websocket.send_json({"type": "status", "payload": get_status()})
+            next_status_at = now + 5.0
 
 async def relay_live(websocket: WebSocket):
     global live_connected, last_error, last_ais_message_at, total_messages

@@ -778,6 +778,51 @@
       border: 1px solid var(--line-soft);
       box-shadow: var(--shadow);
     }
+    .bgmar-panel {
+      position: absolute;
+      right: 14px;
+      bottom: 14px;
+      z-index: 1400;
+      min-width: 150px;
+      border: 1px solid var(--line-soft);
+      border-radius: 10px;
+      background: rgba(7, 20, 36, 0.9);
+      backdrop-filter: blur(4px);
+      padding: 8px;
+      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+      pointer-events: none;
+    }
+    .bgmar-title {
+      margin: 0 0 6px;
+      font-size: 0.72rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .bgmar-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+    }
+    .bgmar-item {
+      border: 1px solid var(--line-soft);
+      border-radius: 8px;
+      padding: 6px;
+      text-align: center;
+      background: rgba(255, 255, 255, 0.03);
+    }
+    .bgmar-item .k {
+      font-size: 0.68rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .bgmar-item .v {
+      margin-top: 2px;
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--text);
+    }
 
     .vessel-icon {
       width: 26px;
@@ -1120,6 +1165,19 @@
 
     <main class="map-wrap">
       <div id="map"></div>
+      <div id="bgMarPanel" class="bgmar-panel" aria-live="polite">
+        <h4 class="bgmar-title">Embarcações</h4>
+        <div class="bgmar-grid">
+          <div class="bgmar-item">
+            <div class="k">BG</div>
+            <div id="bgCount" class="v">0</div>
+          </div>
+          <div class="bgmar-item">
+            <div class="k">MAR</div>
+            <div id="marCount" class="v">0</div>
+          </div>
+        </div>
+      </div>
     </main>
   </div>
 
@@ -1151,6 +1209,7 @@
     let wsOpenedAtLeastOnce = false;
     let pollingMode = false;
     let pollingTimer = null;
+    let pollingCycleCount = 0;
     let lastSeq = 0;
     let showVesselNames = false;
     let geofenceDrawMode = false;
@@ -1568,6 +1627,41 @@
       requestAnimationFrame(() => syncHeaderHeightVar());
     }
 
+    function renderBgMarCounters() {
+      const bgEl = document.getElementById("bgCount");
+      const marEl = document.getElementById("marCount");
+      if (!bgEl || !marEl) return;
+
+      const insideSet = new Set();
+      const targetName = "baia de guanabara interno";
+      for (const item of occupancyByGeofenceId.values()) {
+        if (normalizeGeofenceName(item?.name) !== targetName) continue;
+        const vessels = Array.isArray(item?.insideVessels) ? item.insideVessels : [];
+        for (const v of vessels) {
+          const m = String(v?.mmsi || "").trim();
+          if (m) insideSet.add(m);
+        }
+      }
+
+      let onlineTotal = 0;
+      let bgInside = 0;
+      const now = Date.now();
+      markers.forEach((entry, mmsi) => {
+        const v = entry?.vessel;
+        const hasPos = Boolean(v && Number.isFinite(v.latitude) && Number.isFinite(v.longitude));
+        if (!hasPos) return;
+        const tsMs = parseAisTimestampMs(v.timestamp);
+        const stale = tsMs != null && now - tsMs > SAAM_STALE_MS;
+        if (stale) return;
+        onlineTotal += 1;
+        if (insideSet.has(String(mmsi))) bgInside += 1;
+      });
+
+      const marOutside = Math.max(0, onlineTotal - bgInside);
+      bgEl.textContent = String(bgInside);
+      marEl.textContent = String(marOutside);
+    }
+
     function renderSaamBgraFleetPanel() {
       if (!saamFleetListEl) {
         renderSaamHeaderLamps();
@@ -1632,6 +1726,7 @@
       markers.forEach((entry) => map.removeLayer(entry.marker));
       markers.clear();
       renderSaamBgraFleetPanel();
+      renderBgMarCounters();
     }
 
     function setConnectionStatus(payload) {
@@ -1860,6 +1955,7 @@
         applyMarkerFilter(entry);
       }
       renderSaamBgraFleetPanel();
+      renderBgMarCounters();
     }
 
     async function loadAreas() {
@@ -1949,6 +2045,10 @@
         }
       } catch (_) {
       } finally {
+        pollingCycleCount += 1;
+        if (pollingMode && pollingCycleCount % 6 === 0) {
+          connectFrontendSocket();
+        }
         pollingTimer = setTimeout(pollOnce, 1600);
       }
     }
@@ -1956,6 +2056,7 @@
     function startPollingMode() {
       if (pollingMode) return;
       pollingMode = true;
+      pollingCycleCount = 0;
       if (socket) {
         try { socket.close(); } catch (_) {}
         socket = null;
@@ -1971,6 +2072,13 @@
       socket = new WebSocket(WS_URL);
 
       socket.addEventListener("open", () => {
+        if (pollingMode) {
+          pollingMode = false;
+          if (pollingTimer) {
+            clearTimeout(pollingTimer);
+            pollingTimer = null;
+          }
+        }
         wsOpenedAtLeastOnce = true;
         wsFailCount = 0;
       });
@@ -2201,6 +2309,7 @@
       renderGeofenceList();
       renderBarraGeofencePanel();
       renderSaamHeaderLamps();
+      renderBgMarCounters();
     }
 
     function renderGeofences() {
