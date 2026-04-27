@@ -1201,6 +1201,8 @@
     const geofenceEditorHintEl = document.getElementById("geofenceEditorHint");
     const appConfig = window.APP_CONFIG || {};
     const API_BASE = (appConfig.API_BASE || "").replace(/\/$/, "");
+    const FORCE_POLLING_HOSTS = new Set(["tuglife.live", "www.tuglife.live"]);
+    const FORCE_POLLING_ACTIVE = Boolean(appConfig.FORCE_POLLING) || FORCE_POLLING_HOSTS.has(window.location.hostname);
     const pathSegments = window.location.pathname.split("/").filter(Boolean);
     const BASE_PATH = pathSegments.length > 0 ? `/${pathSegments[0]}` : "";
     const dashboardLinkEl = document.getElementById("dashboardLink");
@@ -2736,7 +2738,7 @@
       .then(() => {
         wsCandidates = buildWsCandidates();
         wsCandidateIdx = 0;
-        if (appConfig.FORCE_POLLING) {
+        if (FORCE_POLLING_ACTIVE) {
           startPollingMode();
         } else {
           connectFrontendSocket();
