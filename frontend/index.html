@@ -1924,10 +1924,6 @@
       if (!data.ok) return;
       setConnectionStatus(data.status);
       clearAllMarkers();
-      if (FORCE_POLLING_ACTIVE) {
-        startPollingMode();
-        return;
-      }
       reconnectSocket();
     }
 
@@ -1940,10 +1936,6 @@
     }
 
     function reconnectSocket() {
-      if (FORCE_POLLING_ACTIVE) {
-        startPollingMode();
-        return;
-      }
       if (pollingMode) return;
       if (!socket) {
         connectFrontendSocket();
