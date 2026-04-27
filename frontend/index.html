@@ -1151,6 +1151,8 @@
     let wsOpenedAtLeastOnce = false;
     let pollingMode = false;
     let pollingTimer = null;
+    let disconnectGraceTimer = null;
+    const DISCONNECT_CLEAR_GRACE_MS = 30000;
     let lastSeq = 0;
     let showVesselNames = false;
     let geofenceDrawMode = false;
@@ -1634,6 +1636,21 @@
       renderSaamBgraFleetPanel();
     }
 
+    function cancelDisconnectGrace() {
+      if (!disconnectGraceTimer) return;
+      clearTimeout(disconnectGraceTimer);
+      disconnectGraceTimer = null;
+    }
+
+    function scheduleMarkerClearOnDisconnect() {
+      cancelDisconnectGrace();
+      disconnectGraceTimer = setTimeout(() => {
+        if (modeState === "live" && !liveConnectedState) {
+          clearAllMarkers();
+        }
+      }, DISCONNECT_CLEAR_GRACE_MS);
+    }
+
     function setConnectionStatus(payload) {
       const wasLiveConnected = liveConnectedState;
       modeState = payload.mode || modeState;
@@ -1656,11 +1673,12 @@
       }
 
       if (modeState === "live" && !wasLiveConnected && liveConnectedState) {
+        cancelDisconnectGrace();
         hydrateVesselsFromApi().catch(() => {});
       }
 
       if (modeState === "live" && wasLiveConnected && !liveConnectedState) {
-        clearAllMarkers();
+        scheduleMarkerClearOnDisconnect();
       }
     }
 
@@ -1971,6 +1989,7 @@
       socket = new WebSocket(WS_URL);
 
       socket.addEventListener("open", () => {
+        cancelDisconnectGrace();
         wsOpenedAtLeastOnce = true;
         wsFailCount = 0;
       });
@@ -1996,7 +2015,6 @@
           return;
         }
         if (message.type === "ais") {
-          if (modeState === "live" && !liveConnectedState) return;
           upsertMarker(message.payload);
         }
       });
