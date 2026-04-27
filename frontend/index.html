@@ -1207,8 +1207,6 @@
     let liveConnectedState = false;
     let wsFailCount = 0;
     let wsOpenedAtLeastOnce = false;
-    let wsCandidates = [];
-    let wsCandidateIdx = 0;
     let pollingMode = false;
     let pollingTimer = null;
     let pollingCycleCount = 0;
@@ -1264,13 +1262,10 @@
     if (dashboardLinkEl) {
       dashboardLinkEl.setAttribute("href", `${BASE_PATH}/dashboard`);
     }
-    function buildWsCandidates() {
+    const WS_URL = appConfig.WS_URL || (() => {
       const proto = window.location.protocol === "https:" ? "wss" : "ws";
-      const fromConfig = appConfig.WS_URL ? [String(appConfig.WS_URL)] : [];
-      const sameBase = `${proto}://${window.location.host}${BASE_PATH}/ws`;
-      const rootPath = `${proto}://${window.location.host}/ws`;
-      return Array.from(new Set([...fromConfig, sameBase, rootPath]));
-    }
+      return `${proto}://${window.location.host}${BASE_PATH}/ws`;
+    })();
 
     function apiUrl(path) {
       if (API_BASE) return `${API_BASE}${path}`;
@@ -2062,8 +2057,6 @@
       if (pollingMode) return;
       pollingMode = true;
       pollingCycleCount = 0;
-      wsCandidates = buildWsCandidates();
-      wsCandidateIdx = 0;
       if (socket) {
         try { socket.close(); } catch (_) {}
         socket = null;
@@ -2076,16 +2069,9 @@
       if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) {
         return;
       }
-      if (!wsCandidates.length) {
-        wsCandidates = buildWsCandidates();
-      }
-      const wsUrl = wsCandidates[Math.min(wsCandidateIdx, wsCandidates.length - 1)];
-      socket = new WebSocket(wsUrl);
-      let opened = false;
+      socket = new WebSocket(WS_URL);
 
       socket.addEventListener("open", () => {
-        opened = true;
-        wsCandidateIdx = 0;
         if (pollingMode) {
           pollingMode = false;
           if (pollingTimer) {
@@ -2098,24 +2084,12 @@
       });
       socket.addEventListener("error", () => {
         wsFailCount += 1;
-        if (!opened && wsCandidateIdx < wsCandidates.length - 1) {
-          wsCandidateIdx += 1;
-          try { socket.close(); } catch (_) {}
-          socket = null;
-          scheduleReconnect();
-          return;
-        }
-        if (wsFailCount >= 2 || wsCandidateIdx >= wsCandidates.length - 1) {
+        if (wsFailCount >= 2) {
           startPollingMode();
         }
       });
       socket.addEventListener("close", () => {
         if (pollingMode) return;
-        if (!opened && wsCandidateIdx < wsCandidates.length - 1) {
-          wsCandidateIdx += 1;
-          scheduleReconnect();
-          return;
-        }
         wsFailCount += 1;
         if (!wsOpenedAtLeastOnce || wsFailCount >= 2) {
           startPollingMode();
@@ -2825,8 +2799,6 @@
       .then(() => loadGeofenceOccupancy())
       .then(() => setMode("live"))
       .then(() => {
-        wsCandidates = buildWsCandidates();
-        wsCandidateIdx = 0;
         if (appConfig.FORCE_POLLING) {
           startPollingMode();
         } else {
