@@ -909,6 +909,10 @@ def ensure_live_worker_started():
     global live_worker_thread
     if current_mode != "live" or not AISSTREAM_API_KEY:
         return
+    # Prefer the startup async task when available to avoid dual upstream
+    # connections (task + thread) fighting over the same API key.
+    if live_worker_task is not None and not live_worker_task.done():
+        return
     with live_worker_lock:
         if live_worker_thread and live_worker_thread.is_alive():
             return
@@ -2157,8 +2161,8 @@ async def relay_live(websocket: WebSocket):
         try:
             async with websockets.connect(
                 AISSTREAM_URL,
-                ping_interval=30,
-                ping_timeout=30,
+                ping_interval=None,
+                ping_timeout=None,
             ) as ais_ws:
                 live_subscription_update_event.clear()
                 await ais_ws.send(json.dumps(build_live_subscription()))
@@ -2225,8 +2229,8 @@ async def live_background_worker():
         try:
             async with websockets.connect(
                 AISSTREAM_URL,
-                ping_interval=30,
-                ping_timeout=30,
+                ping_interval=None,
+                ping_timeout=None,
             ) as ais_ws:
                 live_subscription_update_event.clear()
                 await ais_ws.send(json.dumps(build_live_subscription()))
