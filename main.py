@@ -1789,6 +1789,89 @@ def _build_schedule_changes(saa_snapshot):
     return summary
 
 
+def _fetch_tide_context(lat: float, lon: float) -> dict:
+    """Maré real via Open-Meteo Marine (sea_level_height_msl).
+
+    Retorna nível atual (m), tendência (subindo/descendo/estável) e a próxima
+    virada de maré (preia-mar/baixa-mar) com horário.
+    """
+    url = (
+        "https://marine-api.open-meteo.com/v1/marine"
+        f"?latitude={lat}&longitude={lon}"
+        "&hourly=sea_level_height_msl"
+        "&timezone=America%2FSao_Paulo"
+    )
+    try:
+        req = urllib.request.Request(url, headers={"Accept": "application/json"}, method="GET")
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            body = json.loads(resp.read().decode("utf-8"))
+        hourly = body.get("hourly") or {}
+        times = hourly.get("time") or []
+        levels = hourly.get("sea_level_height_msl") or []
+        pairs = [(t, l) for t, l in zip(times, levels) if isinstance(l, (int, float))]
+        if len(pairs) < 3:
+            return {"tide": "Sem dados de maré online."}
+
+        now = datetime.now()
+        # Índice da hora mais próxima de agora.
+        def _parse(t):
+            try:
+                return datetime.fromisoformat(t)
+            except ValueError:
+                return None
+        idx = 0
+        best = None
+        for i, (t, _l) in enumerate(pairs):
+            dt = _parse(t)
+            if dt is None:
+                continue
+            diff = abs((dt - now).total_seconds())
+            if best is None or diff < best:
+                best = diff
+                idx = i
+
+        level = pairs[idx][1]
+        prev_level = pairs[idx - 1][1] if idx > 0 else level
+        delta = level - prev_level
+        if delta > 0.02:
+            trend = "subindo"
+        elif delta < -0.02:
+            trend = "descendo"
+        else:
+            trend = "estável"
+
+        # Próxima virada: onde a derivada troca de sinal.
+        next_turn = None
+        for i in range(idx, len(pairs) - 1):
+            d0 = pairs[i][1] - pairs[i - 1][1] if i > 0 else delta
+            d1 = pairs[i + 1][1] - pairs[i][1]
+            if d0 >= 0 > d1:
+                next_turn = ("preia-mar", pairs[i][0], pairs[i][1])
+                break
+            if d0 <= 0 < d1:
+                next_turn = ("baixa-mar", pairs[i][0], pairs[i][1])
+                break
+
+        text = f"{level:.2f} m, {trend}"
+        if next_turn:
+            kind, t_iso, t_lvl = next_turn
+            hhmm = (_parse(t_iso) or now).strftime("%H:%M")
+            text += f" · próxima {kind} ~{hhmm} ({t_lvl:.2f} m)"
+
+        return {
+            "tide": text,
+            "tideLevelM": round(level, 2),
+            "tideTrend": trend,
+            "tideNextTurn": (
+                {"type": next_turn[0], "time": next_turn[1], "levelM": round(next_turn[2], 2)}
+                if next_turn else None
+            ),
+            "tideSource": "open-meteo-marine",
+        }
+    except Exception as exc:
+        return {"tide": "Sem dados de maré online.", "tideError": str(exc)}
+
+
 def _fetch_metocean_context():
     # Dados operacionais basicos para a baia de Guanabara (ponto medio)
     lat, lon = -22.90, -43.17
@@ -1799,25 +1882,28 @@ def _fetch_metocean_context():
         "&hourly=wind_speed_10m"
         "&timezone=America%2FSao_Paulo"
     )
+    tide_ctx = _fetch_tide_context(lat, lon)
     try:
         req = urllib.request.Request(url, headers={"Accept": "application/json"}, method="GET")
         with urllib.request.urlopen(req, timeout=10) as resp:
             body = json.loads(resp.read().decode("utf-8"))
         cur = body.get("current") or {}
-        return {
+        result = {
             "source": "open-meteo",
             "windSpeedKmh": cur.get("wind_speed_10m"),
             "windDirectionDeg": cur.get("wind_direction_10m"),
-            "tide": "Integração de maré pendente (fonte local/hidrográfica).",
         }
+        result.update(tide_ctx)
+        return result
     except Exception as exc:
-        return {
+        result = {
             "source": "fallback",
             "windSpeedKmh": None,
             "windDirectionDeg": None,
-            "tide": "Sem dados de maré online.",
             "error": str(exc),
         }
+        result.update(tide_ctx)
+        return result
 
 
 def _question_normalized(question: str) -> str:
