@@ -978,8 +978,13 @@
 
     function renderMarketShare(marketShare) {
       const rows = marketShare?.rows || [];
-      const labels = rows.map((r) => r.empRb);
+      // EMP.RB "SAA" representa a SAAM (nossa empresa): rótulo e cor de destaque.
+      const isOwn = (r) => Boolean(r?.isOwnCompany) || String(r?.empRb || "").toUpperCase() === "SAA";
+      const labels = rows.map((r) => (isOwn(r) ? "SAA (SAAM • nós)" : r.empRb));
       const values = rows.map((r) => Number(r.count) || 0);
+      const palette = ["rgba(55, 217, 137, 0.75)", "rgba(255, 184, 107, 0.75)", "rgba(255, 99, 132, 0.75)", "rgba(180, 140, 255, 0.75)", "rgba(120, 200, 255, 0.7)"];
+      let other = 0;
+      const colors = rows.map((r) => (isOwn(r) ? "rgba(255, 212, 0, 0.9)" : palette[other++ % palette.length]));
       const ctx = document.getElementById("chartMarketShare");
       if (!ctx) return;
       if (marketShareChart) marketShareChart.destroy();
@@ -990,13 +995,7 @@
           datasets: [
             {
               data: values,
-              backgroundColor: [
-                "rgba(53, 200, 255, 0.75)",
-                "rgba(55, 217, 137, 0.75)",
-                "rgba(255, 184, 107, 0.75)",
-                "rgba(255, 99, 132, 0.75)",
-                "rgba(180, 140, 255, 0.75)",
-              ],
+              backgroundColor: colors,
               borderColor: "rgba(7, 20, 36, 0.9)",
               borderWidth: 1,
             },

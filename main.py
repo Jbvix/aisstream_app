@@ -59,6 +59,9 @@ SAAM_MMSI_ABBR = {
     "710016030": "LT",
     "710015310": "AT",
 }
+# Na programação da Praticagem (campo EMP.RB), o código "SAA" representa a SAAM,
+# que é a nossa empresa. WIL e CAM são concorrentes.
+OWN_COMPANY_EMP_RB = "SAA"
 COMPETITOR_TUGS = {
     "WIL": [
         {"mmsi": "710005290", "name": "LYRA"},
@@ -1455,7 +1458,13 @@ def _market_share_rows(saa_snapshot):
     rows = []
     for key, cnt in sorted(counts.items(), key=lambda kv: kv[1], reverse=True):
         share = (100.0 * cnt / total) if total else 0.0
-        rows.append({"empRb": key, "count": cnt, "sharePct": round(share, 2)})
+        rows.append({
+            "empRb": key,
+            "count": cnt,
+            "sharePct": round(share, 2),
+            # EMP.RB "SAA" na Praticagem representa a SAAM (nossa empresa).
+            "isOwnCompany": key == OWN_COMPANY_EMP_RB,
+        })
     return {"rows": rows, "total": total}
 
 
@@ -1771,8 +1780,9 @@ def _strategy_fallback_local_followup(question: str, context: dict) -> str:
         "Os concorrentes que este dashboard acompanha por AIS são os rebocadores das empresas WIL e CAM "
         "(além da frota SAAM-BGRA, a vossa). Catálogo configurado:\n\n"
         f"{_competitor_fleet_catalog_text()}\n"
-        "Na programação da Praticagem, o campo EMP.RB associa cada manobra a uma empresa (ex.: SAA, WIL, CAM); "
-        "o resumo «Market share» no quadro acima conta quantas linhas na base existem por código EMP.RB.\n"
+        "Na programação da Praticagem, o campo EMP.RB associa cada manobra a uma empresa. "
+        "IMPORTANTE: o código EMP.RB «SAA» representa a SAAM (a nossa empresa); WIL e CAM são concorrentes. "
+        "O resumo «Market share» no quadro acima conta quantas linhas na base existem por código EMP.RB.\n"
         f"{manobra_txt}"
     )
 
@@ -1867,7 +1877,7 @@ def _strategy_fallback_answer(question: str, context: dict) -> str:
         + f"Sobre a sua pergunta ('{question}'), com este recorte eu começaria por estes pontos práticos:\n"
         + "- priorizar janelas com sobreposição de manobras e necessidade de mais rebocadores;\n"
         + "- monitorar entradas simultâneas de concorrentes nas geofences críticas;\n"
-        + "- revisar alocação com base no mix SAA/WIL/CAM do turno.\n"
+        + "- revisar alocação com base no mix do turno (SAA = nossa SAAM; WIL e CAM concorrentes).\n"
         + follow
         + "\n\n"
         + hint
@@ -1905,6 +1915,8 @@ def _ask_grok_with_context(question: str, context: dict) -> str:
                 "content": (
                     "Voce e o KRATOS, assistente de estrategia naval do porto do Rio de Janeiro e "
                     "da Baia de Guanabara: experiente, consultivo e natural. Ao se apresentar, use o nome KRATOS. "
+                    "IMPORTANTE: na programacao da Praticagem (campo EMP.RB), o codigo 'SAA' representa a SAAM, "
+                    "que e a NOSSA empresa; 'WIL' e 'CAM' sao concorrentes. Trate 'SAA' como a nossa frota. "
                     "Responda em portugues com linguagem clara, direta e mais solta (sem rigidez excessiva). "
                     "Baseie-se no contexto fornecido; se faltar dado, diga isso com transparencia. "
                     "Priorize insights acionaveis e recomendacoes praticas para operacao. "
