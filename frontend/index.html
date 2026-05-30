@@ -1052,6 +1052,72 @@
       box-shadow: 0 0 5px rgba(255, 212, 0, 0.45);
     }
 
+    /* Vetor de proa (direção/velocidade) — só em embarcações em movimento. */
+    .heading-vec {
+      position: absolute;
+      left: 50%;
+      top: 0;
+      width: 2px;
+      transform: translate(-50%, -100%);
+      background: linear-gradient(to top, currentColor, rgba(255, 255, 255, 0));
+      border-radius: 2px;
+      opacity: 0.85;
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    /* Parado/fundeado: casco esmaecido, contorno tracejado e ponto de âncora. */
+    .ship-shape.is-anchored { opacity: 0.6; }
+    .ship-shape.is-anchored .ship-poly path { stroke-dasharray: 3 2; }
+    .anchor-dot {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      background: #0b1d31;
+      border: 1.5px solid #cfe0f5;
+      pointer-events: none;
+      z-index: 3;
+    }
+
+    /* Concorrente (WIL/CAM): anel de ameaça vermelho pulsante. */
+    .ship-shape.ship-competitor .ship-poly path {
+      stroke: #5a0f0b;
+      stroke-width: 1.5;
+    }
+    .threat-ring {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: calc(100% + 16px);
+      height: calc(100% + 16px);
+      transform: translate(-50%, -50%);
+      border-radius: 999px;
+      border: 2px solid #ff3b30;
+      box-shadow: 0 0 8px rgba(255, 59, 48, 0.7);
+      pointer-events: none;
+      animation: threatPulse 1.9s ease-out infinite;
+    }
+    .threat-core {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: calc(100% + 5px);
+      height: calc(100% + 5px);
+      transform: translate(-50%, -50%);
+      border-radius: 999px;
+      border: 1.5px solid rgba(255, 59, 48, 0.9);
+      pointer-events: none;
+    }
+    @keyframes threatPulse {
+      0% { transform: translate(-50%, -50%) scale(0.9); opacity: 0.95; }
+      70% { transform: translate(-50%, -50%) scale(1.2); opacity: 0.12; }
+      100% { opacity: 0; }
+    }
+
     .vessel-carga { background: #2f80ed; color: #2f80ed; }
     .vessel-petroleiro { background: #eb5757; color: #eb5757; }
     .vessel-rebocador_servico { background: #f2994a; color: #f2994a; }
@@ -1436,6 +1502,20 @@
       { mmsi: "710016030", name: "SAAM LANCELOT", abbr: "LT" },
       { mmsi: "710015310", name: "SAAM ARTHUR", abbr: "AT" }
     ];
+    // Rebocadores concorrentes monitorados (espelha COMPETITOR_TUGS do backend).
+    const COMPETITOR_ROSTER = [
+      { mmsi: "710005290", name: "LYRA", company: "WIL" },
+      { mmsi: "710000009", name: "HERCULES", company: "WIL" },
+      { mmsi: "710000391", name: "WEZEN", company: "WIL" },
+      { mmsi: "710018340", name: "PEGASUS", company: "WIL" },
+      { mmsi: "710009550", name: "C NEBLINA", company: "CAM" },
+      { mmsi: "710008322", name: "C HARPIA", company: "CAM" },
+      { mmsi: "710010250", name: "C ARRAIAL / C SALVADOR", company: "CAM" }
+    ];
+    const COMPETITOR_BY_MMSI = new Map(COMPETITOR_ROSTER.map((t) => [String(t.mmsi), t]));
+    function getCompetitorInfo(v) {
+      return COMPETITOR_BY_MMSI.get(String(v?.mmsi || "")) || null;
+    }
     const SAAM_STALE_MS = 5 * 60 * 1000;
     let socket = null;
     let reconnectTimer = null;
@@ -2283,20 +2363,53 @@
       return 90;
     }
 
+    /** Metros por pixel no centro do mapa (Web Mercator) para escala fiel. */
+    function metersPerPixelNow() {
+      const lat = Number(map?.getCenter?.().lat);
+      const safeLat = Number.isFinite(lat) ? lat : -22.9;
+      const z = Number(map?.getZoom?.() ?? 11);
+      return (156543.03392 * Math.cos((safeLat * Math.PI) / 180)) / Math.pow(2, z);
+    }
+
     function getShipIconDimensionsPx(v) {
       const loa = getShipLengthMeters(v);
-      const t = Math.min(1, Math.max(0, (Math.log10(loa) - Math.log10(18)) / (Math.log10(360) - Math.log10(18))));
-      const z = Number(map?.getZoom?.() || 11);
-      // Escala inversa mais forte no zoom out: reduz alvo ao afastar mapa.
-      // Referência em z=11 (~1.0), diminuindo rápido em z baixo.
-      const zoomScale = Math.max(0.22, Math.min(2.2, Math.pow(2, (z - 11) / 3.6)));
-      const hullH = (24 + t * 34) * zoomScale;
-      const hullW = Math.max(9, Math.min(31, hullH * 0.45));
-      const bowH = hullH * 0.33;
-      const sternH = hullH * 0.17;
-      const totalH = bowH + hullH + sternH;
-      const wrap = Math.ceil(Math.max(totalH, hullW * 1.8) + 8);
+      let beam = Number(v?.beamMeters);
+      if (!Number.isFinite(beam) || beam <= 0) beam = Math.max(5, loa * 0.16);
+      const mpp = metersPerPixelNow();
+      const z = Number(map?.getZoom?.() ?? 11);
+
+      // Tamanho fiel à escala real (px): proporção verdadeira entre embarcações,
+      // cresce naturalmente ao dar zoom in.
+      const trueH = loa / mpp;
+      const trueW = beam / mpp;
+
+      // Piso de legibilidade que preserva o ranking de tamanho mesmo no zoom out.
+      const tC = Math.min(1, Math.max(0, (Math.log10(loa) - Math.log10(18)) / (Math.log10(360) - Math.log10(18))));
+      const floorH = (z >= 13 ? 14 : 10) + tC * 12;     // ~10..22 (afastado) / ~14..26 (próximo)
+      const hullH = Math.max(floorH, Math.min(150, trueH));
+
+      // Largura proporcional à boca real, com pisos/tetos relativos ao comprimento.
+      const floorW = Math.max(5, floorH * 0.34);
+      const hullW = Math.max(floorW, Math.min(hullH * 0.55, trueW));
+
+      // Espaço para rotação do casco + vetor de proa + anel de concorrente.
+      const radius = Math.hypot(hullH, hullW) / 2 + hullH * 0.7 + 12;
+      const wrap = Math.ceil(radius * 2);
       return { hullW, hullH, wrap };
+    }
+
+    const VESSEL_MOVING_SOG_KN = 0.5;
+
+    /** Casco com proa pontuda: leitura imediata da direção (proa no topo, 0° = norte). */
+    function buildHullPath(w, h) {
+      const p = (n) => n.toFixed(2);
+      return `M ${p(w * 0.5)} 0 `
+        + `L ${p(w * 0.84)} ${p(h * 0.24)} `
+        + `L ${p(w * 0.82)} ${p(h * 0.84)} `
+        + `Q ${p(w * 0.80)} ${p(h)} ${p(w * 0.66)} ${p(h)} `
+        + `L ${p(w * 0.34)} ${p(h)} `
+        + `Q ${p(w * 0.20)} ${p(h)} ${p(w * 0.18)} ${p(h * 0.84)} `
+        + `L ${p(w * 0.16)} ${p(h * 0.24)} Z`;
     }
 
     function createVesselIcon(category) {
@@ -2305,56 +2418,51 @@
       return function iconForVessel(vessel) {
         const rotation = getIconRotationDegrees(vessel);
         const isSaam = Boolean(vessel?.isSaamBgra || vessel?.fleet === "SAAM-BGRA");
-        const saamClass = isSaam ? "ship-saam" : "";
-        const badge = isSaam ? "S" : getShipSymbol(safeCategory);
+        const competitor = !isSaam ? getCompetitorInfo(vessel) : null;
+        const isCompetitor = Boolean(competitor);
         const { hullW, hullH, wrap } = getShipIconDimensionsPx(vessel);
-        const p = {
-          x1: (hullW * 0.5).toFixed(2),
-          y1: 0,
-          cxR: (hullW * 0.84).toFixed(2),
-          cyR: (hullH * 0.08).toFixed(2),
-          xR: (hullW * 0.86).toFixed(2),
-          yR: (hullH * 0.28).toFixed(2),
-          xR2: (hullW * 0.78).toFixed(2),
-          yR2: (hullH * 0.86).toFixed(2),
-          cxSR: (hullW * 0.76).toFixed(2),
-          cySR: (hullH * 0.98).toFixed(2),
-          xSR: (hullW * 0.64).toFixed(2),
-          ySR: hullH.toFixed(2),
-          xSL: (hullW * 0.36).toFixed(2),
-          ySL: hullH.toFixed(2),
-          cxSL: (hullW * 0.24).toFixed(2),
-          cySL: (hullH * 0.98).toFixed(2),
-          xL2: (hullW * 0.22).toFixed(2),
-          yL2: (hullH * 0.86).toFixed(2),
-          xL: (hullW * 0.14).toFixed(2),
-          yL: (hullH * 0.28).toFixed(2),
-          cxL: (hullW * 0.16).toFixed(2),
-          cyL: (hullH * 0.08).toFixed(2),
-        };
+
+        const sog = Number(vessel?.sog);
+        const moving = Number.isFinite(sog) && sog >= VESSEL_MOVING_SOG_KN;
+
+        const classes = ["ship-shape", vesselColorClass];
+        if (isSaam) classes.push("ship-saam");
+        if (isCompetitor) classes.push("ship-competitor");
+        if (!moving) classes.push("is-anchored");
+
+        const badge = isSaam ? "S" : getShipSymbol(safeCategory);
+        const path = buildHullPath(hullW, hullH);
+
+        // Vetor de proa proporcional ao SOG (navio mais rápido → vetor mais longo).
+        let vecHtml = "";
+        if (moving) {
+          const vecLen = Math.min(hullH * 0.9, hullH * 0.3 + Math.min(sog, 18) * (hullH * 0.045));
+          vecHtml = `<span class="heading-vec" style="height:${vecLen.toFixed(1)}px;"></span>`;
+        }
+        const ringHtml = isCompetitor
+          ? `<span class="threat-ring"></span><span class="threat-core"></span>`
+          : "";
+        const anchorHtml = !moving ? `<span class="anchor-dot"></span>` : "";
+
         const half = Math.round(wrap / 2);
         return L.divIcon({
           className: "vessel-div-icon",
           html: `
             <div class="ship-wrap" style="width:${wrap}px;height:${wrap}px;transform: rotate(${rotation}deg);">
-              <div class="ship-shape ${vesselColorClass} ${saamClass}" style="--ship-w:${hullW}px;--ship-h:${hullH}px;">
+              <div class="${classes.join(" ")}" style="--ship-w:${hullW}px;--ship-h:${hullH}px;width:${hullW}px;height:${hullH}px;">
+                ${ringHtml}
+                ${vecHtml}
                 <svg class="ship-poly" viewBox="0 0 ${hullW} ${hullH}" preserveAspectRatio="none" aria-hidden="true">
-                  <path d="M ${p.x1} ${p.y1}
-                    Q ${p.cxR} ${p.cyR} ${p.xR} ${p.yR}
-                    L ${p.xR2} ${p.yR2}
-                    Q ${p.cxSR} ${p.cySR} ${p.xSR} ${p.ySR}
-                    L ${p.xSL} ${p.ySL}
-                    Q ${p.cxSL} ${p.cySL} ${p.xL2} ${p.yL2}
-                    L ${p.xL} ${p.yL}
-                    Q ${p.cxL} ${p.cyL} ${p.x1} ${p.y1} Z"></path>
+                  <path d="${path}"></path>
                 </svg>
                 <span class="ship-badge">${badge}</span>
+                ${anchorHtml}
               </div>
             </div>
           `,
           iconSize: [wrap, wrap],
           iconAnchor: [half, half],
-          popupAnchor: [0, -12]
+          popupAnchor: [0, -Math.round(hullH / 2) - 6]
         });
       };
     }
@@ -2368,6 +2476,10 @@
       const shipCategory = escapeHtml(getShipCategoryLabel(getShipCategory(v)));
       const shipTypeCode = v.shipTypeCode == null ? "-" : escapeHtml(String(v.shipTypeCode));
       const fleet = escapeHtml(v.fleet || "-");
+      const competitor = getCompetitorInfo(v);
+      const competitorLine = competitor
+        ? `<span style="color:#ff7a70;font-weight:700;">⚠ Concorrente: ${escapeHtml(competitor.company)}</span><br>`
+        : "";
       const geofence = escapeHtml(v.geofence || "-");
       const geofencesInside = Array.isArray(v.geofencesInside) && v.geofencesInside.length
         ? escapeHtml(v.geofencesInside.join(", "))
@@ -2383,7 +2495,7 @@
         Tipo: ${messageType}<br>
         Categoria: ${shipCategory}<br>
         Frota: ${fleet}<br>
-        Geofence: ${geofence}<br>
+        ${competitorLine}Geofence: ${geofence}<br>
         Geofences dentro: ${geofencesInside}<br>
         LOA (mapa): ${loaText}<br>
         Boca: ${beamText}<br>
