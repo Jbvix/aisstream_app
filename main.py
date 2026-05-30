@@ -32,7 +32,7 @@ DEFAULT_AREA = os.getenv("DEFAULT_AREA", "rio").lower()
 AISSTREAM_URL = "wss://stream.aisstream.io/v0/stream"
 SAAM_BGRA_FLEET_NAME = "SAAM-BGRA"
 SAAM_BGRA_MMSI_SET = {
-    "710020280",  # SAAM ARIES
+    "710012550",  # SAAM PATAXO
     "710000348",  # SAAM ITABIRA
     "710021750",  # SAAM CHILE
     "710001593",  # SAAM HOLANDA
@@ -52,7 +52,7 @@ BG_INTERNO_GEOFENCE_NAME = "Baia de Guanabara Interno"
 LEGACY_GEOFENCE_STORAGE_PATH = APP_ROOT / "data" / "geofences.json"
 DASHBOARD_USER_ID = (os.getenv("DASHBOARD_USER_ID") or "default").strip() or "default"
 SAAM_MMSI_ABBR = {
-    "710020280": "AR",
+    "710012550": "PX",
     "710000348": "IT",
     "710021750": "CH",
     "710001593": "HL",
