@@ -1,0 +1,114 @@
+{
+  "byMmsi": {
+    "710020280": {
+      "abbr": "AR",
+      "name": "SAAM ARIES          ",
+      "totalSeconds": 10238.802352666855,
+      "totalManeuvers": 4,
+      "byGeofence": {
+        "8dfd253c-ccfa-42d3-b4f7-c07ee6ab808e": {
+          "name": " BASE BRASCO",
+          "seconds": 1680.6980121135712,
+          "maneuvers": 1
+        },
+        "f97ed8c0-867c-4f0c-ab4c-5fbd20578607": {
+          "name": "PIER SECUNDARIO ",
+          "seconds": 2440.4940326213837,
+          "maneuvers": 1
+        },
+        "0e55d520-01a5-4d1d-b64b-bde132fd9906": {
+          "name": "TERMINAL MULTIRIO",
+          "seconds": 6117.6103079319,
+          "maneuvers": 2
+        }
+      },
+      "totalNauticalMiles": 28.145935009847793
+    },
+    "710000348": {
+      "abbr": "IT",
+      "name": "SAAM ITABIRA",
+      "totalSeconds": 4222.385621070862,
+      "totalManeuvers": 2,
+      "byGeofence": {
+        "8dfd253c-ccfa-42d3-b4f7-c07ee6ab808e": {
+          "name": " BASE BRASCO",
+          "seconds": 2548.3658423423767,
+          "maneuvers": 1
+        },
+        "0e55d520-01a5-4d1d-b64b-bde132fd9906": {
+          "name": "TERMINAL MULTIRIO",
+          "seconds": 1674.019778728485,
+          "maneuvers": 1
+        }
+      },
+      "totalNauticalMiles": 18.56526054137725
+    },
+    "710001593": {
+      "abbr": "HL",
+      "name": "SAAM HOLANDA",
+      "totalSeconds": 10358.795922756195,
+      "totalManeuvers": 3,
+      "byGeofence": {
+        "0e55d520-01a5-4d1d-b64b-bde132fd9906": {
+          "name": "TERMINAL MULTIRIO",
+          "seconds": 10358.795922756195,
+          "maneuvers": 3
+        }
+      },
+      "totalNauticalMiles": 11.40169852496979
+    },
+    "710021750": {
+      "abbr": "CH",
+      "name": "SAAM CHILE          ",
+      "totalSeconds": 9168.139596700668,
+      "totalManeuvers": 3,
+      "totalNauticalMiles": 27.57580028716898,
+      "byGeofence": {
+        "2af02423-e209-459f-a887-813e69c5f7d4": {
+          "name": "PIER PRINCIPAL",
+          "seconds": 7708.752452135086,
+          "maneuvers": 2
+        },
+        "0e55d520-01a5-4d1d-b64b-bde132fd9906": {
+          "name": "TERMINAL MULTIRIO",
+          "seconds": 1459.3871445655823,
+          "maneuvers": 1
+        }
+      }
+    },
+    "710016030": {
+      "abbr": "LT",
+      "name": "LANCELOT            ",
+      "totalSeconds": 3309.6404876708984,
+      "totalManeuvers": 2,
+      "totalNauticalMiles": 27.807050042937668,
+      "byGeofence": {
+        "2af02423-e209-459f-a887-813e69c5f7d4": {
+          "name": "PIER PRINCIPAL",
+          "seconds": 1619.817985534668,
+          "maneuvers": 1
+        },
+        "f97ed8c0-867c-4f0c-ab4c-5fbd20578607": {
+          "name": "PIER SECUNDARIO ",
+          "seconds": 1689.8225021362305,
+          "maneuvers": 1
+        }
+      }
+    },
+    "710015310": {
+      "abbr": "AT",
+      "name": "ARTHUR              ",
+      "totalSeconds": 6179.584096431732,
+      "totalManeuvers": 2,
+      "totalNauticalMiles": 24.482474110955714,
+      "byGeofence": {
+        "2af02423-e209-459f-a887-813e69c5f7d4": {
+          "name": "PIER PRINCIPAL",
+          "seconds": 6179.584096431732,
+          "maneuvers": 2
+        }
+      }
+    }
+  },
+  "updatedAt": "2026-04-28T03:43:36.705400"
+}

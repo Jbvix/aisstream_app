@@ -1,0 +1,3347 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AIS BRASIL APP</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin=""
+  />
+  <style>
+    :root {
+      --bg: #071424;
+      --panel: #10253d;
+      --panel-strong: #0b1d31;
+      --line: #2f4f6d;
+      --line-soft: #233c56;
+      --text: #eaf4ff;
+      --muted: #9ab6d4;
+      --accent: #35c8ff;
+      --good: #37d989;
+      --warn: #ffcd6b;
+      --shadow: 0 20px 40px rgba(0, 0, 0, 0.35);
+      --radius-xl: 18px;
+      --radius-lg: 14px;
+      --radius-md: 12px;
+      --header-h: 92px;
+      --dock-w: 56px;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "IBM Plex Sans", sans-serif;
+      color: var(--text);
+      background: var(--bg);
+      min-height: 100vh;
+      font-size: clamp(12px, 1.2vw, 14px);
+      overflow: hidden;
+    }
+
+    header {
+      padding: 8px 12px 6px;
+      border-bottom: 1px solid var(--line-soft);
+      background:
+        radial-gradient(circle at top right, rgba(53, 200, 255, 0.12), transparent 42%),
+        linear-gradient(180deg, rgba(4, 13, 24, 0.96), rgba(4, 13, 24, 0.92));
+      position: sticky;
+      top: 0;
+      z-index: 1500;
+    }
+
+    .header-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      flex-wrap: nowrap;
+    }
+
+    .header-lamps-wrap {
+      flex: 1 1 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-width: 0;
+      overflow-x: auto;
+      overscroll-behavior-x: contain;
+      scrollbar-width: thin;
+    }
+
+    .header-lamps-wrap::-webkit-scrollbar {
+      height: 4px;
+    }
+
+    .header-lamps {
+      display: flex;
+      flex-direction: row;
+      flex-wrap: nowrap;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      width: max-content;
+      margin: 0 auto;
+    }
+
+    .saam-lamp {
+      box-sizing: border-box;
+      width: auto;
+      max-width: none;
+      flex: 0 0 auto;
+      min-width: 32px;
+      height: 28px;
+      margin-top: 0;
+      padding: 0 7px;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      font-weight: 700;
+      font-size: 0.65rem;
+      letter-spacing: 0.06em;
+      cursor: pointer;
+      font-family: inherit;
+      color: #f8fafc;
+      line-height: 1;
+      transition: transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease;
+    }
+
+    .saam-lamp:hover {
+      transform: translateY(-1px);
+    }
+
+    .saam-lamp:focus-visible {
+      outline: 2px solid rgba(53, 200, 255, 0.7);
+      outline-offset: 2px;
+    }
+
+    .saam-lamp--base {
+      background: linear-gradient(180deg, #2563eb 0%, #1e3a8a 100%);
+      box-shadow:
+        0 0 16px rgba(59, 130, 246, 0.75),
+        0 0 4px rgba(147, 197, 253, 0.9) inset;
+      border-color: rgba(147, 197, 253, 0.45);
+    }
+
+    .saam-lamp--away {
+      background: linear-gradient(180deg, #22c55e 0%, #14532d 100%);
+      box-shadow:
+        0 0 16px rgba(34, 197, 94, 0.65),
+        0 0 4px rgba(187, 247, 208, 0.35) inset;
+      border-color: rgba(134, 239, 172, 0.45);
+    }
+
+    .saam-lamp--offline {
+      background: linear-gradient(180deg, #475569 0%, #1e293b 100%);
+      color: #94a3b8;
+      box-shadow: 0 0 10px rgba(100, 116, 139, 0.35);
+      border-color: rgba(148, 163, 184, 0.25);
+      cursor: default;
+    }
+
+    .saam-lamp--offline:hover {
+      transform: none;
+    }
+
+    .header-saam-legend {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: center;
+      gap: 10px 14px;
+      margin-top: 4px;
+      padding-top: 3px;
+      border-top: 1px solid rgba(53, 200, 255, 0.08);
+      font-size: 0.58rem;
+      color: var(--muted);
+      line-height: 1.25;
+    }
+
+    .header-saam-legend span {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      white-space: nowrap;
+    }
+
+    .legend-swatch {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      box-shadow: 0 0 8px currentColor;
+    }
+
+    .legend-swatch--base {
+      background: #3b82f6;
+      color: rgba(59, 130, 246, 0.85);
+    }
+
+    .legend-swatch--away {
+      background: #22c55e;
+      color: rgba(34, 197, 94, 0.85);
+    }
+
+    .legend-swatch--offline {
+      background: #64748b;
+      color: rgba(100, 116, 139, 0.6);
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    h1 {
+      margin: 0 0 2px;
+      font-family: "Space Grotesk", sans-serif;
+      font-size: clamp(0.95rem, 1.5vw, 1.25rem);
+      letter-spacing: 0.02em;
+      white-space: nowrap;
+    }
+
+    .subtitle {
+      color: var(--muted);
+      font-size: clamp(0.7rem, 1.1vw, 0.82rem);
+      line-height: 1.25;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .header-weather {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-right: 2px;
+    }
+    .header-weather-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 5px 8px;
+      border-radius: 999px;
+      border: 1px solid var(--line-soft);
+      background: rgba(11, 29, 49, 0.8);
+      color: var(--text);
+      font-size: 0.68rem;
+      line-height: 1;
+      white-space: nowrap;
+    }
+    .header-weather-item .ico {
+      width: 14px;
+      height: 14px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0.95;
+    }
+    .header-weather-item .ico svg {
+      width: 14px;
+      height: 14px;
+      display: block;
+      fill: currentColor;
+      stroke: currentColor;
+      stroke-width: 1.2;
+    }
+    .tide-trend {
+      margin-left: 3px;
+      display: inline-flex;
+      align-items: center;
+      color: #9fd6ff;
+    }
+    .tide-trend svg {
+      width: 10px;
+      height: 10px;
+      fill: currentColor;
+    }
+    .wind-dir {
+      margin-left: 3px;
+      color: #b7d7ff;
+      font-weight: 700;
+    }
+
+    @media (max-width: 1260px) {
+      .header-row {
+        flex-wrap: wrap;
+        row-gap: 6px;
+      }
+      .header-left {
+        flex: 1 1 auto;
+        min-width: 220px;
+      }
+      .header-actions {
+        order: 2;
+        flex: 1 1 auto;
+        justify-content: flex-end;
+        flex-wrap: wrap;
+      }
+      .header-weather {
+        flex-wrap: wrap;
+        justify-content: flex-end;
+      }
+      .header-lamps-wrap {
+        order: 3;
+        flex: 1 1 100%;
+        justify-content: flex-start;
+      }
+    }
+
+    @media (max-width: 900px) {
+      .subtitle {
+        display: none;
+      }
+      .header-weather-item {
+        padding: 4px 6px;
+        font-size: 0.62rem;
+      }
+      .header-weather-item .ico,
+      .header-weather-item .ico svg {
+        width: 12px;
+        height: 12px;
+      }
+    }
+
+    .icon-link {
+      box-sizing: border-box;
+      width: 32px;
+      height: 32px;
+      border-radius: 9px;
+      border: 1px solid var(--line);
+      background: rgba(11, 29, 49, 0.9);
+      color: var(--text);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      margin: 0;
+      line-height: 1;
+      transition: border-color 140ms ease, transform 140ms ease, box-shadow 140ms ease;
+    }
+
+    button.icon-link {
+      cursor: pointer;
+      appearance: none;
+      -webkit-appearance: none;
+      font: inherit;
+    }
+
+    #dashboardLink.icon-link,
+    #toggleNamesBtn.icon-link {
+      font-weight: 700;
+      font-size: 0.75rem;
+      text-decoration: none;
+    }
+
+    .icon-link svg {
+      width: 16px;
+      height: 16px;
+      fill: currentColor;
+    }
+
+    .icon-link:hover {
+      transform: translateY(-1px);
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(53, 200, 255, 0.12);
+    }
+
+    .icon-link.active {
+      border-color: var(--accent);
+      color: #ffffff;
+      box-shadow: 0 0 0 3px rgba(53, 200, 255, 0.18);
+    }
+
+    .icon-link.active {
+      border-color: var(--accent);
+      color: #ffffff;
+      box-shadow: 0 0 0 3px rgba(53, 200, 255, 0.18);
+    }
+
+    .app {
+      height: calc(100vh - var(--header-h));
+      position: relative;
+    }
+
+    .dock {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: var(--dock-w);
+      height: 100%;
+      border-right: 1px solid var(--line-soft);
+      background: linear-gradient(180deg, rgba(11, 29, 49, 0.96), rgba(8, 22, 37, 0.96));
+      padding: 8px 6px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      z-index: 1600;
+    }
+
+    .dock-spacer {
+      flex: 1;
+    }
+
+    .dock-btn {
+      width: 42px;
+      height: 42px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: rgba(11, 29, 49, 0.92);
+      color: var(--text);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: border-color 140ms ease, transform 140ms ease, box-shadow 140ms ease;
+    }
+
+    .dock-btn svg {
+      width: 18px;
+      height: 18px;
+      fill: currentColor;
+    }
+
+    .dock-btn:hover {
+      transform: translateY(-1px);
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(53, 200, 255, 0.12);
+    }
+
+    .dock-btn.active {
+      border-color: var(--accent);
+      color: #ffffff;
+      box-shadow: 0 0 0 3px rgba(53, 200, 255, 0.18);
+    }
+
+    .float-layer {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 1200;
+    }
+
+    .float-panel {
+      position: fixed;
+      width: min(360px, calc(100vw - var(--dock-w) - 24px));
+      max-height: min(70vh, 640px);
+      border: 1px solid var(--line-soft);
+      border-radius: var(--radius-xl);
+      background: linear-gradient(180deg, rgba(11, 29, 49, 0.98), rgba(8, 22, 37, 0.98));
+      box-shadow: var(--shadow);
+      display: none;
+      flex-direction: column;
+      overflow: hidden;
+      pointer-events: auto;
+    }
+
+    .float-panel.is-open {
+      display: flex;
+    }
+
+    .float-panel__header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 10px 10px 9px;
+      border-bottom: 1px solid var(--line-soft);
+      cursor: grab;
+      user-select: none;
+    }
+
+    .float-panel__title {
+      font-weight: 800;
+      font-size: 0.86rem;
+      letter-spacing: 0.02em;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .float-panel__actions {
+      display: flex;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+
+    .float-panel__icon-btn {
+      width: 30px;
+      height: 30px;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      background: rgba(11, 29, 49, 0.92);
+      color: var(--text);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+
+    .float-panel__icon-btn svg {
+      width: 14px;
+      height: 14px;
+      fill: currentColor;
+    }
+
+    .float-panel__body {
+      padding: 10px;
+      overflow: auto;
+    }
+
+    .float-panel__body .menu-card {
+      margin-bottom: 10px;
+    }
+
+    .float-panel__body .menu-card:last-child {
+      margin-bottom: 0;
+    }
+
+    .menu-card {
+      border: 1px solid var(--line-soft);
+      border-radius: var(--radius-lg);
+      background: rgba(255, 255, 255, 0.02);
+      padding: 10px;
+      margin-bottom: 10px;
+    }
+
+    .status-main {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 700;
+      font-size: 0.92rem;
+      margin-bottom: 8px;
+    }
+
+    .status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--warn);
+      box-shadow: 0 0 10px rgba(255, 205, 107, 0.6);
+    }
+
+    .online {
+      background: var(--good);
+      box-shadow: 0 0 10px rgba(55, 217, 137, 0.6);
+    }
+
+    .stat-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      font-size: 0.8rem;
+    }
+
+    .stat-item {
+      border: 1px solid var(--line-soft);
+      border-radius: var(--radius-md);
+      padding: 7px;
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .stat-item .k {
+      color: var(--muted);
+      font-size: 0.64rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 3px;
+    }
+    .weather-panel-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 8px;
+      margin-top: 6px;
+    }
+    .weather-item {
+      border: 1px solid var(--line-soft);
+      border-radius: var(--radius-md);
+      padding: 8px;
+      background: rgba(255, 255, 255, 0.02);
+    }
+    .weather-item .k {
+      color: var(--muted);
+      font-size: 0.64rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 4px;
+    }
+    .weather-item .v {
+      color: var(--text);
+      font-size: 0.94rem;
+      font-weight: 700;
+    }
+    .weather-meta {
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 0.7rem;
+    }
+    .bgflow-chart {
+      margin-top: 8px;
+      border: 1px solid var(--line-soft);
+      border-radius: 10px;
+      background: rgba(10, 24, 42, 0.45);
+      padding: 6px;
+    }
+    .bgflow-chart-title {
+      margin: 0 0 6px;
+      font-size: 0.7rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .bgflow-chart svg {
+      width: 100%;
+      height: 110px;
+      display: block;
+    }
+    .bgflow-chart-legend {
+      margin-top: 4px;
+      font-size: 0.68rem;
+      color: var(--muted);
+      display: flex;
+      justify-content: space-between;
+    }
+    .barra-panel {
+      margin-top: 8px;
+      border: 1px solid var(--line-soft);
+      border-radius: 10px;
+      padding: 8px;
+      background: rgba(255, 255, 255, 0.02);
+    }
+    .barra-panel-title {
+      font-size: 0.76rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 6px;
+    }
+    .barra-columns {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 8px;
+    }
+    .barra-col {
+      border: 1px solid var(--line-soft);
+      border-radius: 8px;
+      padding: 6px;
+      background: rgba(255, 255, 255, 0.01);
+      font-size: 0.74rem;
+    }
+    .barra-col h4 {
+      margin: 0 0 4px;
+      font-size: 0.76rem;
+    }
+    .barra-list {
+      margin: 0;
+      padding-left: 16px;
+      max-height: 120px;
+      overflow-y: auto;
+    }
+    .barra-list li {
+      margin: 2px 0;
+    }
+    .barra-group-title {
+      margin-top: 6px;
+      margin-bottom: 3px;
+      font-size: 0.7rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .barra-empty {
+      color: var(--muted);
+      font-size: 0.72rem;
+    }
+    .barra-kind {
+      color: var(--muted);
+      font-size: 0.68rem;
+      margin-left: 4px;
+    }
+    .barra-events {
+      margin-top: 8px;
+      border: 1px solid var(--line-soft);
+      border-radius: 8px;
+      padding: 6px;
+      background: rgba(255, 255, 255, 0.01);
+      font-size: 0.73rem;
+    }
+    .barra-events-title {
+      margin: 0 0 4px;
+      font-size: 0.75rem;
+    }
+    .barra-events-list {
+      margin: 0;
+      padding-left: 16px;
+      max-height: 120px;
+      overflow-y: auto;
+    }
+    .barra-event-time {
+      color: var(--muted);
+      margin-right: 4px;
+    }
+    .barra-confirmed {
+      margin-top: 8px;
+      border: 1px solid var(--line-soft);
+      border-radius: 8px;
+      padding: 6px;
+      background: rgba(255, 255, 255, 0.01);
+      font-size: 0.73rem;
+    }
+    .barra-confirmed-title {
+      margin: 0 0 4px;
+      font-size: 0.75rem;
+    }
+    @media (min-width: 860px) {
+      .barra-columns {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+
+    .geofence-editor {
+      margin-top: 8px;
+      border-top: 1px solid var(--line-soft);
+      padding-top: 8px;
+    }
+    .geofence-list {
+      margin-top: 8px;
+      max-height: 170px;
+      overflow-y: auto;
+      border: 1px solid var(--line-soft);
+      border-radius: 10px;
+      padding: 6px;
+      background: rgba(255, 255, 255, 0.02);
+    }
+    .geofence-item {
+      border: 1px solid var(--line-soft);
+      border-radius: 8px;
+      padding: 6px;
+      margin-bottom: 6px;
+      font-size: 0.75rem;
+    }
+    .geofence-item:last-child {
+      margin-bottom: 0;
+    }
+    .geofence-item-actions {
+      display: flex;
+      gap: 6px;
+      margin-top: 6px;
+      flex-wrap: wrap;
+    }
+    .geofence-item-actions button {
+      margin-top: 0;
+      flex: 1;
+      min-width: 0;
+      height: 28px;
+      font-size: 0.72rem;
+      font-weight: 600;
+    }
+    .tiny-btn {
+      margin-top: 6px;
+      height: 28px;
+      font-size: 0.74rem;
+      font-weight: 600;
+    }
+    .vertex-handle {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #35c8ff;
+      border: 2px solid #ffffff;
+      box-shadow: 0 0 0 2px rgba(53, 200, 255, 0.35);
+    }
+
+    .saam-fleet-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 8px;
+      max-height: 220px;
+      overflow-y: auto;
+    }
+    .saam-fleet-row {
+      border: 1px solid var(--line-soft);
+      border-radius: 10px;
+      padding: 8px;
+      background: rgba(255, 255, 255, 0.02);
+      font-size: 0.78rem;
+    }
+    .saam-fleet-row .row-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 4px;
+    }
+    .saam-fleet-row .name {
+      font-weight: 700;
+      font-size: 0.82rem;
+      line-height: 1.2;
+    }
+    .saam-fleet-row .mmsi {
+      color: var(--muted);
+      font-size: 0.72rem;
+    }
+    .saam-status-pill {
+      flex-shrink: 0;
+      font-size: 0.65rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      padding: 3px 8px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+    }
+    .saam-status-online {
+      color: #0d2a1c;
+      background: var(--good);
+      border-color: rgba(55, 217, 137, 0.65);
+    }
+    .saam-status-offline {
+      color: var(--text);
+      background: rgba(255, 205, 107, 0.18);
+      border-color: rgba(255, 205, 107, 0.45);
+    }
+    .saam-fleet-meta {
+      color: var(--muted);
+      font-size: 0.72rem;
+      line-height: 1.35;
+    }
+    .btn-locate-saam {
+      margin-top: 8px;
+      height: 30px;
+      font-size: 0.78rem;
+      font-weight: 700;
+    }
+    .btn-locate-saam:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
+    .control label {
+      display: block;
+      color: var(--muted);
+      font-size: 0.64rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin: 8px 0 4px;
+      font-weight: 600;
+    }
+
+    select, button {
+      width: 100%;
+      height: 38px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--line);
+      background: var(--panel-strong);
+      color: var(--text);
+      font-family: inherit;
+      padding: 0 10px;
+      font-size: 0.88rem;
+    }
+
+    button {
+      margin-top: 10px;
+      cursor: pointer;
+      font-weight: 700;
+      background: linear-gradient(180deg, #1a3d61, #15314d);
+    }
+
+    select:focus, button:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(53, 200, 255, 0.14);
+    }
+
+    /* Painéis usam width:100% em todos os buttons; luminosos do header precisam ficar em linha. */
+    header .header-lamps .saam-lamp {
+      width: auto;
+      max-width: none;
+      margin-top: 0;
+      flex: 0 0 auto;
+      height: 28px;
+      padding: 0 7px;
+      font-size: 0.65rem;
+      font-weight: 700;
+    }
+
+    header .header-lamps .saam-lamp--base {
+      background: linear-gradient(180deg, #2563eb 0%, #1e3a8a 100%);
+      box-shadow:
+        0 0 14px rgba(59, 130, 246, 0.75),
+        0 0 3px rgba(147, 197, 253, 0.9) inset;
+      border-color: rgba(147, 197, 253, 0.45);
+    }
+
+    header .header-lamps .saam-lamp--away {
+      background: linear-gradient(180deg, #22c55e 0%, #14532d 100%);
+      box-shadow:
+        0 0 14px rgba(34, 197, 94, 0.65),
+        0 0 3px rgba(187, 247, 208, 0.35) inset;
+      border-color: rgba(134, 239, 172, 0.45);
+    }
+
+    header .header-lamps .saam-lamp--offline {
+      background: linear-gradient(180deg, #475569 0%, #1e293b 100%);
+      color: #94a3b8;
+      box-shadow: 0 0 8px rgba(100, 116, 139, 0.35);
+      border-color: rgba(148, 163, 184, 0.25);
+    }
+
+    .legend {
+      margin-top: 8px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 5px;
+      font-size: 0.72rem;
+      color: var(--muted);
+    }
+
+    .map-wrap {
+      position: absolute;
+      top: 0;
+      left: var(--dock-w);
+      right: 0;
+      bottom: 0;
+      padding: 8px;
+    }
+
+    #map {
+      width: 100%;
+      height: 100%;
+      border-radius: var(--radius-xl);
+      border: 1px solid var(--line-soft);
+      box-shadow: var(--shadow);
+    }
+    .bgmar-display {
+      position: absolute;
+      right: 18px;
+      bottom: 18px;
+      z-index: 1200;
+      min-width: 130px;
+      padding: 8px 10px;
+      border-radius: 10px;
+      border: 1px solid var(--line-soft);
+      background: rgba(7, 20, 36, 0.88);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(4px);
+      pointer-events: none;
+    }
+    .bgmar-display h4 {
+      margin: 0 0 6px;
+      font-size: 0.7rem;
+      color: var(--muted);
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+    }
+    .bgmar-display .row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      font-size: 0.78rem;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+    .bgmar-display .row:last-child {
+      margin-bottom: 0;
+    }
+    .bgmar-display .row strong {
+      font-size: 0.9rem;
+      color: var(--text);
+    }
+
+    .vessel-icon {
+      width: 26px;
+      height: 26px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      font-weight: 700;
+      color: #ffffff;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+    }
+
+    .ship-wrap {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transform-origin: 50% 50%;
+    }
+
+    .ship-shape {
+      position: relative;
+      width: var(--ship-w, 14px);
+      height: var(--ship-h, 24px);
+      filter:
+        drop-shadow(0 1px 3px rgba(0, 0, 0, 0.55))
+        drop-shadow(0 0 2px rgba(255, 255, 255, 0.35));
+    }
+    .ship-shape .ship-poly {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      overflow: visible;
+    }
+    .ship-shape .ship-poly path {
+      fill: currentColor;
+      stroke: rgba(11, 26, 43, 0.95);
+      stroke-width: 1.2;
+      vector-effect: non-scaling-stroke;
+    }
+
+    .ship-badge {
+      position: absolute;
+      top: calc(var(--ship-h, 24px) * 0.3);
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 8px;
+      font-weight: 800;
+      color: #fff;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+      z-index: 2;
+      pointer-events: none;
+    }
+
+    .ship-shape.ship-saam {
+      color: #ffd400;
+      filter:
+        drop-shadow(0 0 2px rgba(255, 212, 0, 0.95))
+        drop-shadow(0 0 6px rgba(255, 212, 0, 0.65))
+        drop-shadow(0 2px 5px rgba(0, 0, 0, 0.55));
+    }
+    .ship-shape.ship-saam .ship-poly path {
+      stroke: #06203b;
+      stroke-width: 1.7;
+      filter: drop-shadow(0 0 1px rgba(255, 212, 0, 0.9));
+    }
+    .ship-shape.ship-saam::after {
+      content: "";
+      position: absolute;
+      left: -2px;
+      top: -2px;
+      width: calc(100% + 4px);
+      height: calc(100% + 4px);
+      border-radius: 999px;
+      border: 1px solid rgba(255, 212, 0, 0.75);
+      pointer-events: none;
+      box-shadow: 0 0 6px rgba(255, 212, 0, 0.4);
+    }
+    .ship-shape.ship-saam .ship-badge {
+      color: #ffd400;
+      text-shadow: none;
+      background: rgba(6, 25, 44, 0.96);
+      border: 1px solid rgba(255, 212, 0, 0.9);
+      border-radius: 999px;
+      padding: 0 3px;
+      line-height: 1.25;
+      box-shadow: 0 0 5px rgba(255, 212, 0, 0.45);
+    }
+
+    .vessel-carga { background: #2f80ed; color: #2f80ed; }
+    .vessel-petroleiro { background: #eb5757; color: #eb5757; }
+    .vessel-rebocador_servico { background: #f2994a; color: #f2994a; }
+    .vessel-passageiros { background: #27ae60; color: #27ae60; }
+    .vessel-pesca { background: #56ccf2; color: #56ccf2; }
+    .vessel-lazer { background: #bb6bd9; color: #bb6bd9; }
+    .vessel-outros { background: #7f8c8d; color: #7f8c8d; }
+
+    .leaflet-popup-content-wrapper,
+    .leaflet-popup-tip {
+      background: #102238;
+      color: var(--text);
+    }
+    .leaflet-control-layers {
+      border: 1px solid var(--line-soft);
+      border-radius: 10px;
+      overflow: hidden;
+      background: rgba(7, 20, 36, 0.92);
+      box-shadow: var(--shadow);
+    }
+    .leaflet-control-layers-toggle {
+      width: 34px !important;
+      height: 34px !important;
+      background-image: none !important;
+      display: flex !important;
+      align-items: center;
+      justify-content: center;
+      color: #eaf4ff;
+      font-size: 1.1rem;
+      font-weight: 700;
+      line-height: 1;
+    }
+    .leaflet-control-layers-toggle::before {
+      content: "\2630";
+    }
+    .leaflet-control-layers-expanded {
+      padding: 8px 10px 10px;
+      color: #eaf4ff;
+      min-width: 185px;
+    }
+
+    .vessel-name-label {
+      background: rgba(8, 21, 35, 0.9);
+      color: #eaf4ff;
+      border: 1px solid rgba(73, 120, 163, 0.85);
+      border-radius: 8px;
+      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.28);
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 2px 8px;
+      white-space: nowrap;
+    }
+
+    .vessel-name-label:before {
+      border-right-color: rgba(73, 120, 163, 0.85);
+    }
+
+    @media (max-width: 520px) {
+      .float-panel {
+        width: calc(100vw - 16px);
+        left: 8px !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="header-row">
+      <div class="header-left">
+        <div>
+          <h1>AIS BRASIL APP</h1>
+          <div class="subtitle">Jossian Brito • AISSTREAM • <span id="creditYear"></span></div>
+        </div>
+      </div>
+      <div class="header-lamps-wrap">
+        <div id="saamHeaderLamps" class="header-lamps" role="group" aria-label="Status rebocadores SAAM-BGRA"></div>
+      </div>
+      <div class="header-actions">
+        <div class="header-weather" aria-label="Condições ambientais">
+          <span class="header-weather-item" title="Maré / onda">
+            <span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M2 14c2.2 0 2.2-2 4.4-2S8.6 14 10.8 14s2.2-2 4.4-2 2.2 2 4.4 2 2.2-2 4.4-2v2c-2.2 0-2.2 2-4.4 2s-2.2-2-4.4-2-2.2 2-4.4 2-2.2-2-4.4-2-2.2 2-4.4 2V14z"></path></svg></span><span id="topTideText">-- m</span>
+          </span>
+          <span class="header-weather-item" title="Vento">
+            <span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 8h11a3 3 0 1 0-2.83-4H9.9A4.5 4.5 0 1 1 14 11H3V8zm0 5h15a2.5 2.5 0 1 1-2.35 3.3h-1.43A4 4 0 1 0 18 10H3v3zm0 5h9a2 2 0 1 1-1.86 2.75H8.7A3.5 3.5 0 1 0 12 16H3v2z"></path></svg></span><span id="topWindText">-- kn</span>
+          </span>
+          <span class="header-weather-item" title="Temperatura">
+            <span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M14 14.76V5a2 2 0 1 0-4 0v9.76a4 4 0 1 0 4 0zM12 3a2 2 0 0 1 2 2v10.35a3 3 0 1 1-4 0V5a2 2 0 0 1 2-2z"></path></svg></span><span id="topTempText">-- °C</span>
+          </span>
+        </div>
+        <a class="icon-link" id="dashboardLink" href="./dashboard" title="Dashboard estratégico (/dashboard com dados no HTML)" aria-label="Dashboard estratégico">DB</a>
+        <button id="toggleNamesBtn" class="icon-link" type="button" title="Mostrar nomes das embarcações" aria-label="Mostrar nomes das embarcações">
+          N
+        </button>
+      </div>
+    </div>
+    <div class="header-saam-legend">
+      <span><span class="legend-swatch legend-swatch--base" aria-hidden="true"></span> Na base (azul)</span>
+      <span><span class="legend-swatch legend-swatch--away" aria-hidden="true"></span> Fora da base (verde)</span>
+      <span><span class="legend-swatch legend-swatch--offline" aria-hidden="true"></span> Offline (cinza)</span>
+    </div>
+  </header>
+
+  <div class="app">
+    <aside class="dock" aria-label="Painéis do aplicativo">
+      <button type="button" class="dock-btn" data-panel="status" title="Status" aria-label="Status">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm1 15h-2v-2h2zm0-4h-2V7h2z"/></svg>
+      </button>
+      <button type="button" class="dock-btn" data-panel="area" title="Área" aria-label="Área">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2C8.1 2 5 5.1 5 9c0 5.2 7 13 7 13s7-7.8 7-13c0-3.9-3.1-7-7-7zm0 9.5A2.5 2.5 0 1 1 12 6a2.5 2.5 0 0 1 0 5.5z"/></svg>
+      </button>
+      <button type="button" class="dock-btn" data-panel="filters" title="Filtros" aria-label="Filtros">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 18h4v-2h-4v2zM3 6v2h18V6H3zm3 7h12v-2H6v2z"/></svg>
+      </button>
+      <button type="button" class="dock-btn" data-panel="geofence" title="Geofences" aria-label="Geofences">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3h8v8H3V3zm10 0h8v8h-8V3zM3 13h8v8H3v-8zm10 0h8v8h-8v-8z"/></svg>
+      </button>
+      <button type="button" class="dock-btn" data-panel="saam" title="SAAM-BGRA" aria-label="SAAM-BGRA">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6h5v12H6V6zm7 4h5v8h-5v-8z"/></svg>
+      </button>
+      <button type="button" class="dock-btn" data-panel="bgflow" title="Entrada/Saída BG" aria-label="Entrada e Saída da Baía">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h10l-2.5-2.5L14 3l5 5-5 5-1.5-1.5L15 9H5V7zm14 10H9l2.5 2.5L10 21l-5-5 5-5 1.5 1.5L9 15h10v2z"/></svg>
+      </button>
+      <button type="button" class="dock-btn" data-panel="weather" title="Tempo, maré e vento" aria-label="Tempo, maré e vento">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 19h11a4 4 0 0 0 .7-7.94A6 6 0 0 0 6.2 9.9 4.2 4.2 0 0 0 6 19zm2-9a3 3 0 0 1 5.65-1.41l.32.64.72.06A2.5 2.5 0 0 1 17 11.8l-.08.67.64.22A2 2 0 0 1 17 16H8a2 2 0 0 1 0-4z"/></svg>
+      </button>
+      <div class="dock-spacer"></div>
+    </aside>
+
+    <div class="float-layer">
+      <section id="panel-status" class="float-panel" data-panel="status" role="dialog" aria-label="Status">
+        <div class="float-panel__header" data-drag-handle="true">
+          <div class="float-panel__title">Status</div>
+          <div class="float-panel__actions">
+            <button type="button" class="float-panel__icon-btn" data-panel-close="status" aria-label="Fechar painel Status">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="float-panel__body">
+          <div class="menu-card">
+            <div class="status-main" id="connectionStatus"><span class="status-dot"></span>Aguardando conexão...</div>
+            <div class="stat-grid">
+              <div class="stat-item"><div class="k">Modo</div><div id="modeText">-</div></div>
+              <div class="stat-item"><div class="k">Área</div><div id="areaText">-</div></div>
+              <div class="stat-item"><div class="k">Mensagens</div><div id="totalMessages">0</div></div>
+              <div class="stat-item"><div class="k">Última AIS</div><div id="lastAis">-</div></div>
+            </div>
+            <div class="barra-panel">
+              <div class="barra-panel-title">Baia de Guanabara Interno (monitoramento)</div>
+              <div class="barra-columns">
+                <div class="barra-col">
+                  <h4>BG (Dentro) <span id="barraEntradaCount" class="barra-kind">(0)</span></h4>
+                  <ul id="barraEntradaList" class="barra-list"></ul>
+                </div>
+                <div class="barra-col">
+                  <h4>MAR (Fora) <span id="barraSaidaCount" class="barra-kind">(0)</span></h4>
+                  <ul id="barraSaidaList" class="barra-list"></ul>
+                </div>
+              </div>
+              <div class="barra-events">
+                <h4 class="barra-events-title">Últimos movimentos BG/MAR</h4>
+                <ul id="barraEventsList" class="barra-events-list"></ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="panel-bgflow" class="float-panel" data-panel="bgflow" role="dialog" aria-label="Entrada e saída da Baía de Guanabara">
+        <div class="float-panel__header" data-drag-handle="true">
+          <div class="float-panel__title">Entrada/Saída da Baía</div>
+          <div class="float-panel__actions">
+            <button type="button" class="float-panel__icon-btn" data-panel-close="bgflow" aria-label="Fechar painel Entrada/Saída da Baía">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="float-panel__body">
+          <div class="menu-card">
+            <div class="barra-panel">
+              <div class="barra-panel-title">Baia de Guanabara Interno (monitoramento)</div>
+              <div class="barra-columns">
+                <div class="barra-col">
+                  <h4>BG (Dentro) <span id="bgFlowEntradaCount" class="barra-kind">(0)</span></h4>
+                  <ul id="bgFlowEntradaList" class="barra-list"></ul>
+                </div>
+                <div class="barra-col">
+                  <h4>MAR (Fora) <span id="bgFlowSaidaCount" class="barra-kind">(0)</span></h4>
+                  <ul id="bgFlowSaidaList" class="barra-list"></ul>
+                </div>
+              </div>
+              <div class="barra-events">
+                <h4 class="barra-events-title">Últimos movimentos BG/MAR</h4>
+                <ul id="bgFlowEventsList" class="barra-events-list"></ul>
+              </div>
+              <div class="bgflow-chart">
+                <h4 class="bgflow-chart-title">Movimentação últimas 24h</h4>
+                <div id="bgFlowChart"></div>
+                <div class="bgflow-chart-legend">
+                  <span style="color:#4aa8ff;">■ Entradas BG</span>
+                  <span style="color:#ffb86b;">■ Saídas MAR</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="panel-weather" class="float-panel" data-panel="weather" role="dialog" aria-label="Previsão ambiental">
+        <div class="float-panel__header" data-drag-handle="true">
+          <div class="float-panel__title">Tempo, maré e vento</div>
+          <div class="float-panel__actions">
+            <button type="button" class="float-panel__icon-btn" data-panel-close="weather" aria-label="Fechar painel previsão ambiental">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="float-panel__body">
+          <div class="menu-card">
+            <div class="weather-panel-grid">
+              <div class="weather-item">
+                <div class="k">Temperatura</div>
+                <div class="v" id="weatherTempValue">-- °C</div>
+              </div>
+              <div class="weather-item">
+                <div class="k">Vento</div>
+                <div class="v" id="weatherWindValue">-- kn (--)</div>
+              </div>
+              <div class="weather-item">
+                <div class="k">Maré / onda</div>
+                <div class="v" id="weatherTideValue">-- m</div>
+              </div>
+            </div>
+            <div class="weather-meta" id="weatherUpdatedAt">Atualização: --</div>
+            <button type="button" id="refreshWeatherBtn" class="tiny-btn" style="margin-top:8px;">Atualizar previsão</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="panel-area" class="float-panel" data-panel="area" role="dialog" aria-label="Área">
+        <div class="float-panel__header" data-drag-handle="true">
+          <div class="float-panel__title">Área</div>
+          <div class="float-panel__actions">
+            <button type="button" class="float-panel__icon-btn" data-panel-close="area" aria-label="Fechar painel Área">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="float-panel__body">
+          <div class="menu-card">
+            <div class="control">
+              <label for="areaSelect">Área de monitoramento</label>
+              <select id="areaSelect"></select>
+            </div>
+            <button id="applyAreaBtn">Aplicar área</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="panel-filters" class="float-panel" data-panel="filters" role="dialog" aria-label="Filtros">
+        <div class="float-panel__header" data-drag-handle="true">
+          <div class="float-panel__title">Filtros</div>
+          <div class="float-panel__actions">
+            <button type="button" class="float-panel__icon-btn" data-panel-close="filters" aria-label="Fechar painel Filtros">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="float-panel__body">
+          <div class="menu-card">
+            <div class="control">
+              <label for="shipTypeFilter">Filtro de embarcação</label>
+              <select id="shipTypeFilter">
+                <option value="all">Todos os tipos</option>
+                <option value="carga">Carga</option>
+                <option value="petroleiro">Petroleiro</option>
+                <option value="rebocador_servico">Rebocador/Serviço</option>
+                <option value="passageiros">Passageiros</option>
+                <option value="pesca">Pesca</option>
+                <option value="lazer">Lazer/Vela</option>
+                <option value="outros">Outros</option>
+              </select>
+            </div>
+            <div class="legend">
+              <div>C: Carga</div>
+              <div>T: Petroleiro</div>
+              <div>R: Rebocador</div>
+              <div>P: Passageiros</div>
+              <div>F: Pesca</div>
+              <div>L/O: Lazer/Outros</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="panel-geofence" class="float-panel" data-panel="geofence" role="dialog" aria-label="Geofences">
+        <div class="float-panel__header" data-drag-handle="true">
+          <div class="float-panel__title">Geofences</div>
+          <div class="float-panel__actions">
+            <button type="button" class="float-panel__icon-btn" data-panel-close="geofence" aria-label="Fechar painel Geofences">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="float-panel__body">
+          <div class="menu-card">
+            <div class="control">
+              <label for="geofenceName">Nome do geofence</label>
+              <input id="geofenceName" type="text" placeholder="Ex.: Berço 101" style="width:100%;height:38px;border-radius:12px;border:1px solid var(--line);background:var(--panel-strong);color:var(--text);padding:0 10px;" />
+            </div>
+            <div class="control">
+              <label for="geofenceType">Tipo</label>
+              <select id="geofenceType">
+                <option value="berco">Berço</option>
+                <option value="base_rebocador">Base Rebocador</option>
+                <option value="polygon">Polígono Geral</option>
+              </select>
+            </div>
+            <div class="control">
+              <label for="geofenceFleetScope">Escopo de frota</label>
+              <select id="geofenceFleetScope">
+                <option value="all">Todas</option>
+                <option value="SAAM-BGRA">SAAM-BGRA</option>
+              </select>
+            </div>
+            <button id="startGeofenceDrawBtn" class="tiny-btn">Iniciar desenho</button>
+            <button id="finishGeofenceDrawBtn" class="tiny-btn">Finalizar desenho</button>
+            <button id="saveGeofenceBtn" class="tiny-btn">Salvar geofence</button>
+            <button id="saveGeofenceEditBtn" class="tiny-btn">Salvar edição do polígono</button>
+            <button id="cancelGeofenceEditBtn" class="tiny-btn">Cancelar edição</button>
+            <button id="cancelGeofenceDrawBtn" class="tiny-btn">Cancelar desenho</button>
+            <div class="geofence-editor">
+              <div id="geofenceEditorHint" style="font-size:0.72rem;color:var(--muted);">Clique no mapa para adicionar vértices. Finalize e salve.</div>
+            </div>
+            <div id="geofenceList" class="geofence-list"></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="panel-saam" class="float-panel" data-panel="saam" role="dialog" aria-label="SAAM-BGRA">
+        <div class="float-panel__header" data-drag-handle="true">
+          <div class="float-panel__title">SAAM-BGRA</div>
+          <div class="float-panel__actions">
+            <button type="button" class="float-panel__icon-btn" data-panel-close="saam" aria-label="Fechar painel SAAM-BGRA">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="float-panel__body">
+          <div class="menu-card">
+            <div class="status-main" style="margin-bottom: 4px;">Frota SAAM-BGRA</div>
+            <div class="subtitle" style="white-space: normal; margin-bottom: 6px;">Status dos rebocadores e localização rápida no mapa.</div>
+            <div id="saamFleetList" class="saam-fleet-list"></div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <main class="map-wrap">
+      <div id="map"></div>
+      <div id="bgMarDisplay" class="bgmar-display" aria-live="polite">
+        <h4>Baia de Guanabara</h4>
+        <div class="row"><span>BG (Dentro)</span><strong id="bgInsideCount">0</strong></div>
+        <div class="row"><span>MAR (Fora)</span><strong id="bgOutsideCount">0</strong></div>
+      </div>
+    </main>
+  </div>
+
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin=""
+  ></script>
+  <script>
+    const map = L.map("map").setView([-14.235, -51.9253], 4);
+    const markers = new Map();
+    const SAAM_BGRA_ROSTER = [
+      { mmsi: "710020280", name: "SAAM ARIES", abbr: "AR" },
+      { mmsi: "710000348", name: "SAAM ITABIRA", abbr: "IT" },
+      { mmsi: "710021750", name: "SAAM CHILE", abbr: "CH" },
+      { mmsi: "710001593", name: "SAAM HOLANDA", abbr: "HL" },
+      { mmsi: "710016030", name: "SAAM LANCELOT", abbr: "LT" },
+      { mmsi: "710015310", name: "SAAM ARTHUR", abbr: "AT" }
+    ];
+    const SAAM_STALE_MS = 5 * 60 * 1000;
+    let socket = null;
+    let reconnectTimer = null;
+    let areas = {};
+    let currentShipFilter = "all";
+    let lastAreaKeyApplied = null;
+    let modeState = "live";
+    let liveConnectedState = false;
+    let wsFailCount = 0;
+    let wsOpenedAtLeastOnce = false;
+    let pollingMode = false;
+    let pollingTimer = null;
+    let lastSeq = 0;
+    let showVesselNames = false;
+    let geofenceDrawMode = false;
+    let geofenceDrawPoints = [];
+    let geofenceDraftLayer = null;
+    let geofenceLayers = new Map();
+    let geofenceById = new Map();
+    let occupancyByGeofenceId = new Map();
+    let trailHistoryByMmsi = new Map();
+    let trailLayerByMmsi = new Map();
+    const activeTrailByMmsi = new Set();
+    const TRAIL_MAX_POINTS = 120;
+    const TRAIL_STORAGE_KEY = "aisstream.trails.v1";
+    const HOVER_POPUP_DELAY_MS = 1000;
+    const HOVER_POPUP_CLOSE_DELAY_MS = 1000;
+    const WEATHER_REFRESH_MS = 10 * 60 * 1000;
+    let previousBgInsideByMmsi = new Map();
+    let barraEventHistory = [];
+    const BARRA_HISTORY_STORAGE_KEY = "aisstream.bgflow.history.v1";
+    const BARRA_HISTORY_KEEP_MS = 24 * 60 * 60 * 1000;
+    const BG_INTERNO_GEOFENCE_NAME = "baia de guanabara interno";
+    let weatherCenter = { lat: -22.895, lon: -43.165 };
+    let weatherRefreshTimer = null;
+    let editingGeofenceId = null;
+    let editPolygonLayer = null;
+    let editVertexMarkers = [];
+    let editLatLngs = [];
+    const vertexHandleIcon = L.divIcon({
+      className: "vertex-handle-icon",
+      html: '<div class="vertex-handle"></div>',
+      iconSize: [12, 12],
+      iconAnchor: [6, 6]
+    });
+
+    const areaSelect = document.getElementById("areaSelect");
+    const areaText = document.getElementById("areaText");
+    const modeText = document.getElementById("modeText");
+    const totalMessagesEl = document.getElementById("totalMessages");
+    const lastAisEl = document.getElementById("lastAis");
+    const connectionStatusEl = document.getElementById("connectionStatus");
+    const shipTypeFilterEl = document.getElementById("shipTypeFilter");
+    const toggleNamesBtn = document.getElementById("toggleNamesBtn");
+    const saamFleetListEl = document.getElementById("saamFleetList");
+    const geofenceNameEl = document.getElementById("geofenceName");
+    const geofenceTypeEl = document.getElementById("geofenceType");
+    const geofenceFleetScopeEl = document.getElementById("geofenceFleetScope");
+    const geofenceListEl = document.getElementById("geofenceList");
+    const startGeofenceDrawBtn = document.getElementById("startGeofenceDrawBtn");
+    const finishGeofenceDrawBtn = document.getElementById("finishGeofenceDrawBtn");
+    const saveGeofenceBtn = document.getElementById("saveGeofenceBtn");
+    const saveGeofenceEditBtn = document.getElementById("saveGeofenceEditBtn");
+    const cancelGeofenceEditBtn = document.getElementById("cancelGeofenceEditBtn");
+    const cancelGeofenceDrawBtn = document.getElementById("cancelGeofenceDrawBtn");
+    const geofenceEditorHintEl = document.getElementById("geofenceEditorHint");
+    const topTideTextEl = document.getElementById("topTideText");
+    const topWindTextEl = document.getElementById("topWindText");
+    const topTempTextEl = document.getElementById("topTempText");
+    const weatherTempValueEl = document.getElementById("weatherTempValue");
+    const weatherWindValueEl = document.getElementById("weatherWindValue");
+    const weatherTideValueEl = document.getElementById("weatherTideValue");
+    const weatherUpdatedAtEl = document.getElementById("weatherUpdatedAt");
+    const refreshWeatherBtn = document.getElementById("refreshWeatherBtn");
+    const appConfig = window.APP_CONFIG || {};
+    const API_BASE = (appConfig.API_BASE || "").replace(/\/$/, "");
+    const FORCE_POLLING_HOSTS = new Set(["tuglife.live", "www.tuglife.live"]);
+    const FORCE_POLLING_ACTIVE = Boolean(appConfig.FORCE_POLLING) || FORCE_POLLING_HOSTS.has(window.location.hostname);
+    const pathSegments = window.location.pathname.split("/").filter(Boolean);
+    const BASE_PATH = pathSegments.length > 0 ? `/${pathSegments[0]}` : "";
+    const dashboardLinkEl = document.getElementById("dashboardLink");
+    if (dashboardLinkEl) {
+      dashboardLinkEl.setAttribute("href", `${BASE_PATH}/dashboard`);
+    }
+    const WS_URL = appConfig.WS_URL || (() => {
+      const proto = window.location.protocol === "https:" ? "wss" : "ws";
+      return `${proto}://${window.location.host}${BASE_PATH}/ws`;
+    })();
+
+    function apiUrl(path) {
+      if (API_BASE) return `${API_BASE}${path}`;
+      return `${BASE_PATH}${path}`;
+    }
+
+    function saveBgHistoryState() {
+      try {
+        localStorage.setItem(BARRA_HISTORY_STORAGE_KEY, JSON.stringify(barraEventHistory));
+      } catch (_) {}
+    }
+
+    function loadBgHistoryState() {
+      try {
+        const raw = localStorage.getItem(BARRA_HISTORY_STORAGE_KEY);
+        if (!raw) return;
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) return;
+        const now = Date.now();
+        barraEventHistory = parsed
+          .filter((ev) => ev && typeof ev === "object")
+          .filter((ev) => {
+            const ts = Date.parse(ev.at || "");
+            return Number.isFinite(ts) && now - ts <= BARRA_HISTORY_KEEP_MS;
+          })
+          .slice(0, 1200);
+      } catch (_) {}
+    }
+
+    loadBgHistoryState();
+
+    function toKnots(ms) {
+      const n = Number(ms);
+      if (!Number.isFinite(n)) return null;
+      return n * 1.94384;
+    }
+
+    function windDirectionLabel(deg) {
+      const d = Number(deg);
+      if (!Number.isFinite(d)) return "--";
+      const dirs = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"];
+      const idx = Math.round((((d % 360) + 360) % 360) / 22.5) % 16;
+      return dirs[idx];
+    }
+
+    function nearestHourlyValue(times, values, nowIso) {
+      if (!Array.isArray(times) || !Array.isArray(values) || !times.length || !values.length) return null;
+      const target = Date.parse(nowIso);
+      if (!Number.isFinite(target)) return null;
+      let bestIdx = -1;
+      let bestDiff = Number.POSITIVE_INFINITY;
+      for (let i = 0; i < times.length; i++) {
+        const t = Date.parse(times[i]);
+        if (!Number.isFinite(t)) continue;
+        const diff = Math.abs(t - target);
+        if (diff < bestDiff) {
+          bestDiff = diff;
+          bestIdx = i;
+        }
+      }
+      if (bestIdx < 0) return null;
+      return values[bestIdx];
+    }
+
+    function nearestHourlyIndex(times, nowIso) {
+      if (!Array.isArray(times) || !times.length) return -1;
+      const target = Date.parse(nowIso);
+      if (!Number.isFinite(target)) return -1;
+      let bestIdx = -1;
+      let bestDiff = Number.POSITIVE_INFINITY;
+      for (let i = 0; i < times.length; i++) {
+        const t = Date.parse(times[i]);
+        if (!Number.isFinite(t)) continue;
+        const diff = Math.abs(t - target);
+        if (diff < bestDiff) {
+          bestDiff = diff;
+          bestIdx = i;
+        }
+      }
+      return bestIdx;
+    }
+
+    function tideTrendArrow(currentVal, prevVal) {
+      if (!Number.isFinite(currentVal) || !Number.isFinite(prevVal)) return "";
+      const d = currentVal - prevVal;
+      if (Math.abs(d) < 0.01) return "";
+      if (d > 0) return '<span class="tide-trend" title="Maré subindo"><svg viewBox="0 0 12 12"><path d="M6 1l4 6H7v4H5V7H2l4-6z"/></svg></span>';
+      return '<span class="tide-trend" title="Maré descendo"><svg viewBox="0 0 12 12"><path d="M6 11l-4-6h3V1h2v4h3l-4 6z"/></svg></span>';
+    }
+
+    function applyWeatherUI(data) {
+      const tempText = Number.isFinite(data?.tempC) ? `${data.tempC.toFixed(1)} °C` : "-- °C";
+      const windText = Number.isFinite(data?.windKn) ? `${data.windKn.toFixed(1)} kn` : "-- kn";
+      const windDir = data?.windDir || "--";
+      const windDirChip = `<span class="wind-dir">${escapeHtml(windDir)}</span>`;
+      const windLongText = Number.isFinite(data?.windKn)
+        ? `${data.windKn.toFixed(1)} kn ${windDirChip}`
+        : `-- kn ${windDirChip}`;
+      const tideText = Number.isFinite(data?.tideM) ? `${data.tideM.toFixed(2)} m` : "-- m";
+      const tideArrow = tideTrendArrow(Number(data?.tideM), Number(data?.prevTideM));
+      if (topTempTextEl) topTempTextEl.textContent = tempText;
+      if (topWindTextEl) topWindTextEl.innerHTML = `${windText}${windDirChip}`;
+      if (topTideTextEl) topTideTextEl.innerHTML = `${tideText}${tideArrow}`;
+      if (weatherTempValueEl) weatherTempValueEl.textContent = tempText;
+      if (weatherWindValueEl) weatherWindValueEl.innerHTML = windLongText;
+      if (weatherTideValueEl) weatherTideValueEl.innerHTML = `${tideText}${tideArrow}`;
+      if (weatherUpdatedAtEl) {
+        weatherUpdatedAtEl.textContent = `Atualização: ${new Date().toLocaleTimeString("pt-BR", { hour12: false })}`;
+      }
+    }
+
+    async function refreshWeatherInfo() {
+      const lat = Number(weatherCenter?.lat);
+      const lon = Number(weatherCenter?.lon);
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+      try {
+        const weatherUrl =
+          `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
+          `&current=temperature_2m,wind_speed_10m,wind_direction_10m&timezone=auto`;
+        const marineUrl =
+          `https://marine-api.open-meteo.com/v1/marine?latitude=${lat}&longitude=${lon}` +
+          `&hourly=wave_height&timezone=auto`;
+        const [weatherRes, marineRes] = await Promise.all([fetch(weatherUrl), fetch(marineUrl)]);
+        if (!weatherRes.ok || !marineRes.ok) throw new Error("Falha ao consultar previsão externa");
+        const weather = await weatherRes.json();
+        const marine = await marineRes.json();
+        const current = weather?.current || {};
+        const tideTimes = marine?.hourly?.time || [];
+        const tideVals = marine?.hourly?.wave_height || [];
+        const idx0 = nearestHourlyIndex(tideTimes, current?.time || new Date().toISOString());
+        const tide = Number.isFinite(Number(tideVals[idx0])) ? Number(tideVals[idx0]) : null;
+        const idx = Math.max(1, idx0);
+        const prevTide = Number.isFinite(Number(tideVals[idx - 1])) ? Number(tideVals[idx - 1]) : null;
+        applyWeatherUI({
+          tempC: Number(current?.temperature_2m),
+          windKn: toKnots(current?.wind_speed_10m),
+          windDir: windDirectionLabel(current?.wind_direction_10m),
+          tideM: tide,
+          prevTideM: prevTide,
+        });
+      } catch (_) {
+        applyWeatherUI({ tempC: null, windKn: null, windDir: "--", tideM: null });
+      }
+    }
+
+    function saveTrailState() {
+      try {
+        const historyObj = {};
+        trailHistoryByMmsi.forEach((points, mmsi) => {
+          if (Array.isArray(points) && points.length) historyObj[mmsi] = points;
+        });
+        const payload = {
+          active: Array.from(activeTrailByMmsi),
+          history: historyObj,
+        };
+        localStorage.setItem(TRAIL_STORAGE_KEY, JSON.stringify(payload));
+      } catch (_) {}
+    }
+
+    function loadTrailState() {
+      try {
+        const raw = localStorage.getItem(TRAIL_STORAGE_KEY);
+        if (!raw) return;
+        const payload = JSON.parse(raw);
+        const active = Array.isArray(payload?.active) ? payload.active : [];
+        const history = payload?.history && typeof payload.history === "object" ? payload.history : {};
+        for (const [mmsi, points] of Object.entries(history)) {
+          if (!Array.isArray(points)) continue;
+          const norm = points
+            .map((p) => [Number(p?.[0]), Number(p?.[1])])
+            .filter((p) => Number.isFinite(p[0]) && Number.isFinite(p[1]))
+            .slice(-TRAIL_MAX_POINTS);
+          if (norm.length) trailHistoryByMmsi.set(String(mmsi), norm);
+        }
+        active.forEach((mmsi) => {
+          const key = String(mmsi || "").trim();
+          if (key) activeTrailByMmsi.add(key);
+        });
+      } catch (_) {}
+    }
+
+    function ensureTrailLayerForMmsi(mmsi) {
+      const key = String(mmsi || "").trim();
+      if (!key || !activeTrailByMmsi.has(key) || trailLayerByMmsi.has(key)) return;
+      const points = trailHistoryByMmsi.get(key) || [];
+      let layer = null;
+      if (points.length >= 2) {
+        layer = L.polyline(points, {
+          color: "#35c8ff",
+          weight: 2.5,
+          opacity: 0.85,
+          dashArray: "6 4",
+        }).addTo(map);
+      } else {
+        const entry = markers.get(key);
+        const lat = Number(entry?.vessel?.latitude);
+        const lon = Number(entry?.vessel?.longitude);
+        if (Number.isFinite(lat) && Number.isFinite(lon)) {
+          layer = L.circleMarker([lat, lon], {
+            radius: 4,
+            color: "#35c8ff",
+            weight: 2,
+            fillColor: "#35c8ff",
+            fillOpacity: 0.55,
+          }).addTo(map);
+        }
+      }
+      if (layer) trailLayerByMmsi.set(key, layer);
+    }
+
+    loadTrailState();
+
+    const dockRoot = document.querySelector(".dock");
+    const dockButtons = dockRoot ? Array.from(dockRoot.querySelectorAll(".dock-btn")) : [];
+    const panelEls = {
+      status: document.getElementById("panel-status"),
+      bgflow: document.getElementById("panel-bgflow"),
+      weather: document.getElementById("panel-weather"),
+      area: document.getElementById("panel-area"),
+      filters: document.getElementById("panel-filters"),
+      geofence: document.getElementById("panel-geofence"),
+      saam: document.getElementById("panel-saam")
+    };
+
+    const FloatPanels = (() => {
+      let zCounter = 2100;
+      const dragState = { active: null };
+
+      function dockWidthPx() {
+        try {
+          const v = getComputedStyle(document.documentElement).getPropertyValue("--dock-w").trim();
+          const n = Number.parseFloat(v);
+          return Number.isFinite(n) ? n : 56;
+        } catch (_) {
+          return 56;
+        }
+      }
+
+      function headerOffsetPx() {
+        try {
+          const v = getComputedStyle(document.documentElement).getPropertyValue("--header-h").trim();
+          const n = Number.parseFloat(v);
+          return Number.isFinite(n) ? n : 92;
+        } catch (_) {
+          return 92;
+        }
+      }
+
+      function clamp(n, min, max) {
+        return Math.min(max, Math.max(min, n));
+      }
+
+      function bringToFront(panelEl) {
+        zCounter += 1;
+        panelEl.style.zIndex = String(zCounter);
+      }
+
+      function setDockActive(panelId, isOpen) {
+        dockButtons.forEach((btn) => {
+          const id = btn.getAttribute("data-panel");
+          btn.classList.toggle("active", Boolean(isOpen && id === panelId));
+        });
+      }
+
+      function refreshDockActiveStates() {
+        const openIds = new Set(
+          Object.values(panelEls)
+            .filter(Boolean)
+            .filter((p) => p.classList.contains("is-open"))
+            .map((p) => p.getAttribute("data-panel"))
+        );
+        dockButtons.forEach((btn) => {
+          const id = btn.getAttribute("data-panel");
+          btn.classList.toggle("active", openIds.has(id));
+        });
+      }
+
+      function positionDefault(panelEl) {
+        const id = panelEl.getAttribute("data-panel") || "status";
+        const order = ["status", "bgflow", "weather", "area", "filters", "geofence", "saam"];
+        const idx = Math.max(0, order.indexOf(id));
+        const dock = dockWidthPx();
+        const header = headerOffsetPx();
+        const left = dock + 12 + idx * 16;
+        const top = header + 12 + idx * 16;
+        panelEl.style.left = `${left}px`;
+        panelEl.style.top = `${top}px`;
+      }
+
+      function ensurePosition(panelEl) {
+        if (!panelEl.style.left || !panelEl.style.top) {
+          positionDefault(panelEl);
+        }
+      }
+
+      function fitOnScreen(panelEl) {
+        const rect = panelEl.getBoundingClientRect();
+        const margin = 8;
+        const maxLeft = window.innerWidth - rect.width - margin;
+        const maxTop = window.innerHeight - rect.height - margin;
+        const left = clamp(rect.left, margin, Math.max(margin, maxLeft));
+        const top = clamp(rect.top, margin, Math.max(margin, maxTop));
+        panelEl.style.left = `${left}px`;
+        panelEl.style.top = `${top}px`;
+      }
+
+      function open(panelId) {
+        const panelEl = panelEls[panelId];
+        if (!panelEl) return;
+        setPanelAccessibility(panelEl, true);
+        panelEl.classList.add("is-open");
+        ensurePosition(panelEl);
+        fitOnScreen(panelEl);
+        bringToFront(panelEl);
+        refreshDockActiveStates();
+      }
+
+      function close(panelId) {
+        const panelEl = panelEls[panelId];
+        if (!panelEl) return;
+        const activeEl = document.activeElement;
+        if (activeEl && panelEl.contains(activeEl) && typeof activeEl.blur === "function") {
+          activeEl.blur();
+        }
+        panelEl.classList.remove("is-open");
+        setPanelAccessibility(panelEl, false);
+        const dockBtn = dockRoot ? dockRoot.querySelector(`[data-panel="${panelId}"]`) : null;
+        if (dockBtn && typeof dockBtn.focus === "function") dockBtn.focus();
+        refreshDockActiveStates();
+      }
+
+      function toggle(panelId) {
+        const panelEl = panelEls[panelId];
+        if (!panelEl) return;
+        if (panelEl.classList.contains("is-open")) close(panelId);
+        else open(panelId);
+      }
+
+      function attachDrag(panelEl) {
+        const handle = panelEl.querySelector("[data-drag-handle='true']");
+        if (!handle) return;
+
+        handle.addEventListener("pointerdown", (e) => {
+          if (e.button !== 0) return;
+          const target = e.target;
+          if (target && target.closest(".float-panel__icon-btn")) return;
+
+          bringToFront(panelEl);
+          ensurePosition(panelEl);
+
+          const rect = panelEl.getBoundingClientRect();
+          dragState.active = {
+            panelEl,
+            pointerId: e.pointerId,
+            startX: e.clientX,
+            startY: e.clientY,
+            origLeft: rect.left,
+            origTop: rect.top
+          };
+
+          try {
+            handle.setPointerCapture(e.pointerId);
+          } catch (_) {}
+
+          handle.classList.add("is-dragging");
+        });
+
+        handle.addEventListener("pointermove", (e) => {
+          if (!dragState.active || dragState.active.pointerId !== e.pointerId) return;
+          const { panelEl, startX, startY, origLeft, origTop } = dragState.active;
+          const dx = e.clientX - startX;
+          const dy = e.clientY - startY;
+          const nextLeft = origLeft + dx;
+          const nextTop = origTop + dy;
+          panelEl.style.left = `${nextLeft}px`;
+          panelEl.style.top = `${nextTop}px`;
+          fitOnScreen(panelEl);
+        });
+
+        const endDrag = (e) => {
+          if (!dragState.active || dragState.active.pointerId !== e.pointerId) return;
+          try {
+            handle.releasePointerCapture(e.pointerId);
+          } catch (_) {}
+          handle.classList.remove("is-dragging");
+          dragState.active = null;
+        };
+
+        handle.addEventListener("pointerup", endDrag);
+        handle.addEventListener("pointercancel", endDrag);
+      }
+
+      function attachFocus(panelEl) {
+        panelEl.addEventListener("pointerdown", () => {
+          if (panelEl.classList.contains("is-open")) bringToFront(panelEl);
+        });
+      }
+
+      function setPanelAccessibility(panelEl, isOpen) {
+        panelEl.setAttribute("aria-hidden", isOpen ? "false" : "true");
+        if ("inert" in panelEl) {
+          panelEl.inert = !isOpen;
+        } else if (!isOpen) {
+          panelEl.setAttribute("inert", "");
+        } else {
+          panelEl.removeAttribute("inert");
+        }
+      }
+
+      function init() {
+        dockButtons.forEach((btn) => {
+          btn.addEventListener("click", () => {
+            const panelId = btn.getAttribute("data-panel");
+            if (!panelId) return;
+            toggle(panelId);
+          });
+        });
+
+        document.querySelectorAll("[data-panel-close]").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            const panelId = btn.getAttribute("data-panel-close");
+            if (panelId) close(panelId);
+          });
+        });
+
+        Object.values(panelEls).forEach((panelEl) => {
+          if (!panelEl) return;
+          setPanelAccessibility(panelEl, panelEl.classList.contains("is-open"));
+          attachDrag(panelEl);
+          attachFocus(panelEl);
+        });
+
+        window.addEventListener("resize", () => {
+          Object.values(panelEls).forEach((panelEl) => {
+            if (!panelEl) return;
+            if (!panelEl.classList.contains("is-open")) return;
+            fitOnScreen(panelEl);
+          });
+        });
+
+        document.addEventListener("keydown", (e) => {
+          if (e.key !== "Escape") return;
+          const openPanels = Object.values(panelEls)
+            .filter(Boolean)
+            .filter((p) => p.classList.contains("is-open"))
+            .map((p) => ({ el: p, z: Number.parseInt(p.style.zIndex || "0", 10) || 0 }))
+            .sort((a, b) => a.z - b.z);
+          const top = openPanels[openPanels.length - 1];
+          if (!top) return;
+          const id = top.el.getAttribute("data-panel");
+          if (id) close(id);
+        });
+
+        refreshDockActiveStates();
+      }
+
+      return { init, open, close, toggle, bringToFront };
+    })();
+
+    document.getElementById("creditYear").textContent = String(new Date().getFullYear());
+
+    const osmBase = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: "&copy; OpenStreetMap contributors"
+    });
+
+    const openSeaMapSeamarks = L.tileLayer("https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png", {
+      maxZoom: 18,
+      attribution: 'Map data: &copy; <a href="https://www.openseamap.org">OpenSeaMap</a> contributors'
+    });
+
+    const satelliteBase = L.tileLayer(
+      "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+      {
+        maxZoom: 19,
+        attribution:
+          "Tiles &copy; Esri — Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community"
+      }
+    );
+
+    const reliefBase = L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", {
+      maxZoom: 17,
+      attribution:
+        'Map data: &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, ' +
+        '<a href="https://viewfinderpanoramas.org">SRTM</a> | Map style: &copy; <a href="https://opentopomap.org">OpenTopoMap</a>'
+    });
+
+    osmBase.addTo(map);
+    openSeaMapSeamarks.addTo(map);
+
+    L.control.layers(
+      {
+        "OpenStreetMap": osmBase,
+        "Satélite": satelliteBase,
+        "Relevo": reliefBase
+      },
+      {
+        "OpenSeaMap (sinalização náutica)": openSeaMapSeamarks
+      },
+      { collapsed: true }
+    ).addTo(map);
+
+    FloatPanels.init();
+
+    function syncHeaderHeightVar() {
+      const el = document.querySelector("header");
+      if (!el) return;
+      const h = Math.ceil(el.getBoundingClientRect().height);
+      document.documentElement.style.setProperty("--header-h", `${Math.min(140, Math.max(72, h))}px`);
+    }
+
+    window.addEventListener("resize", () => {
+      syncHeaderHeightVar();
+    });
+
+    function escapeHtml(value) {
+      return String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll("\"", "&quot;")
+        .replaceAll("'", "&#39;");
+    }
+
+    function parseAisTimestampMs(value) {
+      if (value == null || value === "") return null;
+      let s = String(value).trim();
+      s = s.replace(/\s+UTC\s*$/i, "");
+      if (/^\d{4}-\d{2}-\d{2}\s+[0-9]/.test(s)) {
+        s = s.replace(/^(\d{4}-\d{2}-\d{2})\s+/, "$1T");
+      }
+      s = s.replace(/([+-]\d{2})(\d{2})$/, "$1:$2");
+      if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?(\.\d+)?$/i.test(s)) {
+        s += "Z";
+      }
+      const d = Date.parse(s);
+      if (!Number.isFinite(d)) return null;
+      return d;
+    }
+
+    function formatRelativeAge(msAgo) {
+      if (!Number.isFinite(msAgo) || msAgo < 0) return "-";
+      const sec = Math.floor(msAgo / 1000);
+      if (sec < 60) return `${sec}s`;
+      const min = Math.floor(sec / 60);
+      if (min < 60) return `${min}min`;
+      const h = Math.floor(min / 60);
+      return `${h}h`;
+    }
+
+    function isMmsiInsideRebocadorBaseGeofence(mmsi) {
+      const key = String(mmsi);
+      for (const [geofenceId, g] of geofenceById) {
+        if (g.type !== "base_rebocador" || g.isActive === false) continue;
+        const occ = occupancyByGeofenceId.get(geofenceId);
+        if (!occ || !Array.isArray(occ.insideVessels) || !occ.insideVessels.length) continue;
+        if (occ.insideVessels.some((vi) => String(vi.mmsi) === key)) return true;
+      }
+      return false;
+    }
+
+    function getSaamHeaderLampState(mmsi, now = Date.now()) {
+      const entry = markers.get(String(mmsi));
+      const v = entry?.vessel;
+      const online = Boolean(v && Number.isFinite(v.latitude) && Number.isFinite(v.longitude));
+      if (!online) return "offline";
+      const tsMs = parseAisTimestampMs(v.timestamp);
+      if (tsMs != null && now - tsMs > SAAM_STALE_MS) return "offline";
+      const inBase = isMmsiInsideRebocadorBaseGeofence(mmsi) || Boolean(v.inRebocadorBase);
+      if (inBase) return "base";
+      return "away";
+    }
+
+    function renderSaamHeaderLamps() {
+      const root = document.getElementById("saamHeaderLamps");
+      if (!root) return;
+      const now = Date.now();
+      const buttons = SAAM_BGRA_ROSTER.map((ship) => {
+        const state = getSaamHeaderLampState(ship.mmsi, now);
+        const label = state === "base" ? "Na base" : state === "away" ? "Fora da base" : "Offline";
+        const cls = state === "base" ? "saam-lamp--base" : state === "away" ? "saam-lamp--away" : "saam-lamp--offline";
+        const dis = state === "offline" ? "disabled" : "";
+        const abbr = ship.abbr || ship.mmsi;
+        return `<button type="button" class="saam-lamp ${cls}" data-mmsi="${escapeHtml(ship.mmsi)}" title="${escapeHtml(ship.name)} — ${escapeHtml(label)}" aria-label="${escapeHtml(ship.name)}, ${escapeHtml(label)}" ${dis}>${escapeHtml(abbr)}</button>`;
+      });
+      root.innerHTML = buttons.join("");
+      requestAnimationFrame(() => syncHeaderHeightVar());
+    }
+
+    function renderSaamBgraFleetPanel() {
+      if (!saamFleetListEl) {
+        renderSaamHeaderLamps();
+        return;
+      }
+      const now = Date.now();
+      const rows = SAAM_BGRA_ROSTER.map((ship) => {
+        const entry = markers.get(ship.mmsi);
+        const v = entry?.vessel;
+        const online = Boolean(v && Number.isFinite(v.latitude) && Number.isFinite(v.longitude));
+        const tsMs = online ? parseAisTimestampMs(v.timestamp) : null;
+        const stale = online && tsMs != null && now - tsMs > SAAM_STALE_MS;
+        const statusLabel = !online ? "Offline" : stale ? "Atrasado" : "Online";
+        const pillClass = !online || stale ? "saam-status-offline" : "saam-status-online";
+        const sog = online ? `${Number(v.sog || 0).toFixed(1)} kn` : "-";
+        const loa = online && Number.isFinite(Number(v.lengthMeters)) ? `${Number(v.lengthMeters).toFixed(0)} m` : "-";
+        const gfs = online && Array.isArray(v.geofencesInside) && v.geofencesInside.length
+          ? v.geofencesInside.join(", ")
+          : "-";
+        const age = online && tsMs != null ? formatRelativeAge(now - tsMs) : "-";
+
+        const displayName = online && v.shipName ? String(v.shipName).trim() : ship.name;
+
+        return `
+          <div class="saam-fleet-row" data-mmsi="${escapeHtml(ship.mmsi)}">
+            <div class="row-head">
+              <div style="min-width:0;">
+                <div class="name">${escapeHtml(displayName)}</div>
+                <div class="mmsi">MMSI ${escapeHtml(ship.mmsi)}</div>
+              </div>
+              <div class="saam-status-pill ${pillClass}">${escapeHtml(statusLabel)}</div>
+            </div>
+            <div class="saam-fleet-meta">
+              SOG: ${escapeHtml(sog)} · LOA: ${escapeHtml(loa)}<br>
+              Geofences: ${escapeHtml(gfs)}<br>
+              Última AIS: ${escapeHtml(age)}
+            </div>
+            <button type="button" class="btn-locate-saam tiny-btn" data-mmsi="${escapeHtml(ship.mmsi)}" ${online ? "" : "disabled"}>
+              Localizar no mapa
+            </button>
+          </div>
+        `;
+      });
+      saamFleetListEl.innerHTML = rows.join("");
+      renderSaamHeaderLamps();
+    }
+
+    function locateSaamVessel(mmsi) {
+      const entry = markers.get(mmsi);
+      if (!entry) return;
+      const v = entry.vessel;
+      if (!Number.isFinite(v.latitude) || !Number.isFinite(v.longitude)) return;
+      const latlng = L.latLng(v.latitude, v.longitude);
+      const targetZoom = Math.max(map.getZoom(), 15);
+      map.setView(latlng, targetZoom, { animate: true });
+      try {
+        entry.marker.openPopup();
+      } catch (_) {}
+    }
+
+    function clearAllMarkers() {
+      markers.forEach((entry) => map.removeLayer(entry.marker));
+      markers.clear();
+      trailLayerByMmsi.forEach((layer) => {
+        try { map.removeLayer(layer); } catch (_) {}
+      });
+      trailLayerByMmsi.clear();
+      renderSaamBgraFleetPanel();
+      renderBarraGeofencePanel();
+    }
+
+    function setConnectionStatus(payload) {
+      const wasLiveConnected = liveConnectedState;
+      modeState = payload.mode || modeState;
+      liveConnectedState = Boolean(payload.liveConnected);
+
+      const dotClass = payload.liveConnected ? "status-dot online" : "status-dot";
+      const text = payload.liveConnected ? "Conectado ao stream live" : "Desconectado";
+      connectionStatusEl.innerHTML = `<span class="${dotClass}"></span>${text}`;
+
+      modeText.textContent = payload.mode || "live";
+      areaText.textContent = payload.area?.name || payload.areaKey || "-";
+      totalMessagesEl.textContent = String(payload.totalMessages || 0);
+      lastAisEl.textContent = payload.lastAisMessageAt
+        ? new Date(payload.lastAisMessageAt).toLocaleString("pt-BR")
+        : "-";
+      if (Array.isArray(payload.area?.center) && payload.area.center.length >= 2) {
+        weatherCenter = { lat: Number(payload.area.center[0]), lon: Number(payload.area.center[1]) };
+      }
+
+      if (payload.areaKey !== lastAreaKeyApplied && payload.area?.center && payload.area?.zoom) {
+        lastAreaKeyApplied = payload.areaKey;
+        map.setView(payload.area.center, payload.area.zoom);
+      }
+
+      if (modeState === "live" && !wasLiveConnected && liveConnectedState) {
+        hydrateVesselsFromApi().catch(() => {});
+      }
+
+      if (modeState === "live" && wasLiveConnected && !liveConnectedState) {
+        clearAllMarkers();
+      }
+    }
+
+    function getShipCategory(v) {
+      if (v.shipCategory) return v.shipCategory;
+      const code = Number(v.shipTypeCode);
+      if (Number.isFinite(code)) {
+        if (code >= 30 && code <= 39) return (code === 36 || code === 37) ? "lazer" : "pesca";
+        if (code >= 50 && code <= 59) return "rebocador_servico";
+        if (code >= 60 && code <= 69) return "passageiros";
+        if (code >= 70 && code <= 79) return "carga";
+        if (code >= 80 && code <= 89) return "petroleiro";
+      }
+      return "outros";
+    }
+
+    function getShipCategoryLabel(category) {
+      const labels = {
+        carga: "Carga",
+        petroleiro: "Petroleiro",
+        rebocador_servico: "Rebocador/Serviço",
+        passageiros: "Passageiros",
+        pesca: "Pesca",
+        lazer: "Lazer/Vela",
+        outros: "Outros"
+      };
+      return labels[category] || "Outros";
+    }
+
+    function getShipSymbol(category) {
+      const symbols = {
+        carga: "C",
+        petroleiro: "T",
+        rebocador_servico: "R",
+        passageiros: "P",
+        pesca: "F",
+        lazer: "L",
+        outros: "O"
+      };
+      return symbols[category] || "O";
+    }
+
+    function isValidHeadingDeg(h) {
+      return Number.isFinite(h) && h >= 0 && h <= 359;
+    }
+
+    /** Preferir sempre Heading AIS para orientação do ícone; COG só se heading inválido. */
+    function getIconBearingDegrees(v) {
+      const heading = Number(v.heading);
+      if (isValidHeadingDeg(heading)) return heading;
+      const cog = Number(v.cog);
+      if (Number.isFinite(cog)) {
+        if (cog >= 0 && cog <= 359) return cog;
+        if (cog === 360) return 0;
+      }
+      return 0;
+    }
+
+    /** Rotação CSS: com a proa no topo do polígono, 0° já aponta para norte. */
+    function getIconRotationDegrees(v) {
+      return getIconBearingDegrees(v);
+    }
+
+    function getShipLengthMeters(v) {
+      const loa = Number(v?.lengthMeters);
+      if (Number.isFinite(loa) && loa > 0) return loa;
+      return 90;
+    }
+
+    function getShipIconDimensionsPx(v) {
+      const loa = getShipLengthMeters(v);
+      const t = Math.min(1, Math.max(0, (Math.log10(loa) - Math.log10(18)) / (Math.log10(360) - Math.log10(18))));
+      const z = Number(map?.getZoom?.() || 11);
+      // Escala inversa mais forte no zoom out: reduz alvo ao afastar mapa.
+      // Referência em z=11 (~1.0), diminuindo rápido em z baixo.
+      const zoomScale = Math.max(0.22, Math.min(2.2, Math.pow(2, (z - 11) / 3.6)));
+      const hullH = (24 + t * 34) * zoomScale;
+      const hullW = Math.max(9, Math.min(31, hullH * 0.45));
+      const bowH = hullH * 0.33;
+      const sternH = hullH * 0.17;
+      const totalH = bowH + hullH + sternH;
+      const wrap = Math.ceil(Math.max(totalH, hullW * 1.8) + 8);
+      return { hullW, hullH, wrap };
+    }
+
+    function createVesselIcon(category) {
+      const safeCategory = category || "outros";
+      const vesselColorClass = `vessel-${safeCategory}`;
+      return function iconForVessel(vessel) {
+        const rotation = getIconRotationDegrees(vessel);
+        const isSaam = Boolean(vessel?.isSaamBgra || vessel?.fleet === "SAAM-BGRA");
+        const saamClass = isSaam ? "ship-saam" : "";
+        const badge = isSaam ? "S" : getShipSymbol(safeCategory);
+        const { hullW, hullH, wrap } = getShipIconDimensionsPx(vessel);
+        const p = {
+          x1: (hullW * 0.5).toFixed(2),
+          y1: 0,
+          cxR: (hullW * 0.84).toFixed(2),
+          cyR: (hullH * 0.08).toFixed(2),
+          xR: (hullW * 0.86).toFixed(2),
+          yR: (hullH * 0.28).toFixed(2),
+          xR2: (hullW * 0.78).toFixed(2),
+          yR2: (hullH * 0.86).toFixed(2),
+          cxSR: (hullW * 0.76).toFixed(2),
+          cySR: (hullH * 0.98).toFixed(2),
+          xSR: (hullW * 0.64).toFixed(2),
+          ySR: hullH.toFixed(2),
+          xSL: (hullW * 0.36).toFixed(2),
+          ySL: hullH.toFixed(2),
+          cxSL: (hullW * 0.24).toFixed(2),
+          cySL: (hullH * 0.98).toFixed(2),
+          xL2: (hullW * 0.22).toFixed(2),
+          yL2: (hullH * 0.86).toFixed(2),
+          xL: (hullW * 0.14).toFixed(2),
+          yL: (hullH * 0.28).toFixed(2),
+          cxL: (hullW * 0.16).toFixed(2),
+          cyL: (hullH * 0.08).toFixed(2),
+        };
+        const half = Math.round(wrap / 2);
+        return L.divIcon({
+          className: "vessel-div-icon",
+          html: `
+            <div class="ship-wrap" style="width:${wrap}px;height:${wrap}px;transform: rotate(${rotation}deg);">
+              <div class="ship-shape ${vesselColorClass} ${saamClass}" style="--ship-w:${hullW}px;--ship-h:${hullH}px;">
+                <svg class="ship-poly" viewBox="0 0 ${hullW} ${hullH}" preserveAspectRatio="none" aria-hidden="true">
+                  <path d="M ${p.x1} ${p.y1}
+                    Q ${p.cxR} ${p.cyR} ${p.xR} ${p.yR}
+                    L ${p.xR2} ${p.yR2}
+                    Q ${p.cxSR} ${p.cySR} ${p.xSR} ${p.ySR}
+                    L ${p.xSL} ${p.ySL}
+                    Q ${p.cxSL} ${p.cySL} ${p.xL2} ${p.yL2}
+                    L ${p.xL} ${p.yL}
+                    Q ${p.cxL} ${p.cyL} ${p.x1} ${p.y1} Z"></path>
+                </svg>
+                <span class="ship-badge">${badge}</span>
+              </div>
+            </div>
+          `,
+          iconSize: [wrap, wrap],
+          iconAnchor: [half, half],
+          popupAnchor: [0, -12]
+        });
+      };
+    }
+
+    function vesselPopup(v) {
+      const shipName = escapeHtml(v.shipName || "Sem nome");
+      const mmsi = escapeHtml(v.mmsi || "-");
+      const mmsiKey = String(v.mmsi || "");
+      const trailOn = activeTrailByMmsi.has(mmsiKey);
+      const messageType = escapeHtml(v.messageType || "-");
+      const shipCategory = escapeHtml(getShipCategoryLabel(getShipCategory(v)));
+      const shipTypeCode = v.shipTypeCode == null ? "-" : escapeHtml(String(v.shipTypeCode));
+      const fleet = escapeHtml(v.fleet || "-");
+      const geofence = escapeHtml(v.geofence || "-");
+      const geofencesInside = Array.isArray(v.geofencesInside) && v.geofencesInside.length
+        ? escapeHtml(v.geofencesInside.join(", "))
+        : "-";
+      const loa = Number(v.lengthMeters);
+      const loaText = Number.isFinite(loa) ? `${loa.toFixed(1)} m` : "-";
+      const beam = Number(v.beamMeters);
+      const beamText = Number.isFinite(beam) ? `${beam.toFixed(1)} m` : "-";
+      const lengthSource = escapeHtml(v.lengthSource || "-");
+      return `
+        <strong>${shipName}</strong><br>
+        MMSI: ${mmsi}<br>
+        Tipo: ${messageType}<br>
+        Categoria: ${shipCategory}<br>
+        Frota: ${fleet}<br>
+        Geofence: ${geofence}<br>
+        Geofences dentro: ${geofencesInside}<br>
+        LOA (mapa): ${loaText}<br>
+        Boca: ${beamText}<br>
+        Fonte LOA: ${lengthSource}<br>
+        Tipo AIS: ${shipTypeCode}<br>
+        SOG: ${Number(v.sog || 0).toFixed(1)} kn<br>
+        COG: ${Number(v.cog || 0).toFixed(1)}°<br>
+        Heading: ${Number(v.heading || 0).toFixed(1)}°<br>
+        Hora: ${new Date(v.timestamp).toLocaleString("pt-BR")}<br>
+        <button type="button" class="btn-vessel-trail tiny-btn" data-mmsi="${mmsi}" style="margin-top:6px;">
+          ${trailOn ? "Remover rastro" : "Criar rastro"}
+        </button>
+      `;
+    }
+
+    function updateTrailHistory(vessel) {
+      const mmsi = String(vessel?.mmsi || "").trim();
+      if (!mmsi) return;
+      const lat = Number(vessel?.latitude);
+      const lon = Number(vessel?.longitude);
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+      const points = trailHistoryByMmsi.get(mmsi) || [];
+      const prev = points.length ? points[points.length - 1] : null;
+      if (!prev || prev[0] !== lat || prev[1] !== lon) {
+        points.push([lat, lon]);
+      }
+      if (points.length > TRAIL_MAX_POINTS) {
+        points.splice(0, points.length - TRAIL_MAX_POINTS);
+      }
+      trailHistoryByMmsi.set(mmsi, points);
+      saveTrailState();
+      if (activeTrailByMmsi.has(mmsi)) {
+        const layer = trailLayerByMmsi.get(mmsi);
+        if (layer && typeof layer.setLatLngs === "function" && points.length >= 2) {
+          layer.setLatLngs(points);
+        } else if (layer && typeof layer.setLatLng === "function" && points.length >= 2) {
+          try { map.removeLayer(layer); } catch (_) {}
+          const newLayer = L.polyline(points, {
+            color: "#35c8ff",
+            weight: 2.5,
+            opacity: 0.85,
+            dashArray: "6 4",
+          }).addTo(map);
+          trailLayerByMmsi.set(mmsi, newLayer);
+        } else if (layer && typeof layer.setLatLng === "function" && points.length) {
+          layer.setLatLng(points[points.length - 1]);
+        } else if (!layer && points.length >= 2) {
+          const newLayer = L.polyline(points, {
+            color: "#35c8ff",
+            weight: 2.5,
+            opacity: 0.85,
+            dashArray: "6 4",
+          }).addTo(map);
+          trailLayerByMmsi.set(mmsi, newLayer);
+        }
+      }
+    }
+
+    function toggleVesselTrail(mmsi) {
+      const key = String(mmsi || "").trim();
+      if (!key) return;
+      if (activeTrailByMmsi.has(key)) {
+        activeTrailByMmsi.delete(key);
+        const layer = trailLayerByMmsi.get(key);
+        if (layer) {
+          try { map.removeLayer(layer); } catch (_) {}
+          trailLayerByMmsi.delete(key);
+        }
+        saveTrailState();
+        return;
+      }
+      activeTrailByMmsi.add(key);
+      ensureTrailLayerForMmsi(key);
+      saveTrailState();
+      if (!trailLayerByMmsi.has(key)) return;
+    }
+
+    function applyMarkerFilter(entry) {
+      const matches = currentShipFilter === "all" || entry.vessel.shipCategory === currentShipFilter;
+      if (matches) {
+        if (!map.hasLayer(entry.marker)) entry.marker.addTo(map);
+        applyNameVisibility(entry);
+      } else if (map.hasLayer(entry.marker)) {
+        map.removeLayer(entry.marker);
+      }
+    }
+
+    function applyNameVisibility(entry) {
+      if (showVesselNames && map.hasLayer(entry.marker)) {
+        entry.marker.openTooltip();
+      } else {
+        entry.marker.closeTooltip();
+      }
+    }
+
+    function applyNameVisibilityToAllMarkers() {
+      markers.forEach((entry) => applyNameVisibility(entry));
+    }
+
+    function applyFilterToAllMarkers() {
+      markers.forEach((entry) => applyMarkerFilter(entry));
+    }
+
+    function refreshMarkerIconsForZoom() {
+      markers.forEach((entry) => {
+        const shipCategory = getShipCategory(entry.vessel);
+        entry.marker.setIcon(createVesselIcon(shipCategory)(entry.vessel));
+      });
+    }
+
+    function upsertMarker(v) {
+      const key = String(v.mmsi);
+      const latLng = [v.latitude, v.longitude];
+      const shipCategory = getShipCategory(v);
+      const vesselData = { ...v, shipCategory };
+
+      if (!markers.has(key)) {
+        const marker = L.marker(latLng, { icon: createVesselIcon(shipCategory)(vesselData) }).bindPopup(vesselPopup(vesselData));
+        let hoverPopupTimer = null;
+        let hoverPopupCloseTimer = null;
+        const clearPopupOpenTimer = () => {
+          if (!hoverPopupTimer) return;
+          clearTimeout(hoverPopupTimer);
+          hoverPopupTimer = null;
+        };
+        const clearPopupCloseTimer = () => {
+          if (!hoverPopupCloseTimer) return;
+          clearTimeout(hoverPopupCloseTimer);
+          hoverPopupCloseTimer = null;
+        };
+        const schedulePopupClose = () => {
+          clearPopupCloseTimer();
+          hoverPopupCloseTimer = setTimeout(() => {
+            hoverPopupCloseTimer = null;
+            try {
+              marker.closePopup();
+            } catch (_) {}
+          }, HOVER_POPUP_CLOSE_DELAY_MS);
+        };
+        marker.on("mouseover", () => {
+          clearPopupCloseTimer();
+          clearPopupOpenTimer();
+          hoverPopupTimer = setTimeout(() => {
+            hoverPopupTimer = null;
+            try {
+              marker.openPopup();
+            } catch (_) {}
+          }, HOVER_POPUP_DELAY_MS);
+        });
+        marker.on("mouseout", () => {
+          clearPopupOpenTimer();
+          schedulePopupClose();
+        });
+        marker.on("popupopen", () => {
+          const root = marker.getPopup()?.getElement?.();
+          if (!root) return;
+          root.addEventListener("mouseenter", clearPopupCloseTimer);
+          root.addEventListener("mouseleave", schedulePopupClose);
+        });
+        marker.bindTooltip(vesselData.shipName || "Sem nome", {
+          permanent: true,
+          direction: "right",
+          className: "vessel-name-label",
+          offset: [12, 0]
+        });
+        const entry = { marker, vessel: vesselData };
+        markers.set(key, entry);
+        applyMarkerFilter(entry);
+      } else {
+        const entry = markers.get(key);
+        entry.vessel = vesselData;
+        entry.marker.setLatLng(latLng);
+        entry.marker.setIcon(createVesselIcon(shipCategory)(vesselData));
+        entry.marker.setPopupContent(vesselPopup(vesselData));
+        entry.marker.setTooltipContent(vesselData.shipName || "Sem nome");
+        applyMarkerFilter(entry);
+      }
+      updateTrailHistory(vesselData);
+      ensureTrailLayerForMmsi(key);
+      renderSaamBgraFleetPanel();
+      renderBarraGeofencePanel();
+    }
+
+    async function loadAreas() {
+      const response = await fetch(apiUrl("/api/areas"));
+      const data = await response.json();
+      areas = data.areas || {};
+      areaSelect.innerHTML = "";
+      Object.entries(areas).forEach(([key, value]) => {
+        const option = document.createElement("option");
+        option.value = key;
+        option.textContent = value.name;
+        if (key === data.currentAreaKey) option.selected = true;
+        areaSelect.appendChild(option);
+      });
+    }
+
+    async function applyArea() {
+      const areaKey = areaSelect.value;
+      const response = await fetch(apiUrl("/api/area"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ areaKey })
+      });
+      const data = await response.json();
+      if (!data.ok) return;
+      setConnectionStatus(data.status);
+      clearAllMarkers();
+    }
+
+    async function setMode(mode) {
+      const response = await fetch(apiUrl("/api/mode"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode })
+      });
+      const data = await response.json();
+      if (!data.ok) return;
+      setConnectionStatus(data.status);
+      clearAllMarkers();
+      if (FORCE_POLLING_ACTIVE) {
+        startPollingMode();
+        return;
+      }
+      reconnectSocket();
+    }
+
+    function scheduleReconnect() {
+      if (reconnectTimer) return;
+      reconnectTimer = setTimeout(() => {
+        reconnectTimer = null;
+        connectFrontendSocket();
+      }, 1500);
+    }
+
+    function reconnectSocket() {
+      if (FORCE_POLLING_ACTIVE) {
+        startPollingMode();
+        return;
+      }
+      if (pollingMode) return;
+      if (!socket) {
+        connectFrontendSocket();
+        return;
+      }
+      socket.close();
+    }
+
+    async function hydrateVesselsFromApi() {
+      try {
+        const res = await fetch(apiUrl("/api/vessels?snapshot=1"));
+        if (!res.ok) return;
+        const data = await res.json();
+        (data.vessels || []).forEach((v) => upsertMarker(v));
+        if (typeof data.lastSeq === "number") {
+          lastSeq = data.lastSeq;
+        }
+      } catch (_) {
+      }
+    }
+
+    async function pollOnce() {
+      try {
+        const statusResponse = await fetch(apiUrl("/api/status"));
+        if (statusResponse.ok) {
+          const statusData = await statusResponse.json();
+          setConnectionStatus(statusData);
+        }
+        const vesselsResponse = await fetch(apiUrl(`/api/vessels?since=${lastSeq}&limit=400`));
+        if (vesselsResponse.ok) {
+          const vesselData = await vesselsResponse.json();
+          (vesselData.vessels || []).forEach((v) => upsertMarker(v));
+          if (typeof vesselData.lastSeq === "number") {
+            lastSeq = vesselData.lastSeq;
+          }
+        }
+      } catch (_) {
+      } finally {
+        pollingTimer = setTimeout(pollOnce, 800);
+      }
+    }
+
+    function startPollingMode() {
+      if (pollingMode) return;
+      pollingMode = true;
+      if (socket) {
+        try { socket.close(); } catch (_) {}
+        socket = null;
+      }
+      if (pollingTimer) clearTimeout(pollingTimer);
+      pollOnce();
+    }
+
+    function connectFrontendSocket() {
+      if (FORCE_POLLING_ACTIVE) {
+        startPollingMode();
+        return;
+      }
+      if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) {
+        return;
+      }
+      socket = new WebSocket(WS_URL);
+
+      socket.addEventListener("open", () => {
+        wsOpenedAtLeastOnce = true;
+        wsFailCount = 0;
+      });
+      socket.addEventListener("error", () => {
+        wsFailCount += 1;
+        if (wsFailCount >= 2) {
+          startPollingMode();
+        }
+      });
+      socket.addEventListener("close", () => {
+        if (pollingMode) return;
+        wsFailCount += 1;
+        if (!wsOpenedAtLeastOnce || wsFailCount >= 2) {
+          startPollingMode();
+          return;
+        }
+        scheduleReconnect();
+      });
+      socket.addEventListener("message", (event) => {
+        const message = JSON.parse(event.data);
+        if (message.type === "status") {
+          setConnectionStatus(message.payload);
+          return;
+        }
+        if (message.type === "ais") {
+          if (modeState === "live" && !liveConnectedState) return;
+          upsertMarker(message.payload);
+        }
+      });
+    }
+
+    function clearDraftLayer() {
+      if (geofenceDraftLayer) {
+        map.removeLayer(geofenceDraftLayer);
+        geofenceDraftLayer = null;
+      }
+    }
+
+    function redrawDraftLayer() {
+      clearDraftLayer();
+      if (geofenceDrawPoints.length < 2) return;
+      geofenceDraftLayer = L.polygon(geofenceDrawPoints, {
+        color: "#35c8ff",
+        weight: 2,
+        dashArray: "6 4",
+        fillOpacity: 0.1
+      }).addTo(map);
+    }
+
+    function startGeofenceDraw() {
+      clearEditSession();
+      geofenceDrawMode = true;
+      geofenceDrawPoints = [];
+      clearDraftLayer();
+      if (geofenceEditorHintEl) {
+        geofenceEditorHintEl.textContent =
+          "Clique no mapa para adicionar vértices. Finalize e salve como novo geofence.";
+      }
+    }
+
+    function finishGeofenceDraw() {
+      if (geofenceDrawPoints.length < 3) return;
+      redrawDraftLayer();
+      geofenceDrawMode = false;
+    }
+
+    function cancelGeofenceDraw() {
+      geofenceDrawMode = false;
+      geofenceDrawPoints = [];
+      clearDraftLayer();
+      if (geofenceEditorHintEl && !editingGeofenceId) {
+        geofenceEditorHintEl.textContent =
+          "Clique no mapa para adicionar vértices. Finalize e salve.";
+      }
+    }
+
+    function clearEditSession() {
+      editingGeofenceId = null;
+      editLatLngs = [];
+      editVertexMarkers.forEach((m) => {
+        try {
+          map.removeLayer(m);
+        } catch (_) {}
+      });
+      editVertexMarkers = [];
+      if (editPolygonLayer) {
+        try {
+          map.removeLayer(editPolygonLayer);
+        } catch (_) {}
+        editPolygonLayer = null;
+      }
+      if (geofenceEditorHintEl && !geofenceDrawMode) {
+        geofenceEditorHintEl.textContent =
+          "Clique no mapa para adicionar vértices. Finalize e salve.";
+      }
+    }
+
+    function rebuildEditPolygonLayer(color) {
+      if (editPolygonLayer) {
+        map.removeLayer(editPolygonLayer);
+        editPolygonLayer = null;
+      }
+      if (editLatLngs.length < 2) return;
+      editPolygonLayer = L.polygon(editLatLngs, {
+        color: color || "#ffcd6b",
+        weight: 3,
+        dashArray: "4 6",
+        fillOpacity: 0.12
+      }).addTo(map);
+    }
+
+    function syncEditPolygonFromMarkers() {
+      editLatLngs = editVertexMarkers.map((m) => m.getLatLng());
+      const gf = editingGeofenceId ? geofenceById.get(editingGeofenceId) : null;
+      rebuildEditPolygonLayer(gf?.color);
+    }
+
+    function refreshEditPreviewLine() {
+      if (!editPolygonLayer || editVertexMarkers.length < 2) return;
+      editPolygonLayer.setLatLngs(editVertexMarkers.map((m) => m.getLatLng()));
+    }
+
+    function attachVertexEvents(marker) {
+      marker.on("drag", () => {
+        refreshEditPreviewLine();
+      });
+      marker.on("dragend", () => {
+        syncEditPolygonFromMarkers();
+      });
+      marker.on("contextmenu", (e) => {
+        L.DomEvent.preventDefault(e.originalEvent);
+        if (editVertexMarkers.length <= 3) return;
+        const j = editVertexMarkers.indexOf(marker);
+        if (j < 0) return;
+        map.removeLayer(marker);
+        editVertexMarkers.splice(j, 1);
+        syncEditPolygonFromMarkers();
+      });
+    }
+
+    function beginEditGeofence(geofenceId) {
+      const geofence = geofenceById.get(geofenceId);
+      if (!geofence) return;
+      const geometry = geofence.geometry || {};
+      const coords = geometry.coordinates || [];
+      if (coords.length < 3) return;
+
+      cancelGeofenceDraw();
+      clearEditSession();
+      editingGeofenceId = geofenceId;
+
+      geofenceNameEl.value = geofence.name || "";
+      geofenceTypeEl.value = geofence.type || "berco";
+      geofenceFleetScopeEl.value = geofence.fleetScope || "all";
+
+      editLatLngs = coords.map((c) => L.latLng(c[0], c[1]));
+      rebuildEditPolygonLayer(geofence.color);
+
+      editVertexMarkers = editLatLngs.map((ll) => {
+        const marker = L.marker(ll, { icon: vertexHandleIcon, draggable: true, zIndexOffset: 800 });
+        marker.bindTooltip("Arraste o vértice. Botão direito: remover (mín. 3).", { direction: "top" });
+        marker.addTo(map);
+        attachVertexEvents(marker);
+        return marker;
+      });
+
+      try {
+        map.fitBounds(L.latLngBounds(editLatLngs), { padding: [28, 28], maxZoom: 15 });
+      } catch (_) {}
+
+      if (geofenceEditorHintEl) {
+        geofenceEditorHintEl.textContent =
+          "Edição ativa: arraste os pontos azuis. Botão direito remove vértice (mínimo 3). Salve a edição quando terminar.";
+      }
+      FloatPanels.open("geofence");
+    }
+
+    async function saveGeofenceEdit() {
+      if (!editingGeofenceId) return;
+      if (editVertexMarkers.length < 3) return;
+      const coords = editVertexMarkers.map((m) => {
+        const p = m.getLatLng();
+        return [p.lat, p.lng];
+      });
+      const existing = geofenceById.get(editingGeofenceId) || {};
+      const payload = {
+        name: geofenceNameEl.value || existing.name || "Geofence",
+        type: geofenceTypeEl.value || existing.type || "berco",
+        fleetScope: geofenceFleetScopeEl.value || existing.fleetScope || "all",
+        geometry: { coordinates: coords },
+        isActive: existing.isActive !== false,
+        color: existing.color || "#35c8ff"
+      };
+      const response = await fetch(apiUrl(`/api/geofences/${editingGeofenceId}`), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const data = await response.json();
+      if (!data.ok) return;
+      clearEditSession();
+      await loadGeofences();
+      await loadGeofenceOccupancy();
+    }
+
+    async function cancelGeofenceEdit() {
+      clearEditSession();
+      await loadGeofences();
+      await loadGeofenceOccupancy();
+    }
+
+    async function loadGeofences() {
+      const response = await fetch(apiUrl("/api/geofences"));
+      const data = await response.json();
+      geofenceById.clear();
+      (data.geofences || []).forEach((g) => geofenceById.set(g.id, g));
+      renderGeofences();
+      renderGeofenceList();
+    }
+
+    async function loadGeofenceOccupancy() {
+      const response = await fetch(apiUrl("/api/geofences/occupancy"));
+      const data = await response.json();
+      occupancyByGeofenceId.clear();
+      (data.occupancy || []).forEach((item) => occupancyByGeofenceId.set(item.geofenceId, item));
+      updateBarraPassageHistory();
+      renderGeofences();
+      renderGeofenceList();
+      renderBarraGeofencePanel();
+      renderSaamHeaderLamps();
+    }
+
+    function renderGeofences() {
+      geofenceLayers.forEach((layer) => map.removeLayer(layer));
+      geofenceLayers.clear();
+      geofenceById.forEach((geofence, geofenceId) => {
+        if (editingGeofenceId && geofenceId === editingGeofenceId) return;
+        const geometry = geofence.geometry || {};
+        const coords = geometry.coordinates || [];
+        if (coords.length < 3) return;
+        const occ = occupancyByGeofenceId.get(geofenceId);
+        const vesselCount = Number(occ?.vesselCount || 0);
+        const normalized = normalizeGeofenceName(geofence.name);
+        const isBgInterno = normalized === BG_INTERNO_GEOFENCE_NAME;
+        const dynamicColor = isBgInterno
+          ? (vesselCount > 0 ? "#4aa8ff" : "#2f4f6d")
+          : (geofence.color || "#35c8ff");
+        const layer = L.polygon(coords, {
+          color: dynamicColor,
+          weight: isBgInterno ? (vesselCount > 0 ? 3 : 2) : 2,
+          fillOpacity: isBgInterno ? (vesselCount > 0 ? 0.18 : 0.08) : 0.08
+        }).addTo(map);
+        const suffix = isBgInterno ? ` • dentro agora: ${vesselCount}` : "";
+        layer.bindTooltip(`${geofence.name} (${geofence.type})${suffix}`, { direction: "top" });
+        geofenceLayers.set(geofenceId, layer);
+      });
+    }
+
+    function normalizeGeofenceName(value) {
+      return String(value || "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .trim()
+        .toLowerCase();
+    }
+
+    function isTugVessel(vessel) {
+      const cat = String(vessel?.shipCategory || "").toLowerCase();
+      return Boolean(vessel?.isSaamBgra) || cat.includes("reboc");
+    }
+
+    function classifyVesselKind(vessel) {
+      return isTugVessel(vessel) ? "Rebocador" : "Navio";
+    }
+
+    function findBarraOccupancy(targetName) {
+      const target = normalizeGeofenceName(targetName);
+      for (const item of occupancyByGeofenceId.values()) {
+        const name = normalizeGeofenceName(item?.name || "");
+        if (name === target) return item;
+      }
+      return null;
+    }
+
+    function appendTransitEvent(vessel, action) {
+      barraEventHistory.unshift({
+        at: new Date().toISOString(),
+        name: String(vessel?.shipName || vessel?.mmsi || "—"),
+        kind: classifyVesselKind(vessel),
+        action
+      });
+      const now = Date.now();
+      barraEventHistory = barraEventHistory
+        .filter((ev) => {
+          const ts = Date.parse(ev?.at || "");
+          return Number.isFinite(ts) && now - ts <= BARRA_HISTORY_KEEP_MS;
+        })
+        .slice(0, 1200);
+      saveBgHistoryState();
+    }
+
+    function getBgInternoInsideByMmsi() {
+      const occ = findBarraOccupancy(BG_INTERNO_GEOFENCE_NAME);
+      const byMmsi = new Map();
+      const vessels = Array.isArray(occ?.insideVessels) ? occ.insideVessels : [];
+      for (const v of vessels) {
+        const mmsi = String(v?.mmsi || "").trim();
+        if (!mmsi) continue;
+        byMmsi.set(mmsi, v);
+      }
+      return byMmsi;
+    }
+
+    function getOnlineVesselsByMmsi() {
+      const byMmsi = new Map();
+      const now = Date.now();
+      markers.forEach((entry, mmsi) => {
+        const v = entry?.vessel;
+        const hasPos = Boolean(v && Number.isFinite(v.latitude) && Number.isFinite(v.longitude));
+        if (!hasPos) return;
+        const tsMs = parseAisTimestampMs(v.timestamp);
+        const stale = tsMs != null && now - tsMs > SAAM_STALE_MS;
+        if (stale) return;
+        byMmsi.set(String(mmsi), v);
+      });
+      return byMmsi;
+    }
+
+    function buildClassifiedBarraState() {
+      const insideByMmsi = getBgInternoInsideByMmsi();
+      const onlineByMmsi = getOnlineVesselsByMmsi();
+      const entrada = [];
+      const saida = [];
+      onlineByMmsi.forEach((v, mmsi) => {
+        if (insideByMmsi.has(mmsi)) entrada.push(v);
+        else saida.push(v);
+      });
+      return { entrada, saida, onlineByMmsi };
+    }
+
+    function formatBarraEventTime(iso) {
+      try {
+        return new Date(iso).toLocaleTimeString("pt-BR", { hour12: false });
+      } catch (_) {
+        return "--:--:--";
+      }
+    }
+
+    function renderBarraEventHistory() {
+      const targets = [
+        document.getElementById("barraEventsList"),
+        document.getElementById("bgFlowEventsList")
+      ].filter(Boolean);
+      if (!targets.length) return;
+      if (!barraEventHistory.length) {
+        targets.forEach((el) => {
+          el.innerHTML = '<li class="barra-empty">Sem passagem registrada nesta sessão.</li>';
+        });
+        return;
+      }
+      const html = barraEventHistory
+        .map((ev) => {
+          return `<li><span class="barra-event-time">${formatBarraEventTime(ev.at)}</span>${escapeHtml(ev.name)} <span class="barra-kind">(${escapeHtml(ev.kind)})</span> — ${escapeHtml(ev.action)}</li>`;
+        })
+        .join("");
+      targets.forEach((el) => {
+        el.innerHTML = html;
+      });
+      renderBgFlowChart();
+    }
+
+    function renderBgFlowChart() {
+      const root = document.getElementById("bgFlowChart");
+      if (!root) return;
+      const now = Date.now();
+      const bucketsIn = new Array(24).fill(0);
+      const bucketsOut = new Array(24).fill(0);
+      for (const ev of barraEventHistory) {
+        const ts = Date.parse(ev?.at || "");
+        if (!Number.isFinite(ts)) continue;
+        const diffH = Math.floor((now - ts) / 3600000);
+        if (diffH < 0 || diffH > 23) continue;
+        const idx = 23 - diffH;
+        if (String(ev?.action || "").includes("entrou em BG")) bucketsIn[idx] += 1;
+        else if (String(ev?.action || "").includes("saiu para MAR")) bucketsOut[idx] += 1;
+      }
+      const maxY = Math.max(1, ...bucketsIn, ...bucketsOut);
+      const W = 480;
+      const H = 110;
+      const px = (i) => 10 + (i * (W - 20)) / 23;
+      const py = (v) => H - 14 - ((H - 24) * v) / maxY;
+      const line = (arr) => arr.map((v, i) => `${px(i).toFixed(1)},${py(v).toFixed(1)}`).join(" ");
+      root.innerHTML = `
+        <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Movimentação BG/MAR últimas 24 horas">
+          <line x1="10" y1="${H - 14}" x2="${W - 10}" y2="${H - 14}" stroke="rgba(255,255,255,0.18)" stroke-width="1"/>
+          <polyline points="${line(bucketsIn)}" fill="none" stroke="#4aa8ff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></polyline>
+          <polyline points="${line(bucketsOut)}" fill="none" stroke="#ffb86b" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></polyline>
+        </svg>
+      `;
+    }
+
+    function updateBarraPassageHistory() {
+      const state = buildClassifiedBarraState();
+      const insideNow = new Set(state.entrada.map((v) => String(v?.mmsi || "").trim()).filter(Boolean));
+      const onlineNow = state.onlineByMmsi;
+      const keys = new Set([...previousBgInsideByMmsi.keys(), ...onlineNow.keys()]);
+      keys.forEach((mmsi) => {
+        if (!onlineNow.has(mmsi)) return;
+        const wasInside = previousBgInsideByMmsi.get(mmsi) === true;
+        const isInside = insideNow.has(mmsi);
+        if (wasInside !== isInside) {
+          const vessel = onlineNow.get(mmsi) || { mmsi };
+          appendTransitEvent(vessel, isInside ? "entrou em BG (dentro)" : "saiu para MAR (fora)");
+        }
+      });
+      previousBgInsideByMmsi = new Map();
+      onlineNow.forEach((_, mmsi) => {
+        previousBgInsideByMmsi.set(mmsi, insideNow.has(mmsi));
+      });
+      renderBarraEventHistory();
+    }
+
+    function renderBgInsideOutsidePanel(entradaEl, saidaEl, entradaCountEl, saidaCountEl, entrada, saida) {
+      const renderList = (targetEl, countEl, vessels) => {
+        countEl.textContent = `(${vessels.length})`;
+        if (!vessels.length) {
+          targetEl.innerHTML = '<li class="barra-empty">Nenhuma embarcação dentro agora.</li>';
+          return;
+        }
+        const navios = [];
+        const rebocadores = [];
+        for (const v of vessels) {
+          const line = `<li>${escapeHtml(v?.shipName || v?.mmsi || "—")}</li>`;
+          if (isTugVessel(v)) rebocadores.push(line);
+          else navios.push(line);
+        }
+        const sections = [];
+        sections.push('<div class="barra-group-title">Navios</div>');
+        sections.push(navios.length ? `<ul class="barra-list">${navios.join("")}</ul>` : '<div class="barra-empty">Nenhum navio.</div>');
+        sections.push('<div class="barra-group-title">Rebocadores</div>');
+        sections.push(rebocadores.length ? `<ul class="barra-list">${rebocadores.join("")}</ul>` : '<div class="barra-empty">Nenhum rebocador.</div>');
+        targetEl.innerHTML = sections.join("");
+      };
+      renderList(entradaEl, entradaCountEl, entrada);
+      renderList(saidaEl, saidaCountEl, saida);
+    }
+
+    function renderBarraGeofencePanel() {
+      const classified = buildClassifiedBarraState();
+      const entrada = classified.entrada || [];
+      const saida = classified.saida || [];
+      const panels = [
+        {
+          entradaEl: document.getElementById("barraEntradaList"),
+          saidaEl: document.getElementById("barraSaidaList"),
+          entradaCountEl: document.getElementById("barraEntradaCount"),
+          saidaCountEl: document.getElementById("barraSaidaCount"),
+        },
+        {
+          entradaEl: document.getElementById("bgFlowEntradaList"),
+          saidaEl: document.getElementById("bgFlowSaidaList"),
+          entradaCountEl: document.getElementById("bgFlowEntradaCount"),
+          saidaCountEl: document.getElementById("bgFlowSaidaCount"),
+        }
+      ];
+      panels.forEach((p) => {
+        if (!p.entradaEl || !p.saidaEl || !p.entradaCountEl || !p.saidaCountEl) return;
+        renderBgInsideOutsidePanel(p.entradaEl, p.saidaEl, p.entradaCountEl, p.saidaCountEl, entrada, saida);
+      });
+      const bgInsideEl = document.getElementById("bgInsideCount");
+      const bgOutsideEl = document.getElementById("bgOutsideCount");
+      if (bgInsideEl) bgInsideEl.textContent = String(entrada.length);
+      if (bgOutsideEl) bgOutsideEl.textContent = String(saida.length);
+    }
+
+    function renderGeofenceList() {
+      const items = [];
+      geofenceById.forEach((geofence, geofenceId) => {
+        const occupancy = occupancyByGeofenceId.get(geofenceId);
+        const count = occupancy ? occupancy.vesselCount : 0;
+        const isPersistent = Boolean(geofence?.persistent);
+        const names = occupancy && occupancy.insideVessels.length
+          ? occupancy.insideVessels.map((v) => v.shipName || v.mmsi).slice(0, 4).join(", ")
+          : "-";
+        items.push(`
+          <div class="geofence-item" data-geofence-id="${escapeHtml(geofenceId)}">
+            <strong>${escapeHtml(geofence.name || "Sem nome")}</strong><br>
+            Tipo: ${escapeHtml(geofence.type || "-")}<br>
+            Escopo: ${escapeHtml(geofence.fleetScope || "all")}<br>
+            ${isPersistent ? 'Persistente: sim<br>' : ""}
+            Dentro agora: ${count}<br>
+            Navios: ${escapeHtml(names)}
+            <div class="geofence-item-actions">
+              <button type="button" class="btn-edit-geofence" data-geofence-id="${escapeHtml(geofenceId)}">Editar polígono</button>
+              ${isPersistent ? "" : `<button type="button" class="btn-delete-geofence" data-geofence-id="${escapeHtml(geofenceId)}">Apagar geofence</button>`}
+            </div>
+          </div>
+        `);
+      });
+      geofenceListEl.innerHTML = items.length ? items.join("") : '<div style="font-size:0.75rem;color:var(--muted);">Nenhum geofence salvo.</div>';
+    }
+
+    async function deleteGeofence(geofenceId) {
+      if (!geofenceId) return;
+      const geofence = geofenceById.get(geofenceId);
+      const label = geofence?.name ? `"${geofence.name}"` : "esta geofence";
+      const confirmDelete = window.confirm(`Apagar ${label}? Esta ação não pode ser desfeita.`);
+      if (!confirmDelete) return;
+      const response = await fetch(apiUrl(`/api/geofences/${geofenceId}`), {
+        method: "DELETE"
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.ok) {
+        throw new Error(data.error || `Falha ao apagar geofence (HTTP ${response.status})`);
+      }
+      if (editingGeofenceId && editingGeofenceId === geofenceId) {
+        cancelGeofenceEdit();
+      }
+      await loadGeofences();
+      await loadGeofenceOccupancy();
+    }
+
+    async function saveCurrentGeofence() {
+      if (geofenceDrawPoints.length < 3) return;
+      const payload = {
+        name: geofenceNameEl.value || "Novo geofence",
+        type: geofenceTypeEl.value || "berco",
+        fleetScope: geofenceFleetScopeEl.value || "all",
+        geometry: { coordinates: geofenceDrawPoints.map((p) => [p.lat, p.lng]) },
+        isActive: true,
+        color: "#35c8ff"
+      };
+      const response = await fetch(apiUrl("/api/geofences"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const data = await response.json();
+      if (!data.ok) return;
+      cancelGeofenceDraw();
+      geofenceNameEl.value = "";
+      await loadGeofences();
+      await loadGeofenceOccupancy();
+    }
+
+    saamFleetListEl.addEventListener("click", (event) => {
+      const btn = event.target.closest(".btn-locate-saam");
+      if (!btn) return;
+      const mmsi = btn.getAttribute("data-mmsi");
+      if (mmsi) locateSaamVessel(mmsi);
+    });
+
+    document.getElementById("saamHeaderLamps")?.addEventListener("click", (event) => {
+      const btn = event.target.closest(".saam-lamp[data-mmsi]");
+      if (!btn || btn.disabled) return;
+      const mmsi = btn.getAttribute("data-mmsi");
+      if (mmsi) locateSaamVessel(mmsi);
+    });
+    toggleNamesBtn.addEventListener("click", () => {
+      showVesselNames = !showVesselNames;
+      toggleNamesBtn.classList.toggle("active", showVesselNames);
+      toggleNamesBtn.title = showVesselNames
+        ? "Ocultar nomes das embarcações"
+        : "Mostrar nomes das embarcações";
+      applyNameVisibilityToAllMarkers();
+    });
+
+    document.getElementById("applyAreaBtn").addEventListener("click", applyArea);
+    refreshWeatherBtn?.addEventListener("click", () => {
+      refreshWeatherInfo().catch(() => {});
+    });
+    shipTypeFilterEl.addEventListener("change", () => {
+      currentShipFilter = shipTypeFilterEl.value;
+      applyFilterToAllMarkers();
+    });
+    startGeofenceDrawBtn.addEventListener("click", startGeofenceDraw);
+    finishGeofenceDrawBtn.addEventListener("click", finishGeofenceDraw);
+    cancelGeofenceDrawBtn.addEventListener("click", cancelGeofenceDraw);
+    saveGeofenceBtn.addEventListener("click", saveCurrentGeofence);
+    saveGeofenceEditBtn.addEventListener("click", saveGeofenceEdit);
+    cancelGeofenceEditBtn.addEventListener("click", cancelGeofenceEdit);
+
+    map.on("click", (event) => {
+      if (!geofenceDrawMode || editingGeofenceId) return;
+      geofenceDrawPoints.push(event.latlng);
+      redrawDraftLayer();
+    });
+    map.on("zoomend", () => {
+      refreshMarkerIconsForZoom();
+    });
+
+    map.on("popupopen", (event) => {
+      const root = event?.popup?.getElement?.();
+      if (!root) return;
+      const btn = root.querySelector(".btn-vessel-trail");
+      if (!btn) return;
+      btn.addEventListener("click", (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        const mmsi = String(btn.getAttribute("data-mmsi") || "").trim();
+        if (!mmsi) return;
+        toggleVesselTrail(mmsi);
+        const entry = markers.get(mmsi);
+        if (!entry) return;
+        entry.marker.setPopupContent(vesselPopup(entry.vessel));
+        try { entry.marker.openPopup(); } catch (_) {}
+      }, { once: true });
+    });
+
+    geofenceListEl.addEventListener("click", (event) => {
+      const btnEdit = event.target.closest(".btn-edit-geofence");
+      if (btnEdit) {
+        const id = btnEdit.getAttribute("data-geofence-id");
+        if (id) beginEditGeofence(id);
+        return;
+      }
+      const btnDelete = event.target.closest(".btn-delete-geofence");
+      if (!btnDelete) return;
+      const id = btnDelete.getAttribute("data-geofence-id");
+      if (!id) return;
+      deleteGeofence(id).catch((err) => {
+        window.alert(String(err?.message || err));
+      });
+    });
+
+    loadAreas()
+      .then(() => loadGeofences())
+      .then(() => loadGeofenceOccupancy())
+      .then(() => setMode("live"))
+      .then(() => {
+        refreshWeatherInfo().catch(() => {});
+        if (weatherRefreshTimer) clearInterval(weatherRefreshTimer);
+        weatherRefreshTimer = setInterval(() => {
+          refreshWeatherInfo().catch(() => {});
+        }, WEATHER_REFRESH_MS);
+        if (FORCE_POLLING_ACTIVE) {
+          startPollingMode();
+        } else {
+          connectFrontendSocket();
+        }
+        setInterval(() => {
+          loadGeofenceOccupancy().catch(() => {});
+        }, 5000);
+        setInterval(() => {
+          renderSaamBgraFleetPanel();
+        }, 2000);
+        renderSaamBgraFleetPanel();
+        requestAnimationFrame(() => {
+          syncHeaderHeightVar();
+        });
+      })
+      .catch(() => {
+        startPollingMode();
+      });
+  </script>
+</body>
+</html>

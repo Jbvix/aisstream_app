@@ -1,0 +1,42 @@
+openapi: 3.0.3
+info:
+  title: AISStream Brasil App API
+  version: 1.0.0
+  description: >
+    Especificacao inicial da API do backend FastAPI.
+    Expandir este contrato conforme novos endpoints forem adicionados.
+servers:
+  - url: http://localhost:8080
+    description: Ambiente local
+paths:
+  /api/status:
+    get:
+      summary: Retorna status do backend
+      responses:
+        "200":
+          description: Status retornado com sucesso
+  /api/areas:
+    get:
+      summary: Lista areas disponiveis
+      responses:
+        "200":
+          description: Lista de areas
+  /api/mode:
+    post:
+      summary: Altera modo de operacao (live/mock)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                mode:
+                  type: string
+                  enum: [live, mock]
+              required: [mode]
+      responses:
+        "200":
+          description: Modo atualizado
+components: {}
+

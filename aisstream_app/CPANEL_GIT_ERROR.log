@@ -1,0 +1,19 @@
+Timestamp: 2026-04-25T20:57:00-03:00
+Context: git push from local machine to cPanel-managed remote repository.
+
+Command:
+git push origin main
+
+Output:
+Delta compression using up to 16 threads
+Compressing objects: 100% (5/5), done.
+Writing objects: 100% (7/7), 2.03 KiB | 1.02 MiB/s, done.
+Total 7 (delta 1), reused 0 (delta 0), pack-reused 0 (from 0)
+error: Entry 'data/users/default/saa_maneuvers.json' not uptodate. Cannot merge.
+To ssh://ssh.tuglife.live/home/c62gtwye66po/aisstream_app
+ ! [remote rejected] main -> main (Could not update working tree to new HEAD)
+error: failed to push some refs to 'ssh://ssh.tuglife.live/home/c62gtwye66po/aisstream_app'
+
+Notes:
+- This indicates the remote working tree is dirty and cPanel Git cannot fast-forward/update HEAD.
+- File cited by remote: data/users/default/saa_maneuvers.json

@@ -1,0 +1,974 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard estratégico — AIS BRASIL APP</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg: #071424;
+      --panel: #10253d;
+      --line: #2f4f6d;
+      --text: #eaf4ff;
+      --muted: #9ab6d4;
+      --accent: #35c8ff;
+      --good: #37d989;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "IBM Plex Sans", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 14px;
+      min-height: 100vh;
+      padding: 16px 18px 32px;
+    }
+    header {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 20px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid var(--line);
+    }
+    h1 {
+      margin: 0;
+      font-family: "Space Grotesk", sans-serif;
+      font-size: 1.35rem;
+      letter-spacing: 0.02em;
+    }
+    .meta {
+      color: var(--muted);
+      font-size: 0.78rem;
+    }
+    a.nav {
+      color: var(--accent);
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 0.9rem;
+    }
+    a.nav:hover { text-decoration: underline; }
+    section {
+      background: linear-gradient(180deg, rgba(16, 37, 61, 0.95), rgba(11, 29, 49, 0.92));
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 14px 16px 16px;
+      margin-bottom: 18px;
+    }
+    h2 {
+      margin: 0 0 10px;
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--accent);
+    }
+    p.hint {
+      margin: 0 0 10px;
+      font-size: 0.75rem;
+      color: var(--muted);
+      line-height: 1.4;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.8rem;
+    }
+    th, td {
+      text-align: left;
+      padding: 8px 10px;
+      border-bottom: 1px solid rgba(47, 79, 109, 0.6);
+    }
+    th {
+      color: var(--muted);
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: 0.65rem;
+      letter-spacing: 0.06em;
+    }
+    tr:last-child td { border-bottom: none; }
+    .pill {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 0.7rem;
+      font-weight: 600;
+    }
+    .pill-on { background: rgba(55, 217, 137, 0.2); color: var(--good); }
+    .pill-off { background: rgba(154, 182, 212, 0.15); color: var(--muted); }
+    .chart-wrap {
+      position: relative;
+      height: min(360px, 52vh);
+      margin-top: 8px;
+    }
+    .err {
+      color: #ffb4b4;
+      font-size: 0.85rem;
+    }
+    .sync-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    button.sync-praticagem {
+      font-family: inherit;
+      font-size: 0.78rem;
+      font-weight: 600;
+      padding: 8px 14px;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      background: rgba(53, 200, 255, 0.12);
+      color: var(--accent);
+      cursor: pointer;
+    }
+    button.sync-praticagem:hover:not(:disabled) {
+      background: rgba(53, 200, 255, 0.22);
+    }
+    button.sync-praticagem:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+    #saaSyncMsg {
+      font-size: 0.72rem;
+      color: var(--muted);
+      min-height: 1.1em;
+    }
+    #tblSaa {
+      font-size: 0.72rem;
+    }
+    #tblSaa td.num, #tblSaa th.num {
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+    #tblSaa tbody tr.saa-row--future td {
+      background: rgba(53, 200, 255, 0.12);
+    }
+    #tblSaa tbody tr.saa-row--future {
+      box-shadow: inset 0 0 0 1px rgba(53, 200, 255, 0.32);
+    }
+    #tblSaa tbody tr.saa-row--soon td {
+      background: rgba(255, 210, 90, 0.14);
+    }
+    #tblSaa tbody tr.saa-row--soon {
+      box-shadow: inset 0 0 0 1px rgba(255, 200, 70, 0.45);
+    }
+    @keyframes saaRowFlashGreen {
+      0%,
+      100% {
+        background-color: rgba(55, 217, 137, 0.14);
+        box-shadow: inset 0 0 0 1px rgba(55, 217, 137, 0.3);
+      }
+      50% {
+        background-color: rgba(55, 217, 137, 0.34);
+        box-shadow: inset 0 0 0 1px rgba(55, 217, 137, 0.55);
+      }
+    }
+    #tblSaa tbody tr.saa-row--live {
+      animation: saaRowFlashGreen 1.5s ease-in-out infinite;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      #tblSaa tbody tr.saa-row--live {
+        animation: none;
+        background-color: rgba(55, 217, 137, 0.24);
+      }
+    }
+    th.geo-lamp, td.geo-lamp {
+      text-align: center;
+      width: 3.25rem;
+    }
+    .lamp {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      vertical-align: middle;
+      background: #4a5a6e;
+      box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
+    }
+    .lamp--saa-on {
+      background: #2a9cff;
+      box-shadow:
+        0 0 0 1px rgba(0, 0, 0, 0.25),
+        0 0 10px 3px rgba(42, 156, 255, 0.85),
+        0 0 18px 5px rgba(42, 156, 255, 0.35);
+    }
+    .lamp--saam-on {
+      background: #37d989;
+      box-shadow:
+        0 0 0 1px rgba(0, 0, 0, 0.25),
+        0 0 10px 3px rgba(55, 217, 137, 0.9),
+        0 0 18px 5px rgba(55, 217, 137, 0.35);
+    }
+    .lamp--off {
+      background: #5a6a7e;
+      box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.35);
+    }
+    .strategy-box {
+      display: grid;
+      gap: 8px;
+    }
+    .strategy-box textarea {
+      width: 100%;
+      min-height: 90px;
+      resize: vertical;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      background: rgba(9, 22, 37, 0.85);
+      color: var(--text);
+      padding: 10px;
+      font: inherit;
+    }
+    .strategy-box button {
+      width: fit-content;
+      padding: 8px 12px;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      background: rgba(53, 200, 255, 0.12);
+      color: var(--accent);
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .strategy-box button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    #strategyAnswer {
+      white-space: pre-wrap;
+      background: rgba(9, 22, 37, 0.65);
+      border: 1px solid rgba(47, 79, 109, 0.5);
+      border-radius: 8px;
+      padding: 10px;
+      color: var(--text);
+      font-size: 0.78rem;
+      line-height: 1.45;
+      min-height: 56px;
+    }
+    .strategy-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .hint-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 0.75rem;
+    }
+    .hint-row select {
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      background: rgba(9, 22, 37, 0.85);
+      color: var(--text);
+      padding: 5px 8px;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Dashboard estratégico</h1>
+      <div class="meta">Geofences · manobras SAA · frota SAAM (AIS)</div>
+    </div>
+    <a class="nav" id="backMap" href="./">← Mapa ao vivo</a>
+  </header>
+
+  <div id="loadErr" class="err" style="display:none;"></div>
+
+  <section>
+    <h2>Status das geofences</h2>
+    <p class="hint">Dados do usuário configurado no servidor (<code>DASHBOARD_USER_ID</code>). Ocupação em tempo real a partir do buffer AIS.</p>
+    <div style="overflow-x:auto;">
+      <table id="tblGeofences">
+        <thead>
+          <tr>
+            <th>Nome</th>
+            <th>Tipo</th>
+            <th>Escopo</th>
+            <th>Ativo</th>
+            <th class="geo-lamp" title="Navio comercial SAA (não SAAM-BGRA): nesta geofence em berço/polígono; na base, também se houver SAA em qualquer berço">SAA</th>
+            <th class="geo-lamp" title="Rebocador SAAM-BGRA dentro da geofence">SAAM</th>
+            <th title="Rebocadores SAAM e navio mais próximo dentro do berço. Para BASE BRASCO: stand-by">EM MANOBRA</th>
+            <th>EMB DENTRO</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>Manobras SAA (EMP.RB)</h2>
+    <div class="sync-row">
+      <p class="hint" style="margin:0;flex:1;min-width:200px;">Registros em <code>data/users/&lt;id&gt;/saa_maneuvers.json</code>. A sincronização lê a <strong>tabela de programação</strong> (POB = horário previsto, …); se não existir no HTML, usa a fila «Navios na Pedra» (sem POB → sem destaque). <strong>Destaque (somente EMP.RB = SAA):</strong> azul antes dos 30 min; amarelo faltando 30 min; verde a piscar após a hora da POB. A sincronização com Praticagem e o refresh do painel ocorrem automaticamente a cada <strong>5 min</strong>; as cores atualizam a cada <strong>30 s</strong> no navegador.</p>
+    </div>
+    <div id="saaSyncMsg"></div>
+    <div style="overflow-x:auto;">
+      <table id="tblSaa">
+        <thead>
+          <tr>
+            <th>POB</th>
+            <th>Navio</th>
+            <th class="num">CAL</th>
+            <th class="num">LOA</th>
+            <th class="num">Boca</th>
+            <th class="num">DWT</th>
+            <th class="num">GT</th>
+            <th>M</th>
+            <th>Berço / local</th>
+            <th>EMP.RB</th>
+            <th>Status</th>
+            <th>Registrado</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>Frota SAAM — manobras e horas em geofence</h2>
+    <p class="hint">Contagem (manobra): cada <strong>saída</strong> de um rebocador SAAM de um geofence tipo <strong>berço</strong> ou <strong>polígono</strong> soma 1 manobra e acumula o tempo dentro dessa área. Saídas da <strong>base rebocador</strong> não entram nesta contagem nem nas horas persistidas. <strong>Milhas náuticas (MN)</strong> somam a distância entre posições AIS consecutivas (Haversine), só para a frota SAAM-BGRA. Tudo persistido em <code>tug_geofence_stats.json</code>.</p>
+    <div class="chart-wrap">
+      <canvas id="chartTugs" aria-label="Comparativo rebocadores"></canvas>
+    </div>
+  </section>
+
+  <section>
+    <h2>Market share (Praticagem-RJ)</h2>
+    <div class="hint-row">
+      <span>Participação por <code>EMP.RB</code> usando a tabela da praticagem.</span>
+      <label for="marketWindow">Janela:</label>
+      <select id="marketWindow">
+        <option value="today">Hoje</option>
+        <option value="last7d">7 dias</option>
+        <option value="last30d" selected>30 dias</option>
+      </select>
+    </div>
+    <div class="chart-wrap">
+      <canvas id="chartMarketShare" aria-label="Market share de manobras"></canvas>
+    </div>
+  </section>
+
+  <section>
+    <h2>Assistente de estratégias (Grok)</h2>
+    <p class="hint">Pergunte sobre posição dos rebocadores, manobras programadas e concorrentes em geofence de manobra.</p>
+    <div class="strategy-box">
+      <textarea id="strategyQuestion" placeholder="Ex.: Quais concorrentes estão manobrando agora e qual o impacto no market share?"></textarea>
+      <textarea id="strategyLearnNote" placeholder="Aprendizado opcional para memória do assistente (ex.: Em navio >300m, priorizar 4 rebocadores)."></textarea>
+      <div class="strategy-actions">
+        <button type="button" id="btnStrategyAsk">Consultar assistente</button>
+        <button type="button" id="btnStrategyReport">Gerar relatório</button>
+        <button type="button" id="btnStrategyInsights">Gerar insights</button>
+      </div>
+      <div id="strategyAnswer">Aguardando pergunta.</div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Monitor de alterações da programação</h2>
+    <p class="hint">Acompanha a cada refresh: simultaneidade, atrasos, adiantamentos e mudanças (entrada/saída) na programação.</p>
+    <div id="scheduleChangesBox" class="hint">Aguardando atualização...</div>
+  </section>
+
+  <script>
+    (function () {
+      if (window.location.protocol === "file:") return;
+      const p = window.location.pathname || "";
+      if (p.indexOf("/frontend/dashboard.html") >= 0 && !window.__DASHBOARD_OVERVIEW__) {
+        const fi = p.indexOf("/frontend/");
+        const root = fi >= 0 ? p.slice(0, fi).replace(/\/+$/, "") : "";
+        window.location.replace((root || "") + "/dashboard");
+      }
+    })();
+
+    const appConfig = window.APP_CONFIG || {};
+    const API_BASE = (appConfig.API_BASE || "").replace(/\/$/, "");
+    function basePathForApi() {
+      const pathname = (window.location.pathname || "/").replace(/\/+$/, "") || "";
+      const fi = pathname.indexOf("/frontend/");
+      if (fi >= 0 && pathname.includes("dashboard")) {
+        return pathname.slice(0, fi).replace(/\/+$/, "") || "";
+      }
+      let p = pathname;
+      if (p.endsWith("/dashboard")) {
+        p = p.slice(0, -"/dashboard".length);
+      }
+      return p.replace(/\/+$/, "") || "";
+    }
+    function apiUrl(path) {
+      const p = path.startsWith("/") ? path : `/${path}`;
+      if (API_BASE) return `${API_BASE.replace(/\/$/, "")}${p}`;
+      const base = basePathForApi();
+      const joined = `${base}${p}`;
+      try {
+        return new URL(joined, window.location.origin).href;
+      } catch (_) {
+        return joined;
+      }
+    }
+    const back = document.getElementById("backMap");
+    back.href = `${basePathForApi()}/`;
+
+    let chartInstance = null;
+    let marketShareChart = null;
+    let latestMarketShareWindows = null;
+
+    function esc(s) {
+      return String(s ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;");
+    }
+
+    function geoLampCell(on, kind, names) {
+      const hint =
+        kind === "saa"
+          ? "SAA: navio comercial nesta área; nas bases, também acende se houver SAA em algum berço"
+          : "Rebocador SAAM-BGRA dentro desta geofence";
+      const arr = Array.isArray(names) ? names.filter((x) => String(x || "").trim()) : [];
+      let detail = "";
+      if (on && arr.length) {
+        detail = arr.join(" · ");
+        if (detail.length > 320) detail = `${detail.slice(0, 317)}…`;
+      }
+      const title = detail ? `${hint} — ${detail}` : hint;
+      const label = kind === "saa" ? "Indicador SAA" : "Indicador SAAM";
+      const ariaDetail = detail ? ` ${esc(detail)}` : "";
+      const cls = on
+        ? kind === "saa"
+          ? "lamp lamp--saa-on"
+          : "lamp lamp--saam-on"
+        : "lamp lamp--off";
+      return `<span class="${cls}" role="img" aria-label="${esc(label)}: ${on ? "ligado" : "desligado"}${ariaDetail}" title="${esc(title)}"></span>`;
+    }
+
+    function renderGeofences(rows) {
+      const tb = document.querySelector("#tblGeofences tbody");
+      if (!rows || !rows.length) {
+        tb.innerHTML = '<tr><td colspan="8" style="color:var(--muted);">Nenhuma geofence cadastrada.</td></tr>';
+        return;
+      }
+      tb.innerHTML = rows
+        .map((r) => {
+          const active = r.isActive !== false;
+          const pill = active ? '<span class="pill pill-on">Sim</span>' : '<span class="pill pill-off">Não</span>';
+          const n = Number(r.vesselCount || 0);
+          const lampSaa = Boolean(r.lampSaaManeuver);
+          const lampSaam = Boolean(r.lampSaamInside);
+          const saaNames = r.lampSaaNames || [];
+          const saamNames = r.lampSaamNames || [];
+          const emManobra = r.emManobra || "—";
+          return `<tr>
+            <td>${esc(r.name)}</td>
+            <td>${esc(r.type)}</td>
+            <td>${esc(r.fleetScope || "all")}</td>
+            <td>${pill}</td>
+            <td class="geo-lamp">${geoLampCell(lampSaa, "saa", saaNames)}</td>
+            <td class="geo-lamp">${geoLampCell(lampSaam, "saam", saamNames)}</td>
+            <td>${esc(emManobra)}</td>
+            <td>${n}</td>
+          </tr>`;
+        })
+        .join("");
+    }
+
+    function saaCell(r, key) {
+      const v = r[key];
+      const t = v != null && String(v).trim() !== "" ? String(v) : "—";
+      return esc(t);
+    }
+
+    const SAA_WARN_BEFORE_MS = 30 * 60 * 1000;
+
+    function parseSaaPobToMs(pob) {
+      const raw = String(pob || "").trim();
+      if (!raw) return null;
+      const s = raw.replace(/\s+/g, " ").replace(/h/gi, ":");
+      // Regra de destaque exige data + hora (hh:mm) válidas.
+      if (!/\d{1,2}:\d{2}/.test(s)) return null;
+      const now = new Date();
+      const y0 = now.getFullYear();
+      const tryDate = (d, m, y, hh, mm) => {
+        const dt = new Date(y, m - 1, d, hh, mm, 0, 0);
+        const t = dt.getTime();
+        if (Number.isNaN(t)) return null;
+        // Garante que a data não "rolou" para outro dia/mês por valor inválido.
+        if (
+          dt.getFullYear() !== y ||
+          dt.getMonth() !== (m - 1) ||
+          dt.getDate() !== d ||
+          dt.getHours() !== hh ||
+          dt.getMinutes() !== mm
+        ) {
+          return null;
+        }
+        return t;
+      };
+      let m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})[^\d]?(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+      if (m) return tryDate(+m[1], +m[2], +m[3], +m[4], +m[5]);
+      m = s.match(/^(\d{1,2})\/(\d{1,2})[^\d]?(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+      if (m) {
+        let t = tryDate(+m[1], +m[2], y0, +m[3], +m[4]);
+        if (t != null && t < now.getTime() - 14 * 86400000) t = tryDate(+m[1], +m[2], y0 + 1, +m[3], +m[4]);
+        return t;
+      }
+      m = s.match(/^(\d{4})-(\d{2})-(\d{2})[T\s](\d{1,2}):(\d{2})/);
+      if (m) return tryDate(+m[3], +m[2], +m[1], +m[4], +m[5]);
+      // Fallback seguro: só tenta Date.parse quando o formato começa com ano (ISO/RFC-like),
+      // evitando ambiguidade de dd/mm vs mm/dd que causava "verde" indevido.
+      if (/^\d{4}[-/]/.test(s)) {
+        const iso = Date.parse(s);
+        if (!Number.isNaN(iso)) {
+          const dt = new Date(iso);
+          if (!Number.isNaN(dt.getTime())) return iso;
+        }
+      }
+      return null;
+    }
+
+    function isSaaManeuverRow(r) {
+      return String(r?.empRb || "")
+        .toUpperCase()
+        .includes("SAA");
+    }
+
+    function saaRowHighlightFromPobMs(pobMs, nowMs) {
+      if (pobMs == null || !Number.isFinite(pobMs)) return "";
+      if (nowMs < pobMs - SAA_WARN_BEFORE_MS) return "saa-row--future";
+      if (nowMs < pobMs) return "saa-row--soon";
+      return "saa-row--live";
+    }
+
+    function applySaaRowHighlights() {
+      const tb = document.querySelector("#tblSaa tbody");
+      if (!tb) return;
+      const now = Date.now();
+      tb.querySelectorAll("tr[data-saa-pob-ms]").forEach((tr) => {
+        const raw = tr.getAttribute("data-saa-pob-ms");
+        const ms = raw ? Number(raw) : NaN;
+        tr.classList.remove("saa-row--future", "saa-row--soon", "saa-row--live");
+        if (!Number.isFinite(ms)) return;
+        const cls = saaRowHighlightFromPobMs(ms, now);
+        if (cls) tr.classList.add(cls);
+      });
+    }
+
+    function saaRowKey(r) {
+      const parts = [
+        r?.source,
+        r?.pob,
+        r?.vesselName,
+        r?.berthName,
+        r?.empRb,
+        r?.status,
+        r?.cal,
+        r?.loa,
+        r?.boca,
+        r?.dwt,
+        r?.gt,
+        r?.m
+      ];
+      return parts.map((v) => String(v || "").trim().toUpperCase()).join("|");
+    }
+
+    function setSaaRowContent(tr, r) {
+      tr.innerHTML = `
+          <td>${saaCell(r, "pob")}</td>
+          <td>${saaCell(r, "vesselName")}</td>
+          <td class="num">${saaCell(r, "cal")}</td>
+          <td class="num">${saaCell(r, "loa")}</td>
+          <td class="num">${saaCell(r, "boca")}</td>
+          <td class="num">${saaCell(r, "dwt")}</td>
+          <td class="num">${saaCell(r, "gt")}</td>
+          <td>${saaCell(r, "m")}</td>
+          <td>${saaCell(r, "berthName")}</td>
+          <td>${saaCell(r, "empRb")}</td>
+          <td>${saaCell(r, "status")}</td>
+          <td>${saaCell(r, "recordedAt")}</td>
+      `;
+    }
+
+    function applySaaRowMeta(tr, r, now) {
+      const pobMs = parseSaaPobToMs(r.pob);
+      const isSaa = isSaaManeuverRow(r);
+      const cls = isSaa ? saaRowHighlightFromPobMs(pobMs, now) : "";
+      tr.classList.remove("saa-row--future", "saa-row--soon", "saa-row--live");
+      if (cls) tr.classList.add(cls);
+      if (isSaa && pobMs != null && Number.isFinite(pobMs)) {
+        tr.setAttribute("data-saa-pob-ms", String(pobMs));
+      } else {
+        tr.removeAttribute("data-saa-pob-ms");
+      }
+    }
+
+    function renderSaa(items) {
+      const tb = document.querySelector("#tblSaa tbody");
+      if (!items || !items.length) {
+        tb.innerHTML = '<tr><td colspan="12" style="color:var(--muted);">Nenhum registro SAA encontrado no ciclo atual de sincronização automática.</td></tr>';
+        return;
+      }
+      const now = Date.now();
+      const existing = new Map();
+      tb.querySelectorAll("tr[data-row-key]").forEach((tr) => {
+        existing.set(tr.getAttribute("data-row-key"), tr);
+      });
+
+      const desiredRows = [];
+      const usedKeys = new Set();
+      for (const r of items) {
+        const key = saaRowKey(r);
+        if (usedKeys.has(key)) continue;
+        usedKeys.add(key);
+
+        let tr = existing.get(key);
+        if (!tr) {
+          tr = document.createElement("tr");
+          tr.setAttribute("data-row-key", key);
+        }
+        setSaaRowContent(tr, r);
+        applySaaRowMeta(tr, r, now);
+        desiredRows.push(tr);
+      }
+
+      // Remove linhas antigas não presentes no novo snapshot.
+      existing.forEach((tr, key) => {
+        if (!usedKeys.has(key)) tr.remove();
+      });
+
+      // Reordena/insere sem limpar o tbody inteiro (evita flicker).
+      for (let i = 0; i < desiredRows.length; i++) {
+        const row = desiredRows[i];
+        const currentAtPos = tb.children[i];
+        if (currentAtPos !== row) {
+          tb.insertBefore(row, currentAtPos || null);
+        }
+      }
+      applySaaRowHighlights();
+    }
+
+    function renderChart(chartRows) {
+      const labels = (chartRows || []).map((r) => r.abbr || r.mmsi);
+      const maneuvers = (chartRows || []).map((r) => r.totalManeuvers || 0);
+      const hours = (chartRows || []).map((r) => r.totalHours || 0);
+      const nm = (chartRows || []).map((r) => Number(r.totalNauticalMiles) || 0);
+      const ctx = document.getElementById("chartTugs");
+      if (chartInstance) chartInstance.destroy();
+      chartInstance = new Chart(ctx, {
+        type: "bar",
+        data: {
+          labels,
+          datasets: [
+            {
+              label: "Nº manobras (saídas de berço/polígono)",
+              data: maneuvers,
+              backgroundColor: "rgba(53, 200, 255, 0.55)",
+              borderColor: "rgba(53, 200, 255, 0.95)",
+              borderWidth: 1,
+              yAxisID: "y"
+            },
+            {
+              label: "Horas em berço/polígono",
+              data: hours,
+              backgroundColor: "rgba(55, 217, 137, 0.45)",
+              borderColor: "rgba(55, 217, 137, 0.9)",
+              borderWidth: 1,
+              yAxisID: "y1"
+            },
+            {
+              label: "Milhas náuticas (MN)",
+              data: nm,
+              backgroundColor: "rgba(255, 184, 107, 0.55)",
+              borderColor: "rgba(255, 184, 107, 0.95)",
+              borderWidth: 1,
+              yAxisID: "y2"
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: { mode: "index", intersect: false },
+          layout: {
+            padding: { right: 8 }
+          },
+          plugins: {
+            legend: { labels: { color: "#eaf4ff" } }
+          },
+          scales: {
+            x: {
+              ticks: { color: "#9ab6d4" },
+              grid: { color: "rgba(47, 79, 109, 0.35)" }
+            },
+            y: {
+              type: "linear",
+              position: "left",
+              title: { display: true, text: "Manobras", color: "#9ab6d4" },
+              ticks: { color: "#9ab6d4", precision: 0 },
+              grid: { color: "rgba(47, 79, 109, 0.35)" }
+            },
+            y1: {
+              type: "linear",
+              position: "right",
+              title: { display: true, text: "Horas", color: "#9ab6d4" },
+              ticks: { color: "#9ab6d4" },
+              grid: { drawOnChartArea: false }
+            },
+            y2: {
+              type: "linear",
+              position: "right",
+              offset: true,
+              title: { display: true, text: "MN", color: "#ffb86b" },
+              ticks: { color: "#ffb86b" },
+              grid: { drawOnChartArea: false }
+            }
+          }
+        }
+      });
+    }
+
+    function renderMarketShare(marketShare) {
+      const rows = marketShare?.rows || [];
+      const labels = rows.map((r) => r.empRb);
+      const values = rows.map((r) => Number(r.count) || 0);
+      const ctx = document.getElementById("chartMarketShare");
+      if (!ctx) return;
+      if (marketShareChart) marketShareChart.destroy();
+      marketShareChart = new Chart(ctx, {
+        type: "doughnut",
+        data: {
+          labels,
+          datasets: [
+            {
+              data: values,
+              backgroundColor: [
+                "rgba(53, 200, 255, 0.75)",
+                "rgba(55, 217, 137, 0.75)",
+                "rgba(255, 184, 107, 0.75)",
+                "rgba(255, 99, 132, 0.75)",
+                "rgba(180, 140, 255, 0.75)",
+              ],
+              borderColor: "rgba(7, 20, 36, 0.9)",
+              borderWidth: 1,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { labels: { color: "#eaf4ff" } } },
+        },
+      });
+    }
+
+    function renderScheduleChanges(changes) {
+      const box = document.getElementById("scheduleChangesBox");
+      if (!box) return;
+      const c = changes || {};
+      const delayed = Number(c.delayedCount || 0);
+      const advanced = Number(c.advancedCount || 0);
+      const added = Number(c.addedCount || 0);
+      const removed = Number(c.removedCount || 0);
+      const upd = c.currentUpdatedAt || "—";
+      const topDelayed = (c.delayed || []).slice(0, 3).map((x) => `${x.vesselName} (${x.oldPob} -> ${x.newPob}, +${x.deltaMinutes} min)`);
+      const topAdvanced = (c.advanced || []).slice(0, 3).map((x) => `${x.vesselName} (${x.oldPob} -> ${x.newPob}, ${x.deltaMinutes} min)`);
+      const lines = [
+        `Atualizado: ${upd}`,
+        `Entradas: ${added} | Saídas: ${removed} | Atrasos: ${delayed} | Adiantamentos: ${advanced}`,
+      ];
+      if (topDelayed.length) lines.push(`Atrasos recentes: ${topDelayed.join(" · ")}`);
+      if (topAdvanced.length) lines.push(`Adiantamentos recentes: ${topAdvanced.join(" · ")}`);
+      box.textContent = lines.join("\n");
+    }
+
+    function getSelectedMarketShare() {
+      const key = document.getElementById("marketWindow")?.value || "last30d";
+      const wins = latestMarketShareWindows || {};
+      return wins[key] || wins.last30d || { rows: [] };
+    }
+
+    async function askStrategyAssistant(action) {
+      const qEl = document.getElementById("strategyQuestion");
+      const learnEl = document.getElementById("strategyLearnNote");
+      const out = document.getElementById("strategyAnswer");
+      const btn = document.getElementById("btnStrategyAsk");
+      const btnReport = document.getElementById("btnStrategyReport");
+      const btnInsights = document.getElementById("btnStrategyInsights");
+      const question = String(qEl?.value || "").trim();
+      const learnNote = String(learnEl?.value || "").trim();
+      if (!question) {
+        out.textContent = "Digite uma pergunta para o assistente.";
+        return;
+      }
+      btn.disabled = true;
+      btnReport.disabled = true;
+      btnInsights.disabled = true;
+      out.textContent = "Consultando assistente...";
+      try {
+        const payload = JSON.stringify({ question, action: action || "ask", learnNote });
+        const paths = [
+          "/api/dashboard/strategy-assistant",
+          "/dashboard/api/strategy-assistant",
+        ];
+        let res = null;
+        for (const p of paths) {
+          const attempt = await fetch(apiUrl(p), {
+            method: "POST",
+            headers: {
+              Accept: "application/json",
+              "Content-Type": "application/json",
+            },
+            body: payload,
+          });
+          if (attempt.status !== 404) {
+            res = attempt;
+            break;
+          }
+          res = attempt;
+        }
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok || !body.ok) {
+          throw new Error(body.error || `HTTP ${res.status}`);
+        }
+        out.textContent = String(body.answer || "Sem resposta.");
+      } catch (e) {
+        out.textContent = `Falha no assistente: ${String(e.message || e)}`;
+      } finally {
+        btn.disabled = false;
+        btnReport.disabled = false;
+        btnInsights.disabled = false;
+      }
+    }
+
+    let dashboardBootstrapped = false;
+    let hadSuccessfulRender = false;
+
+    async function load() {
+      const errEl = document.getElementById("loadErr");
+      errEl.style.display = "none";
+      try {
+        let data = null;
+        if (!dashboardBootstrapped && window.__DASHBOARD_OVERVIEW__) {
+          dashboardBootstrapped = true;
+          data = window.__DASHBOARD_OVERVIEW__;
+          try {
+            delete window.__DASHBOARD_OVERVIEW__;
+          } catch (_) {}
+        } else {
+          const stRes = await fetch(apiUrl("/api/status?expand=dashboard"));
+          if (stRes.ok) {
+            const stBody = await stRes.json();
+            if (stBody.dashboard && stBody.dashboard.ok) {
+              data = stBody.dashboard;
+            }
+          }
+          if (!data) {
+            const primary = `${basePathForApi()}/dashboard/api/overview`;
+            let res = await fetch(primary);
+            if (!res.ok) res = await fetch(apiUrl("/api/dashboard/overview"));
+            if (!res.ok) {
+              throw new Error(
+                `HTTP ${res.status} — API indisponível nesta origem. ` +
+                  "Abra o dashboard pela rota do servidor: /dashboard (dados vêm no HTML). " +
+                  "Na pasta do projeto: uvicorn main:app --host 0.0.0.0 --port 8080"
+              );
+            }
+            data = await res.json();
+          }
+        }
+        if (!data.ok) throw new Error(data.error || "Falha ao carregar");
+        renderGeofences(data.geofenceStatus || []);
+        renderSaa(data.saaManeuvers || []);
+        renderChart(data.tugChart || []);
+        latestMarketShareWindows = data.marketShareWindows || null;
+        renderMarketShare(getSelectedMarketShare());
+        renderScheduleChanges(data.scheduleChanges || {});
+        hadSuccessfulRender = true;
+      } catch (e) {
+        if (hadSuccessfulRender) {
+          console.warn("[dashboard] atualização falhou (mantendo último estado)", e);
+          return;
+        }
+        errEl.textContent = String(e.message || e);
+        errEl.style.display = "block";
+      }
+    }
+
+    async function postPraticagemSync() {
+      const modeRes = await fetch(apiUrl("/api/mode"), {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ mode: "live", syncPraticagemSaa: true })
+      });
+      if (modeRes.status !== 404) return modeRes;
+      const paths = [
+        "/api/status/sync-praticagem-saa",
+        "/api/praticagem/saa-sync",
+        "/api/dashboard/saa-maneuvers/sync-praticagem",
+        "/dashboard/api/saa-maneuvers/sync-praticagem"
+      ];
+      let last = null;
+      for (const p of paths) {
+        const res = await fetch(apiUrl(p), {
+          method: "POST",
+          headers: { Accept: "application/json" }
+        });
+        last = res;
+        if (res.status !== 404) return res;
+      }
+      return last;
+    }
+
+    async function syncPraticagemAndLoad() {
+      const msg = document.getElementById("saaSyncMsg");
+      if (msg) msg.textContent = "";
+      try {
+        const res = await postPraticagemSync();
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok || !body.ok) {
+          throw new Error(
+            body.error ||
+              `HTTP ${res.status} — confirme que o uvicorn corre nesta pasta com o main.py atual (não outro servidor na porta 8080).`
+          );
+        }
+        const n = body.imported ?? 0;
+        const w = body.warning ? ` ${body.warning}` : "";
+        let dbg = "";
+        if (n === 0 && body.parseDiagnostics) {
+          const d = body.parseDiagnostics;
+          dbg =
+            ` Diagnóstico: HTML ${d.htmlChars ?? "?"} chars; zonas ${d.zonesMatched ?? "?"}; ` +
+            `navios (strict/loose) ${d.shipsStrictMatched ?? "?"}/${d.shipsLooseMatched ?? "?"}; ` +
+            `divConteudoLateral=${d.hasDivConteudoLateral ? "sim" : "não"}.`;
+        }
+        if (msg) msg.textContent = `Sincronização automática: importadas ${n} linha(s).${w}${dbg}`;
+        await load();
+      } catch (e) {
+        if (msg) msg.textContent = `Sincronização automática falhou: ${String(e.message || e)}`;
+        await load();
+      }
+    }
+    document.getElementById("btnStrategyAsk").addEventListener("click", () => askStrategyAssistant("ask"));
+    document.getElementById("btnStrategyReport").addEventListener("click", () => askStrategyAssistant("report"));
+    document.getElementById("btnStrategyInsights").addEventListener("click", () => askStrategyAssistant("insights"));
+    document.getElementById("marketWindow").addEventListener("change", () => {
+      renderMarketShare(getSelectedMarketShare());
+    });
+
+    syncPraticagemAndLoad();
+    setInterval(syncPraticagemAndLoad, 5 * 60 * 1000);
+    setInterval(applySaaRowHighlights, 30 * 1000);
+  </script>
+</body>
+</html>

@@ -1,0 +1,261 @@
+{
+  "updatedAt": "2026-04-27T18:04:47.984422",
+  "rows": [
+    {
+      "keyNoPob": "MAERSK MONTE ALEGRE|TECONTPROLONG|SAA|E|272,05|83440|BE",
+      "signature": "MAERSK MONTE ALEGRE|TECONTPROLONG|SAA|E|272,05|83440|BE|27/04 14:00",
+      "pob": "27/04 14:00",
+      "vesselName": "MAERSK MONTE ALEGRE",
+      "berthName": "TECONTPROLONG",
+      "empRb": "SAA"
+    },
+    {
+      "keyNoPob": "BUENA CONFIANZA|WPT 61 │ I COMPRIDA|SAA|M|119,95|8764|BE",
+      "signature": "BUENA CONFIANZA|WPT 61 │ I COMPRIDA|SAA|M|119,95|8764|BE|27/04 15:00",
+      "pob": "27/04 15:00",
+      "vesselName": "BUENA CONFIANZA",
+      "berthName": "WPT 61 │ I COMPRIDA",
+      "empRb": "SAA"
+    },
+    {
+      "keyNoPob": "MAERSK CHACHAI|TECONT2|SAA|E|249,12|61614|BE",
+      "signature": "MAERSK CHACHAI|TECONT2|SAA|E|249,12|61614|BE|27/04 16:30",
+      "pob": "27/04 16:30",
+      "vesselName": "MAERSK CHACHAI",
+      "berthName": "TECONT2",
+      "empRb": "SAA"
+    },
+    {
+      "keyNoPob": "BBC VERMONT|TECONT4|WIL|E|138,50|12863|BB",
+      "signature": "BBC VERMONT|TECONT4|WIL|E|138,50|12863|BB|27/04 18:30",
+      "pob": "27/04 18:30",
+      "vesselName": "BBC VERMONT",
+      "berthName": "TECONT4",
+      "empRb": "WIL"
+    },
+    {
+      "keyNoPob": "BBC MONT BLANC|A7PARTE2|WIL|E|125,80|9363|BE",
+      "signature": "BBC MONT BLANC|A7PARTE2|WIL|E|125,80|9363|BE|27/04 23:00",
+      "pob": "27/04 23:00",
+      "vesselName": "BBC MONT BLANC",
+      "berthName": "A7PARTE2",
+      "empRb": "WIL"
+    },
+    {
+      "keyNoPob": "MAERSK MONTE ALEGRE|TECONTPROLONG|SAA|S|272,05|83440|BE",
+      "signature": "MAERSK MONTE ALEGRE|TECONTPROLONG|SAA|S|272,05|83440|BE|28/04 06:00",
+      "pob": "28/04 06:00",
+      "vesselName": "MAERSK MONTE ALEGRE",
+      "berthName": "TECONTPROLONG",
+      "empRb": "SAA"
+    },
+    {
+      "keyNoPob": "MAERSK CHACHAI|TECONT2|SAA|S|249,12|61614|BE",
+      "signature": "MAERSK CHACHAI|TECONT2|SAA|S|249,12|61614|BE|28/04 07:00",
+      "pob": "28/04 07:00",
+      "vesselName": "MAERSK CHACHAI",
+      "berthName": "TECONT2",
+      "empRb": "SAA"
+    },
+    {
+      "keyNoPob": "LE HAVRE|TECONT3|WIL|S|336,70|111790|BE",
+      "signature": "LE HAVRE|TECONT3|WIL|S|336,70|111790|BE|28/04 08:00",
+      "pob": "28/04 08:00",
+      "vesselName": "LE HAVRE",
+      "berthName": "TECONT3",
+      "empRb": "WIL"
+    },
+    {
+      "keyNoPob": "CMA CGM COBALT|TECONTPROLONG|SAA|E|335,23|147196|BE",
+      "signature": "CMA CGM COBALT|TECONTPROLONG|SAA|E|335,23|147196|BE|28/04 10:00",
+      "pob": "28/04 10:00",
+      "vesselName": "CMA CGM COBALT",
+      "berthName": "TECONTPROLONG",
+      "empRb": "SAA"
+    },
+    {
+      "keyNoPob": "COSCO SHIPPING BRAZIL|TECONT1|CAM|E|335,93|144774|BE",
+      "signature": "COSCO SHIPPING BRAZIL|TECONT1|CAM|E|335,93|144774|BE|28/04 12:00",
+      "pob": "28/04 12:00",
+      "vesselName": "COSCO SHIPPING BRAZIL",
+      "berthName": "TECONT1",
+      "empRb": "CAM"
+    },
+    {
+      "keyNoPob": "AKOFS SANTOS|PETROBRSC2|N/A|E|120,70|5109|BE",
+      "signature": "AKOFS SANTOS|PETROBRSC2|N/A|E|120,70|5109|BE|28/04 13:00",
+      "pob": "28/04 13:00",
+      "vesselName": "AKOFS SANTOS",
+      "berthName": "PETROBRSC2",
+      "empRb": "N/A"
+    },
+    {
+      "keyNoPob": "BLUE ORCA|MACLAREN D │ LARGO|N/A|M|96,93|5065|MACLAREN D │ LARGO",
+      "signature": "BLUE ORCA|MACLAREN D │ LARGO|N/A|M|96,93|5065|MACLAREN D │ LARGO|28/04 23:00",
+      "pob": "28/04 23:00",
+      "vesselName": "BLUE ORCA",
+      "berthName": "MACLAREN D │ LARGO",
+      "empRb": "N/A"
+    },
+    {
+      "keyNoPob": "CMA CGM COBALT|TECONTPROLONG|SAA|S|335,23|147196|BE",
+      "signature": "CMA CGM COBALT|TECONTPROLONG|SAA|S|335,23|147196|BE|29/04 13:30",
+      "pob": "29/04 13:30",
+      "vesselName": "CMA CGM COBALT",
+      "berthName": "TECONTPROLONG",
+      "empRb": "SAA"
+    },
+    {
+      "keyNoPob": "KOTA EBONY|TECONTPROLONG|CAM|E|335,00|156597|BE",
+      "signature": "KOTA EBONY|TECONTPROLONG|CAM|E|335,00|156597|BE|29/04 15:30",
+      "pob": "29/04 15:30",
+      "vesselName": "KOTA EBONY",
+      "berthName": "TECONTPROLONG",
+      "empRb": "CAM"
+    },
+    {
+      "keyNoPob": "COSCO SHIPPING BRAZIL|TECONT1|CAM|S|335,93|144774|BE",
+      "signature": "COSCO SHIPPING BRAZIL|TECONT1|CAM|S|335,93|144774|BE|30/04 06:30",
+      "pob": "30/04 06:30",
+      "vesselName": "COSCO SHIPPING BRAZIL",
+      "berthName": "TECONT1",
+      "empRb": "CAM"
+    },
+    {
+      "keyNoPob": "KOTA EBONY|TECONTPROLONG|CAM|S|335,00|156597|TECONTPROLONG",
+      "signature": "KOTA EBONY|TECONTPROLONG|CAM|S|335,00|156597|TECONTPROLONG|30/04 14:00",
+      "pob": "30/04 14:00",
+      "vesselName": "KOTA EBONY",
+      "berthName": "TECONTPROLONG",
+      "empRb": "CAM"
+    },
+    {
+      "keyNoPob": "MSC BIANCA|TECONT2|WIL|E|328,46|141630|BB",
+      "signature": "MSC BIANCA|TECONT2|WIL|E|328,46|141630|BB|02/05 06:30",
+      "pob": "02/05 06:30",
+      "vesselName": "MSC BIANCA",
+      "berthName": "TECONT2",
+      "empRb": "WIL"
+    },
+    {
+      "keyNoPob": "MSC BIANCA|TECONT2|WIL|S|328,46|141630|BB",
+      "signature": "MSC BIANCA|TECONT2|WIL|S|328,46|141630|BB|03/05 06:30",
+      "pob": "03/05 06:30",
+      "vesselName": "MSC BIANCA",
+      "berthName": "TECONT2",
+      "empRb": "WIL"
+    },
+    {
+      "keyNoPob": "MSC INSA|TECONT3|WIL|E|335,00|139641|BE",
+      "signature": "MSC INSA|TECONT3|WIL|E|335,00|139641|BE|03/05 08:30",
+      "pob": "03/05 08:30",
+      "vesselName": "MSC INSA",
+      "berthName": "TECONT3",
+      "empRb": "WIL"
+    },
+    {
+      "keyNoPob": "MSC INSA|TECONT3|WIL|S|335,00|139641|BE",
+      "signature": "MSC INSA|TECONT3|WIL|S|335,00|139641|BE|04/05 06:00",
+      "pob": "04/05 06:00",
+      "vesselName": "MSC INSA",
+      "berthName": "TECONT3",
+      "empRb": "WIL"
+    },
+    {
+      "keyNoPob": "CMA CGM THORIUM|TECONTPROLONG|SAA|E|335,23|147196|BE",
+      "signature": "CMA CGM THORIUM|TECONTPROLONG|SAA|E|335,23|147196|BE|05/05 08:00",
+      "pob": "05/05 08:00",
+      "vesselName": "CMA CGM THORIUM",
+      "berthName": "TECONTPROLONG",
+      "empRb": "SAA"
+    },
+    {
+      "keyNoPob": "CMA CGM THORIUM|TECONTPROLONG|SAA|S|335,23|147196|BE",
+      "signature": "CMA CGM THORIUM|TECONTPROLONG|SAA|S|335,23|147196|BE|06/05 06:30",
+      "pob": "06/05 06:30",
+      "vesselName": "CMA CGM THORIUM",
+      "berthName": "TECONTPROLONG",
+      "empRb": "SAA"
+    },
+    {
+      "keyNoPob": "EVER FEAT|TECONTPROLONG|CAM|E|333,95|130573|BE",
+      "signature": "EVER FEAT|TECONTPROLONG|CAM|E|333,95|130573|BE|06/05 08:30",
+      "pob": "06/05 08:30",
+      "vesselName": "EVER FEAT",
+      "berthName": "TECONTPROLONG",
+      "empRb": "CAM"
+    },
+    {
+      "keyNoPob": "SANTA LORETTA|TECONT2|WIL|E|336,67|133086|BB",
+      "signature": "SANTA LORETTA|TECONT2|WIL|E|336,67|133086|BB|06/05 10:30",
+      "pob": "06/05 10:30",
+      "vesselName": "SANTA LORETTA",
+      "berthName": "TECONT2",
+      "empRb": "WIL"
+    },
+    {
+      "keyNoPob": "EVER FEAT|TECONTPROLONG|CAM|S|333,95|130573|BE",
+      "signature": "EVER FEAT|TECONTPROLONG|CAM|S|333,95|130573|BE|07/05 06:00",
+      "pob": "07/05 06:00",
+      "vesselName": "EVER FEAT",
+      "berthName": "TECONTPROLONG",
+      "empRb": "CAM"
+    },
+    {
+      "keyNoPob": "SANTA LORETTA|TECONT2|WIL|S|336,67|133086|BB",
+      "signature": "SANTA LORETTA|TECONT2|WIL|S|336,67|133086|BB|07/05 09:00",
+      "pob": "07/05 09:00",
+      "vesselName": "SANTA LORETTA",
+      "berthName": "TECONT2",
+      "empRb": "WIL"
+    },
+    {
+      "keyNoPob": "COSCO SHIPPING MEXICO|TECONTPROLONG|CAM|E|335,90|144652|BE",
+      "signature": "COSCO SHIPPING MEXICO|TECONTPROLONG|CAM|E|335,90|144652|BE|12/05 08:00",
+      "pob": "12/05 08:00",
+      "vesselName": "COSCO SHIPPING MEXICO",
+      "berthName": "TECONTPROLONG",
+      "empRb": "CAM"
+    },
+    {
+      "keyNoPob": "COSCO SHIPPING MEXICO|TECONTPROLONG|CAM|S|335,90|144652|BE",
+      "signature": "COSCO SHIPPING MEXICO|TECONTPROLONG|CAM|S|335,90|144652|BE|13/05 06:30",
+      "pob": "13/05 06:30",
+      "vesselName": "COSCO SHIPPING MEXICO",
+      "berthName": "TECONTPROLONG",
+      "empRb": "CAM"
+    },
+    {
+      "keyNoPob": "CMA CGM MISSISSIPPI|TECONTPROLONG|SAA|E|299,97|115657|BE",
+      "signature": "CMA CGM MISSISSIPPI|TECONTPROLONG|SAA|E|299,97|115657|BE|18/05 06:00",
+      "pob": "18/05 06:00",
+      "vesselName": "CMA CGM MISSISSIPPI",
+      "berthName": "TECONTPROLONG",
+      "empRb": "SAA"
+    },
+    {
+      "keyNoPob": "CMA CGM MISSISSIPPI|TECONTPROLONG|SAA|S|299,97|115657|BE",
+      "signature": "CMA CGM MISSISSIPPI|TECONTPROLONG|SAA|S|299,97|115657|BE|19/05 06:00",
+      "pob": "19/05 06:00",
+      "vesselName": "CMA CGM MISSISSIPPI",
+      "berthName": "TECONTPROLONG",
+      "empRb": "SAA"
+    },
+    {
+      "keyNoPob": "CMA CGM SILVER|TECONTPROLONG|SAA|E|335,23|147196|BE",
+      "signature": "CMA CGM SILVER|TECONTPROLONG|SAA|E|335,23|147196|BE|19/05 08:00",
+      "pob": "19/05 08:00",
+      "vesselName": "CMA CGM SILVER",
+      "berthName": "TECONTPROLONG",
+      "empRb": "SAA"
+    },
+    {
+      "keyNoPob": "CMA CGM SILVER|TECONTPROLONG|SAA|S|335,23|147196|BE",
+      "signature": "CMA CGM SILVER|TECONTPROLONG|SAA|S|335,23|147196|BE|20/05 06:30",
+      "pob": "20/05 06:30",
+      "vesselName": "CMA CGM SILVER",
+      "berthName": "TECONTPROLONG",
+      "empRb": "SAA"
+    }
+  ]
+}
