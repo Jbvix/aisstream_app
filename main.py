@@ -33,7 +33,7 @@ AISSTREAM_URL = "wss://stream.aisstream.io/v0/stream"
 SAAM_BGRA_FLEET_NAME = "SAAM-BGRA"
 SAAM_BGRA_MMSI_SET = {
     "710012550",  # SAAM PATAXO
-    "710000348",  # SAAM ITABIRA
+    "710001249",  # SAAM PARECI
     "710021750",  # SAAM CHILE
     "710001593",  # SAAM HOLANDA
     "710016030",  # SAAM LANCELOT
@@ -53,7 +53,7 @@ LEGACY_GEOFENCE_STORAGE_PATH = APP_ROOT / "data" / "geofences.json"
 DASHBOARD_USER_ID = (os.getenv("DASHBOARD_USER_ID") or "default").strip() or "default"
 SAAM_MMSI_ABBR = {
     "710012550": "PX",
-    "710000348": "IT",
+    "710001249": "PA",
     "710021750": "CH",
     "710001593": "HL",
     "710016030": "LT",
