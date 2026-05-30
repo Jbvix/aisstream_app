@@ -25,6 +25,10 @@ Hospedado em cPanel (`https://tuglife.live/aisstream/`), deploy via Git pull.
    para o backend e `node --check` no script do HTML alterado.
 3. Após aprovação/feature pronta: commit na branch de trabalho, push, e
    fast-forward de `main` (produção puxa de `main`).
+4. **Relatório a cada fim de etapa.** Ao concluir uma etapa de desenvolvimento,
+   criar um relatório em `docs/relatorios/` (implementações, melhorias,
+   correções e lições aprendidas). Convenção: `AAAA-MM-DD-etapa-NN-<slug>.md`
+   (não usar o prefixo `RELATORIO_SESSAO_`, que é gitignored).
 
 ## Deploy (cPanel)
 No servidor: `cd ~/aisstream_app && git pull origin main && touch tmp/restart.txt`
