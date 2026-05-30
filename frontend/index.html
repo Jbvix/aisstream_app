@@ -1168,6 +1168,17 @@
       border-right-color: rgba(73, 120, 163, 0.85);
     }
 
+    /* Navio programado para manobra pela SAAM (EMP.RB = SAA): label destacado. */
+    .vessel-name-label--saam {
+      background: rgba(40, 26, 4, 0.92);
+      color: #ffd400;
+      border-color: rgba(255, 212, 0, 0.9);
+      box-shadow: 0 0 10px rgba(255, 212, 0, 0.45);
+    }
+    .vessel-name-label--saam:before {
+      border-right-color: rgba(255, 212, 0, 0.9);
+    }
+
     @media (max-width: 520px) {
       .float-panel {
         width: calc(100vw - 16px);
@@ -1523,6 +1534,8 @@
     let pollingTimer = null;
     let lastSeq = 0;
     let showVesselNames = false;
+    // Nomes (normalizados) dos navios programados para manobra pela SAAM (EMP.RB = SAA).
+    let saamManeuverNames = new Set();
     let geofenceDrawMode = false;
     let geofenceDrawPoints = [];
     let geofenceDraftLayer = null;
@@ -2574,8 +2587,48 @@
       }
     }
 
+    // Normalização igual à do backend (_normalize_text): sem acento, minúsculas.
+    function normalizeVesselName(value) {
+      return String(value || "")
+        .normalize("NFD")
+        .replace(/[̀-ͯ]/g, "")
+        .trim()
+        .toLowerCase();
+    }
+
+    function isSaamManeuverVessel(vessel) {
+      const norm = normalizeVesselName(vessel?.shipName);
+      return Boolean(norm) && saamManeuverNames.has(norm);
+    }
+
+    async function refreshSaamManeuverNames() {
+      try {
+        const res = await fetch(apiUrl("/api/saa-maneuver-names"));
+        if (!res.ok) return;
+        const data = await res.json();
+        const next = new Set();
+        (data.names || []).forEach((n) => { if (n && n.normalized) next.add(n.normalized); });
+        saamManeuverNames = next;
+        markers.forEach((entry) => applyNameLabelStyle(entry));
+        if (showVesselNames) applyNameVisibilityToAllMarkers();
+      } catch (_) {}
+    }
+
+    // Aplica a cor de destaque no label dos navios que a SAAM vai manobrar.
+    function applyNameLabelStyle(entry) {
+      const tooltip = entry?.marker?.getTooltip?.();
+      if (!tooltip) return;
+      const isSaam = isSaamManeuverVessel(entry.vessel);
+      // Atualiza a classe para próximas aberturas do tooltip…
+      tooltip.options.className = "vessel-name-label" + (isSaam ? " vessel-name-label--saam" : "");
+      // …e, se já estiver renderizado, ajusta o elemento ao vivo.
+      const el = tooltip.getElement && tooltip.getElement();
+      if (el) el.classList.toggle("vessel-name-label--saam", isSaam);
+    }
+
     function applyNameVisibility(entry) {
       if (showVesselNames && map.hasLayer(entry.marker)) {
+        applyNameLabelStyle(entry);
         entry.marker.openTooltip();
       } else {
         entry.marker.closeTooltip();
@@ -2655,6 +2708,7 @@
         const entry = { marker, vessel: vesselData };
         markers.set(key, entry);
         applyMarkerFilter(entry);
+        applyNameLabelStyle(entry);
       } else {
         const entry = markers.get(key);
         entry.vessel = vesselData;
@@ -2663,6 +2717,7 @@
         entry.marker.setPopupContent(vesselPopup(vesselData));
         entry.marker.setTooltipContent(vesselData.shipName || "Sem nome");
         applyMarkerFilter(entry);
+        applyNameLabelStyle(entry);
       }
       updateTrailHistory(vesselData);
       ensureTrailLayerForMmsi(key);
@@ -3466,6 +3521,9 @@
         // Mantém o cache local atualizado para o próximo F5.
         setInterval(persistCurrentVesselsToCache, 15000);
         window.addEventListener("beforeunload", persistCurrentVesselsToCache);
+        // Navios que a SAAM vai manobrar (EMP.RB = SAA): atualiza a cada 2 min.
+        refreshSaamManeuverNames().catch(() => {});
+        setInterval(() => { refreshSaamManeuverNames().catch(() => {}); }, 120000);
         setInterval(() => {
           renderSaamBgraFleetPanel();
         }, 2000);

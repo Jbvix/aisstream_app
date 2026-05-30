@@ -1359,6 +1359,32 @@ def get_vessels(since: int = 0, limit: int = 300, snapshot: bool = False):
     }
 
 
+@app.get("/api/saa-maneuver-names")
+def get_saa_maneuver_names():
+    """Nomes dos navios programados para manobra pela SAAM (EMP.RB = SAA).
+
+    Usado no mapa para destacar o label desses navios quando o usuário ativa
+    a visualização de nomes. Retorna os nomes crus e normalizados (sem
+    acento/maiúsculas) para casar com o shipName do AIS no frontend.
+    """
+    ensure_saa_maneuvers_loaded()
+    with saa_maneuvers_lock:
+        snapshot = _dedupe_saa_maneuvers(list(saa_maneuvers_list))
+    names = []
+    seen = set()
+    for item in snapshot:
+        emp = str(item.get("empRb") or "").strip().upper()
+        if emp != OWN_COMPANY_EMP_RB:
+            continue
+        raw_name = str(item.get("vesselName") or "").strip()
+        norm = _normalize_text(raw_name)
+        if not norm or norm in {"—", "-"} or norm in seen:
+            continue
+        seen.add(norm)
+        names.append({"name": raw_name, "normalized": norm, "pob": item.get("pob") or ""})
+    return {"ok": True, "company": OWN_COMPANY_EMP_RB, "count": len(names), "names": names}
+
+
 def _dashboard_geofence_status_rows():
     ensure_geofences_loaded()
     occ = {o.get("geofenceId"): o for o in build_geofence_occupancy()}
