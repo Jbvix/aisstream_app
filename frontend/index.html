@@ -2356,34 +2356,24 @@
       return 90;
     }
 
-    /** Metros por pixel no centro do mapa (Web Mercator) para escala fiel. */
-    function metersPerPixelNow() {
-      const lat = Number(map?.getCenter?.().lat);
-      const safeLat = Number.isFinite(lat) ? lat : -22.9;
-      const z = Number(map?.getZoom?.() ?? 11);
-      return (156543.03392 * Math.cos((safeLat * Math.PI) / 180)) / Math.pow(2, z);
-    }
-
     function getShipIconDimensionsPx(v) {
       const loa = getShipLengthMeters(v);
       let beam = Number(v?.beamMeters);
       if (!Number.isFinite(beam) || beam <= 0) beam = Math.max(5, loa * 0.16);
-      const mpp = metersPerPixelNow();
       const z = Number(map?.getZoom?.() ?? 11);
 
-      // Tamanho fiel à escala real (px): proporção verdadeira entre embarcações,
-      // cresce naturalmente ao dar zoom in.
-      const trueH = loa / mpp;
-      const trueW = beam / mpp;
-
-      // Piso de legibilidade que preserva o ranking de tamanho mesmo no zoom out.
+      // Tier de tamanho por comprimento (modelo MarineTraffic): rebocador pequeno,
+      // navio grande — diferença de classe sempre perceptível.
       const tC = Math.min(1, Math.max(0, (Math.log10(loa) - Math.log10(18)) / (Math.log10(360) - Math.log10(18))));
-      const floorH = (z >= 13 ? 12 : 9) + tC * 18;      // rebocador ~9..12 · navio grande ~27..30
-      const hullH = Math.max(floorH, Math.min(160, trueH));
+      const baseH = 13 + tC * 31;          // ~13 (rebocador) .. ~44 (navio grande) na referência
 
-      // Largura proporcional à boca real, com pisos/tetos relativos ao comprimento.
-      const floorW = Math.max(4, floorH * 0.30);
-      const hullW = Math.max(floorW, Math.min(hullH * 0.5, trueW));
+      // Cresce ao dar zoom in, encolhe ao afastar.
+      const zoomScale = Math.max(0.5, Math.min(3.8, Math.pow(2, (z - 12) / 3)));
+      const hullH = Math.max(9, Math.min(190, baseH * zoomScale));
+
+      // Largura conforme a proporção real boca/comprimento (navio fino, rebocador atarracado).
+      const ratio = Math.min(0.5, Math.max(0.16, beam / loa));
+      const hullW = Math.max(4, Math.min(hullH * 0.6, hullH * ratio));
 
       // Espaço para rotação do casco + vetor de proa + anel de concorrente.
       const radius = Math.hypot(hullH, hullW) / 2 + hullH * 0.7 + 12;
