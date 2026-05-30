@@ -2290,6 +2290,32 @@ def _build_kratos_insights() -> list[str]:
     else:
         insights.append("Frota SAAM sem posição AIS recente — monitorando reconexão.")
 
+    # Rebocadores SAAM na base de rebocador (matching pelo TIPO da geofence,
+    # estável mesmo que o nome mude — ex.: "BASE BRASCO" / "base rebocador").
+    with geofence_lock:
+        base_geo_names = {
+            _normalize_text(g.get("name"))
+            for g in geofences
+            if g.get("type") == "base_rebocador" and g.get("isActive", True)
+        }
+    base_label = "BASE BRASCO"
+    with geofence_lock:
+        for g in geofences:
+            if g.get("type") == "base_rebocador" and g.get("isActive", True):
+                base_label = (g.get("name") or base_label).strip() or base_label
+                break
+    na_base = []
+    for t in saam:
+        geos = {_normalize_text(g) for g in (t.get("insideGeofences") or [])}
+        if geos & base_geo_names:
+            short = (t.get("name") or "").split()[-1] or (t.get("name") or "")
+            na_base.append(short)
+    if base_geo_names:
+        if na_base:
+            insights.append(f"{base_label}: {len(na_base)} rebocador(es) SAAM na base — {', '.join(na_base)}.")
+        else:
+            insights.append(f"{base_label}: nenhum rebocador SAAM na base agora — frota em operação/posicionamento.")
+
     # Concorrentes manobrando
     manobrando = [c for c in comps if c.get("insideManeuverGeofence")]
     if manobrando:
