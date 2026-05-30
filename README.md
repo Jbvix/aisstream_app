@@ -1,6 +1,6 @@
-# AISStream Brasil App - Backend Python
+# KRATOS — Inteligência Naval Estratégica (Backend Python)
 
-Este projeto é o backend em Python para o AISStream Brasil App, equivalente ao backend Node.js original. Ele fornece endpoints REST, relay WebSocket e integração com AISStream, mantendo compatibilidade com o frontend existente.
+Este projeto é o backend em Python do **KRATOS** (antigo AISStream Brasil App). Ele fornece endpoints REST, relay WebSocket e integração com AISStream, mantendo compatibilidade com o frontend existente.
 
 ## Tecnologias
 - Python 3.10+
