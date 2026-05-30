@@ -429,7 +429,8 @@
       </div>
       <div class="manual-modal__body">
         <h3>Visão geral</h3>
-        <p>O KRATOS monitora em tempo real a movimentação de embarcações no Porto do Rio de Janeiro e na Baía de Guanabara, com foco em antecipar manobras e acompanhar a concorrência.</p>
+        <p>O KRATOS monitora em tempo real a movimentação de embarcações no Porto do Rio de Janeiro e na Baía de Guanabara, com foco em antecipar manobras e acompanhar a concorrência. Ao abrir o painel, uma tela de inicialização (símbolo K com barra de progresso) prepara os dados.</p>
+        <p><b>Importante — SAA = SAAM:</b> na programação da Praticagem, o código <b>EMP.RB “SAA” representa a SAAM</b> (a nossa empresa). <b>WIL</b> e <b>CAM</b> são concorrentes.</p>
 
         <h3>KRATOS — Assistente Estratégico</h3>
         <ul>
@@ -447,16 +448,20 @@
           <li><b>Status das geofences:</b> ocupação em tempo real (SAA e SAAM) por berço/polígono.</li>
           <li><b>Manobras SAA (EMP.RB):</b> programação com destaque por proximidade da POB.</li>
           <li><b>Frota SAAM:</b> contagem de manobras, horas em geofence e milhas náuticas.</li>
-          <li><b>Market share (Praticagem-RJ):</b> participação por empresa nas janelas hoje / 7 dias / 30 dias.</li>
+          <li><b>Market share (Praticagem-RJ):</b> participação por empresa nas janelas hoje / 7 dias / 30 dias. A fatia da <b>SAA (SAAM, nós)</b> aparece destacada em dourado.</li>
         </ul>
 
         <h3>No mapa ao vivo</h3>
         <ul>
-          <li>Ícones em formato de seta apontam o rumo (proa pontuda, popa em V).</li>
-          <li>Cores por tipo: carga verde, petroleiro vermelho, passageiros azul, rebocador teal.</li>
+          <li>Ícones em formato de seta apontam o rumo (proa pontuda, popa em V); o tamanho cresce ao dar zoom in e diferencia rebocador (menor) de navio (maior).</li>
+          <li>Cores por tipo: carga/contêiner/ro-ro verde, petroleiro vermelho, passageiros azul, rebocador teal.</li>
           <li><b>Frota própria (SAAM)</b>: brilho dourado. <b>Concorrentes (WIL/CAM)</b>: anel vermelho pulsante.</li>
-          <li>Embarcação parada/fundeada aparece como círculo; navegando, com vetor de proa.</li>
+          <li>Embarcação parada/fundeada aparece como círculo; navegando, com vetor de proa proporcional à velocidade.</li>
+          <li><b>Visualizar nomes:</b> ao ativar, os navios programados para <b>manobra pela SAAM</b> (EMP.RB = SAA), dentro ou fora da BG, aparecem com o nome em <b>label dourado destacado</b>.</li>
+          <li><b>Persistência:</b> as embarcações continuam no mapa após recarregar a página (F5) e após reinício do servidor, exibindo a última posição conhecida até a próxima atualização do AIS.</li>
         </ul>
+
+        <p style="margin-top:18px;color:var(--muted);font-size:0.8rem;">Manual atualizado a cada nova implementação. Última atualização: persistência de embarcações, destaque de nomes SAAM no mapa e equivalência SAA = SAAM.</p>
       </div>
     </div>
   </div>
