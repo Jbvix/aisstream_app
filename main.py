@@ -375,6 +375,14 @@ vessel_state_by_mmsi = {}
 latest_vessel_by_mmsi = {}
 recent_vessels = deque(maxlen=4000)
 last_vessel_seq = 0
+
+# Persistência do snapshot de embarcações: sobrevive a restart do Passenger
+# (deploy/cPanel), evitando o mapa abrir vazio até o AIS repovoar.
+vessels_snapshot_lock = threading.Lock()
+_last_vessels_persist_monotonic = 0.0
+VESSELS_PERSIST_MIN_INTERVAL_SEC = 20.0
+# Posições mais antigas que isto não são restauradas no boot (evita "fantasmas").
+VESSELS_SNAPSHOT_MAX_AGE_SEC = 6 * 60 * 60
 live_worker_task = None
 _praticagem_auto_sync_task: asyncio.Task | None = None
 live_worker_thread = None
@@ -403,6 +411,53 @@ def geofences_file_for_user(user_id: str) -> Path:
 
 def ensure_data_dir():
     (APP_ROOT / "data").mkdir(parents=True, exist_ok=True)
+
+
+def vessels_snapshot_file() -> Path:
+    return user_data_dir(DASHBOARD_USER_ID) / "vessels_snapshot.json"
+
+
+def save_vessels_snapshot(force: bool = False):
+    """Grava o snapshot de embarcações em disco (com throttle)."""
+    global _last_vessels_persist_monotonic
+    now = time.monotonic()
+    if not force and (now - _last_vessels_persist_monotonic) < VESSELS_PERSIST_MIN_INTERVAL_SEC:
+        return
+    _last_vessels_persist_monotonic = now
+    try:
+        items = []
+        for v in list(latest_vessel_by_mmsi.values()):
+            if not isinstance(v, dict):
+                continue
+            items.append({k: val for k, val in v.items() if k != "raw"})
+        payload = {"savedAt": int(time.time()), "vessels": items}
+        path = vessels_snapshot_file()
+        tmp = path.with_suffix(".json.tmp")
+        with vessels_snapshot_lock:
+            tmp.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+            tmp.replace(path)
+    except OSError:
+        pass
+
+
+def load_vessels_snapshot():
+    """Restaura o último snapshot conhecido no boot (descarta posições antigas)."""
+    path = vessels_snapshot_file()
+    try:
+        if not path.exists():
+            return
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return
+    saved_at = payload.get("savedAt")
+    if isinstance(saved_at, (int, float)) and (time.time() - saved_at) > VESSELS_SNAPSHOT_MAX_AGE_SEC:
+        return
+    for v in payload.get("vessels", []):
+        mmsi = str(v.get("mmsi") or "").strip()
+        if not mmsi:
+            continue
+        v["restoredFromSnapshot"] = True
+        latest_vessel_by_mmsi[mmsi] = v
 
 
 def migrate_legacy_geofences_if_needed(user_id: str):
@@ -996,8 +1051,20 @@ def build_live_subscription():
     }
 
 
+_vessels_snapshot_loaded = False
+
+
+def ensure_vessels_snapshot_loaded():
+    global _vessels_snapshot_loaded
+    if _vessels_snapshot_loaded:
+        return
+    _vessels_snapshot_loaded = True
+    load_vessels_snapshot()
+
+
 def ensure_live_worker_started():
     global live_worker_thread
+    ensure_vessels_snapshot_loaded()
     if current_mode != "live" or not AISSTREAM_API_KEY:
         return
     with live_worker_lock:
@@ -2461,6 +2528,7 @@ def extract_normalized_vessel(data):
         latest_vessel_by_mmsi[mmsi] = vessel_data
         update_saam_nautical_miles(vessel_data)
         update_saam_fleet_geofence_stats(vessel_data)
+        save_vessels_snapshot()
 
         return {
             "type": "ais",

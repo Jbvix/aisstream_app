@@ -2101,6 +2101,9 @@
 
     FloatPanels.init();
 
+    // Pinta de imediato o último snapshot conhecido (persistência no F5).
+    hydrateVesselsFromCache();
+
     function syncHeaderHeightVar() {
       const el = document.querySelector("header");
       if (!el) return;
@@ -2737,12 +2740,41 @@
         const res = await fetch(apiUrl("/api/vessels?snapshot=1"));
         if (!res.ok) return;
         const data = await res.json();
-        (data.vessels || []).forEach((v) => upsertMarker(v));
+        const vessels = data.vessels || [];
+        vessels.forEach((v) => upsertMarker(v));
+        saveVesselsCache(vessels);
         if (typeof data.lastSeq === "number") {
           lastSeq = data.lastSeq;
         }
       } catch (_) {
       }
+    }
+
+    // Cache local do último snapshot: o mapa abre instantâneo no F5,
+    // sem piscar vazio enquanto a API responde.
+    const VESSELS_CACHE_KEY = "ais.vesselsSnapshot.v1";
+    const VESSELS_CACHE_MAX_AGE_MS = 6 * 60 * 60 * 1000;
+    function saveVesselsCache(vessels) {
+      try {
+        if (!Array.isArray(vessels) || !vessels.length) return;
+        const payload = { savedAt: Date.now(), vessels };
+        localStorage.setItem(VESSELS_CACHE_KEY, JSON.stringify(payload));
+      } catch (_) {}
+    }
+    function hydrateVesselsFromCache() {
+      try {
+        const raw = localStorage.getItem(VESSELS_CACHE_KEY);
+        if (!raw) return;
+        const payload = JSON.parse(raw);
+        if (!payload || !Array.isArray(payload.vessels)) return;
+        if (Date.now() - Number(payload.savedAt || 0) > VESSELS_CACHE_MAX_AGE_MS) return;
+        payload.vessels.forEach((v) => upsertMarker(v));
+      } catch (_) {}
+    }
+    function persistCurrentVesselsToCache() {
+      const vessels = [];
+      markers.forEach((entry) => { if (entry?.vessel) vessels.push(entry.vessel); });
+      saveVesselsCache(vessels);
     }
 
     async function pollOnce() {
@@ -3431,6 +3463,9 @@
         setInterval(() => {
           loadGeofenceOccupancy().catch(() => {});
         }, 5000);
+        // Mantém o cache local atualizado para o próximo F5.
+        setInterval(persistCurrentVesselsToCache, 15000);
+        window.addEventListener("beforeunload", persistCurrentVesselsToCache);
         setInterval(() => {
           renderSaamBgraFleetPanel();
         }, 2000);

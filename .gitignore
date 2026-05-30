@@ -6,6 +6,8 @@ data/users/default/saa_maneuvers.json
 data/users/default/tug_geofence_stats.json
 data/users/default/saa_schedule_monitor.json
 data/users/default/strategy_memory.json
+data/users/*/vessels_snapshot.json
+data/users/*/vessels_snapshot.json.tmp
 
 __pycache__/
 *.pyc
