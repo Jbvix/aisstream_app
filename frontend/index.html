@@ -963,6 +963,86 @@
       color: var(--text);
     }
 
+    /* Caixa de insights do KRATOS (canto inferior esquerdo, efeito datilografado) */
+    .kratos-insights {
+      position: absolute;
+      left: calc(var(--dock-w) + 18px);
+      bottom: 18px;
+      z-index: 1200;
+      width: 320px;
+      max-width: 42vw;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid rgba(53, 200, 255, 0.45);
+      background: rgba(7, 20, 36, 0.9);
+      box-shadow: 0 8px 22px rgba(0, 0, 0, 0.45), 0 0 12px rgba(53, 200, 255, 0.15);
+      backdrop-filter: blur(5px);
+      pointer-events: none;
+      font-family: "JetBrains Mono", "Consolas", ui-monospace, monospace;
+    }
+    .kratos-insights__head {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      margin-bottom: 6px;
+    }
+    .kratos-insights__k {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      border: 1.5px solid var(--accent);
+      color: var(--accent);
+      font-size: 11px;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 8px rgba(53, 200, 255, 0.5);
+    }
+    .kratos-insights__title {
+      font-size: 0.68rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .kratos-insights__live {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 0.6rem;
+      color: #37d989;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .kratos-insights__live::before {
+      content: "";
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #37d989;
+      box-shadow: 0 0 6px #37d989;
+      animation: kratosLive 1.4s ease-in-out infinite;
+    }
+    @keyframes kratosLive { 0%,100% { opacity: 1; } 50% { opacity: 0.25; } }
+    .kratos-insights__text {
+      font-size: 0.78rem;
+      line-height: 1.45;
+      color: #d8ecff;
+      min-height: 3.6em;
+      white-space: pre-wrap;
+    }
+    .kratos-insights__cursor {
+      display: inline-block;
+      width: 7px;
+      color: var(--accent);
+      animation: kratosCaret 1s step-end infinite;
+    }
+    @keyframes kratosCaret { 50% { opacity: 0; } }
+    @media (max-width: 620px) {
+      .kratos-insights { width: 240px; max-width: 60vw; }
+    }
+
     .vessel-icon {
       width: 26px;
       height: 26px;
@@ -1486,6 +1566,14 @@
         <h4>Baia de Guanabara</h4>
         <div class="row"><span>BG (Dentro)</span><strong id="bgInsideCount">0</strong></div>
         <div class="row"><span>MAR (Fora)</span><strong id="bgOutsideCount">0</strong></div>
+      </div>
+      <div id="kratosInsights" class="kratos-insights" aria-live="polite">
+        <div class="kratos-insights__head">
+          <span class="kratos-insights__k">K</span>
+          <span class="kratos-insights__title">KRATOS · Insights</span>
+          <span class="kratos-insights__live">ao vivo</span>
+        </div>
+        <div class="kratos-insights__text"><span id="kratosInsightText"></span><span class="kratos-insights__cursor">▋</span></div>
       </div>
     </main>
   </div>
@@ -2614,6 +2702,53 @@
       } catch (_) {}
     }
 
+    // ===== Caixa de insights do KRATOS (efeito datilografado, ao vivo) =====
+    const KRATOS_INSIGHTS_REFRESH_MS = 60000;  // recarrega insights a cada 1 min
+    const KRATOS_TYPE_SPEED_MS = 28;           // velocidade de digitação por caractere
+    const KRATOS_HOLD_MS = 5000;               // tempo exibindo cada insight completo
+    let kratosInsightList = [];
+    let kratosInsightIdx = 0;
+    let kratosTypeTimer = null;
+    let kratosHoldTimer = null;
+
+    function typeKratosInsight(text) {
+      const el = document.getElementById("kratosInsightText");
+      if (!el) return;
+      if (kratosTypeTimer) clearTimeout(kratosTypeTimer);
+      if (kratosHoldTimer) clearTimeout(kratosHoldTimer);
+      let i = 0;
+      const step = () => {
+        el.textContent = text.slice(0, i);
+        if (i < text.length) {
+          i++;
+          kratosTypeTimer = setTimeout(step, KRATOS_TYPE_SPEED_MS);
+        } else {
+          kratosHoldTimer = setTimeout(nextKratosInsight, KRATOS_HOLD_MS);
+        }
+      };
+      step();
+    }
+
+    function nextKratosInsight() {
+      if (!kratosInsightList.length) return;
+      const text = kratosInsightList[kratosInsightIdx % kratosInsightList.length];
+      kratosInsightIdx++;
+      typeKratosInsight(text);
+    }
+
+    async function refreshKratosInsights() {
+      try {
+        const res = await fetch(apiUrl("/api/kratos/insights"));
+        if (!res.ok) return;
+        const data = await res.json();
+        const list = Array.isArray(data.insights) ? data.insights.filter(Boolean) : [];
+        if (!list.length) return;
+        const wasEmpty = kratosInsightList.length === 0;
+        kratosInsightList = list;
+        if (wasEmpty) nextKratosInsight();  // inicia o ciclo na primeira carga
+      } catch (_) {}
+    }
+
     // Aplica a cor de destaque no label dos navios que a SAAM vai manobrar.
     function applyNameLabelStyle(entry) {
       const tooltip = entry?.marker?.getTooltip?.();
@@ -3524,6 +3659,9 @@
         // Navios que a SAAM vai manobrar (EMP.RB = SAA): atualiza a cada 2 min.
         refreshSaamManeuverNames().catch(() => {});
         setInterval(() => { refreshSaamManeuverNames().catch(() => {}); }, 120000);
+        // Insights do KRATOS na caixa datilografada (canto inferior esquerdo).
+        refreshKratosInsights().catch(() => {});
+        setInterval(() => { refreshKratosInsights().catch(() => {}); }, KRATOS_INSIGHTS_REFRESH_MS);
         setInterval(() => {
           renderSaamBgraFleetPanel();
         }, 2000);

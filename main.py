@@ -2161,6 +2161,109 @@ async def strategy_assistant_under_dashboard_path(request: Request):
     return await strategy_assistant(request)
 
 
+def _wind_label(metocean: dict) -> str:
+    spd = metocean.get("windSpeedKmh")
+    if not isinstance(spd, (int, float)):
+        return ""
+    kn = spd / 1.852
+    if kn >= 22:
+        nivel = "forte"
+    elif kn >= 12:
+        nivel = "moderado"
+    else:
+        nivel = "fraco"
+    return f"{kn:.0f} kn ({nivel})"
+
+
+def _build_kratos_insights() -> list[str]:
+    """Insights curtos gerados por regras a partir do contexto operacional real.
+
+    Rápido e sempre disponível (sem chamada externa); alimenta a caixa
+    datilografada do mapa.
+    """
+    ctx = _strategy_context_dict()
+    insights: list[str] = []
+
+    saam = ctx.get("saamTugs") or []
+    comps = ctx.get("competitors") or []
+    maneuvers = ctx.get("scheduledManeuvers") or []
+    m_total = int(ctx.get("scheduledManeuverTotal", len(maneuvers)))
+    simult = ctx.get("simultaneousManeuvers") or []
+    changes = ctx.get("scheduleChanges") or {}
+    metocean = ctx.get("metocean") or {}
+    market = (ctx.get("marketShare") or {}).get("rows") or []
+
+    # Rebocadores SAAM ativos / em geofence
+    saam_em_geo = [t for t in saam if t.get("insideGeofences")]
+    if saam:
+        if saam_em_geo:
+            nomes = ", ".join((t.get("name") or "").split()[-1] for t in saam_em_geo[:3])
+            insights.append(f"Frota SAAM: {len(saam)} no radar; {len(saam_em_geo)} em geofence agora ({nomes}).")
+        else:
+            insights.append(f"Frota SAAM: {len(saam)} rebocadores no radar, nenhum em geofence de manobra no momento.")
+    else:
+        insights.append("Frota SAAM sem posição AIS recente — monitorando reconexão.")
+
+    # Concorrentes manobrando
+    manobrando = [c for c in comps if c.get("insideManeuverGeofence")]
+    if manobrando:
+        alvo = manobrando[0]
+        insights.append(
+            f"Atenção: {alvo.get('company')} ({alvo.get('name')}) manobrando em {alvo.get('maneuverGeofenceName')}. "
+            f"{len(manobrando)} concorrente(s) ativo(s)."
+        )
+    else:
+        insights.append("Nenhum rebocador concorrente (WIL/CAM) em geofence de manobra agora — janela favorável.")
+
+    # Próxima manobra programada
+    if maneuvers:
+        nxt = maneuvers[0]
+        emp = str(nxt.get("empRb") or "").upper()
+        dono = "nossa (SAAM)" if emp == OWN_COMPANY_EMP_RB else (emp or "—")
+        insights.append(
+            f"Próxima manobra na programação: {nxt.get('vesselName','—')} às {nxt.get('pob','—')} — EMP.RB {emp or '—'} [{dono}]."
+        )
+    insights.append(f"Programação da praticagem: {m_total} manobra(s) na base de dados.")
+
+    # Simultaneidade
+    if simult:
+        s0 = simult[0]
+        insights.append(
+            f"Simultaneidade às {s0.get('timeSlot')}: {s0.get('maneuvers')} manobras, "
+            f"~{s0.get('estimatedTugsNeeded')} rebocadores necessários. Antecipar alocação."
+        )
+
+    # Mudanças de programação
+    if changes.get("anyChange"):
+        insights.append(
+            f"Programação alterada: {changes.get('delayedCount',0)} atraso(s), "
+            f"{changes.get('advancedCount',0)} adiantamento(s), {changes.get('addedCount',0)} entrada(s)."
+        )
+
+    # Meteocean
+    wind = _wind_label(metocean)
+    if wind:
+        insights.append(f"Vento na Baía: {wind}. Avaliar reforço de rebocador em manobra sensível.")
+    tide = metocean.get("tide")
+    if isinstance(tide, str) and tide.strip():
+        insights.append(f"Maré: {tide}")
+
+    # Market share (SAA = nós)
+    if market:
+        nosso = next((r for r in market if str(r.get("empRb")).upper() == OWN_COMPANY_EMP_RB), None)
+        if nosso:
+            insights.append(f"Market share SAA (nós): {nosso.get('sharePct',0)}% das manobras na base.")
+
+    insights.append("KRATOS vigiando o porto em tempo real — um passo à frente.")
+    return [s for s in insights if s]
+
+
+@app.get("/api/kratos/insights")
+def kratos_insights():
+    ensure_live_worker_started()
+    return {"ok": True, "generatedAt": get_now_iso(), "insights": _build_kratos_insights()}
+
+
 @app.get("/api/geofences")
 def get_geofences():
     ensure_geofences_loaded()
