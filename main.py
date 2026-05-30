@@ -1146,7 +1146,7 @@ def classify_geofence(latitude, longitude):
 def get_status(expand: str | None = None):
     ensure_live_worker_started()
     out = {
-        "app": "AISStream Brasil App",
+        "app": "KRATOS - Inteligência Naval Estratégica",
         "version": "1.0.0",
         "mode": current_mode,
         "area": AREAS.get(current_area_key, {}),
@@ -1903,7 +1903,8 @@ def _ask_grok_with_context(question: str, context: dict) -> str:
             {
                 "role": "system",
                 "content": (
-                    "Voce e um assistente de estrategia portuaria experiente, consultivo e natural. "
+                    "Voce e o KRATOS, assistente de estrategia naval do porto do Rio de Janeiro e "
+                    "da Baia de Guanabara: experiente, consultivo e natural. Ao se apresentar, use o nome KRATOS. "
                     "Responda em portugues com linguagem clara, direta e mais solta (sem rigidez excessiva). "
                     "Baseie-se no contexto fornecido; se faltar dado, diga isso com transparencia. "
                     "Priorize insights acionaveis e recomendacoes praticas para operacao. "
