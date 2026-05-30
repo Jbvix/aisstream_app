@@ -55,6 +55,137 @@
       font-size: 0.9rem;
     }
     a.nav:hover { text-decoration: underline; }
+    .header-actions { display: flex; gap: 10px; align-items: center; }
+    button.nav {
+      color: var(--accent);
+      background: transparent;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 6px 12px;
+      font-weight: 600;
+      font-size: 0.9rem;
+      cursor: pointer;
+    }
+    button.nav:hover { background: rgba(53, 200, 255, 0.12); }
+
+    /* ===== Splash screen KRATOS ===== */
+    .kratos-splash {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(1200px 700px at 50% 30%, #0d2a47, #04101e 75%);
+      transition: opacity 0.5s ease, visibility 0.5s ease;
+    }
+    .kratos-splash.is-hidden { opacity: 0; visibility: hidden; pointer-events: none; }
+    .kratos-splash__inner { text-align: center; width: min(420px, 86vw); }
+    .kratos-mark {
+      position: relative;
+      width: 132px;
+      height: 132px;
+      margin: 0 auto 22px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .kratos-mark__k {
+      font-family: "Space Grotesk", sans-serif;
+      font-size: 68px;
+      font-weight: 700;
+      color: var(--accent);
+      text-shadow: 0 0 18px rgba(53, 200, 255, 0.7);
+      z-index: 2;
+      animation: kratosPulse 1.8s ease-in-out infinite;
+    }
+    .kratos-mark__ring {
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      border: 2px solid rgba(53, 200, 255, 0.55);
+      border-top-color: var(--accent);
+      animation: kratosSpin 1.4s linear infinite;
+    }
+    .kratos-mark__ring--2 {
+      inset: 16px;
+      border-width: 1.5px;
+      border-color: rgba(53, 200, 255, 0.25);
+      border-bottom-color: var(--accent);
+      animation-duration: 2.1s;
+      animation-direction: reverse;
+    }
+    .kratos-splash__title {
+      font-family: "Space Grotesk", sans-serif;
+      font-size: 1.9rem;
+      letter-spacing: 0.16em;
+      color: var(--text);
+    }
+    .kratos-splash__subtitle { color: var(--muted); font-size: 0.85rem; margin-top: 4px; }
+    .kratos-progress {
+      margin: 26px auto 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: rgba(53, 200, 255, 0.14);
+      overflow: hidden;
+    }
+    .kratos-progress__bar {
+      height: 100%;
+      width: 0%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #1c7fb8, var(--accent));
+      box-shadow: 0 0 10px rgba(53, 200, 255, 0.6);
+      transition: width 0.2s linear;
+    }
+    .kratos-progress__pct { color: var(--accent); font-size: 0.8rem; font-variant-numeric: tabular-nums; }
+    .kratos-splash__step { color: var(--muted); font-size: 0.82rem; margin-top: 10px; min-height: 1.2em; }
+    @keyframes kratosSpin { to { transform: rotate(360deg); } }
+    @keyframes kratosPulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.06); opacity: 0.82; } }
+
+    /* ===== Manual do usuário ===== */
+    .manual-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 9998;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      background: rgba(3, 10, 20, 0.72);
+      padding: 20px;
+    }
+    .manual-overlay.is-open { display: flex; }
+    .manual-modal {
+      width: min(680px, 96vw);
+      max-height: 86vh;
+      display: flex;
+      flex-direction: column;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.55);
+    }
+    .manual-modal__head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--line);
+    }
+    .manual-modal__head strong { color: var(--accent); }
+    .manual-close {
+      background: transparent;
+      border: none;
+      color: var(--muted);
+      font-size: 1.1rem;
+      cursor: pointer;
+    }
+    .manual-close:hover { color: var(--text); }
+    .manual-modal__body { padding: 16px 20px; overflow-y: auto; }
+    .manual-modal__body h3 { color: var(--accent); font-size: 0.95rem; margin: 16px 0 6px; }
+    .manual-modal__body h3:first-child { margin-top: 0; }
+    .manual-modal__body p { margin: 6px 0; color: var(--text); font-size: 0.88rem; line-height: 1.5; }
+    .manual-modal__body ul { margin: 6px 0; padding-left: 20px; }
+    .manual-modal__body li { color: var(--text); font-size: 0.88rem; line-height: 1.5; margin: 3px 0; }
     section {
       background: linear-gradient(180deg, rgba(16, 37, 61, 0.95), rgba(11, 29, 49, 0.92));
       border: 1px solid var(--line);
@@ -273,15 +404,96 @@
   </style>
 </head>
 <body>
+  <!-- Splash screen dinâmico KRATOS -->
+  <div id="kratosSplash" class="kratos-splash" role="dialog" aria-label="Inicializando KRATOS">
+    <div class="kratos-splash__inner">
+      <div class="kratos-mark" aria-hidden="true">
+        <span class="kratos-mark__k">K</span>
+        <span class="kratos-mark__ring"></span>
+        <span class="kratos-mark__ring kratos-mark__ring--2"></span>
+      </div>
+      <div class="kratos-splash__title">KRATOS</div>
+      <div class="kratos-splash__subtitle">Inteligência Naval Estratégica</div>
+      <div class="kratos-progress"><div id="kratosProgressBar" class="kratos-progress__bar"></div></div>
+      <div id="kratosProgressPct" class="kratos-progress__pct">0%</div>
+      <div id="kratosStep" class="kratos-splash__step">Inicializando…</div>
+    </div>
+  </div>
+
+  <!-- Manual do usuário -->
+  <div id="manualOverlay" class="manual-overlay" role="dialog" aria-label="Manual do usuário" aria-modal="true">
+    <div class="manual-modal">
+      <div class="manual-modal__head">
+        <strong>📘 Manual do usuário — KRATOS</strong>
+        <button type="button" class="manual-close" id="btnManualClose" aria-label="Fechar manual">✕</button>
+      </div>
+      <div class="manual-modal__body">
+        <h3>Visão geral</h3>
+        <p>O KRATOS monitora em tempo real a movimentação de embarcações no Porto do Rio de Janeiro e na Baía de Guanabara, com foco em antecipar manobras e acompanhar a concorrência.</p>
+
+        <h3>KRATOS — Assistente Estratégico</h3>
+        <ul>
+          <li><b>Consultar assistente:</b> faça perguntas sobre posição dos rebocadores, manobras programadas e concorrentes em geofence de manobra.</li>
+          <li><b>Gerar relatório:</b> resumo executivo consolidado do cenário atual.</li>
+          <li><b>Gerar insights:</b> hipóteses e oportunidades acionáveis.</li>
+          <li><b>Aprendizado:</b> registre regras operacionais (ex.: “navio &gt;300m, priorizar 4 rebocadores”) para a memória do assistente.</li>
+        </ul>
+
+        <h3>Monitor de alterações da programação</h3>
+        <p>Acompanha a cada refresh: simultaneidade, atrasos, adiantamentos e mudanças (entrada/saída) na programação da Praticagem-RJ.</p>
+
+        <h3>Painéis de dados</h3>
+        <ul>
+          <li><b>Status das geofences:</b> ocupação em tempo real (SAA e SAAM) por berço/polígono.</li>
+          <li><b>Manobras SAA (EMP.RB):</b> programação com destaque por proximidade da POB.</li>
+          <li><b>Frota SAAM:</b> contagem de manobras, horas em geofence e milhas náuticas.</li>
+          <li><b>Market share (Praticagem-RJ):</b> participação por empresa nas janelas hoje / 7 dias / 30 dias.</li>
+        </ul>
+
+        <h3>No mapa ao vivo</h3>
+        <ul>
+          <li>Ícones em formato de seta apontam o rumo (proa pontuda, popa em V).</li>
+          <li>Cores por tipo: carga verde, petroleiro vermelho, passageiros azul, rebocador teal.</li>
+          <li><b>Frota própria (SAAM)</b>: brilho dourado. <b>Concorrentes (WIL/CAM)</b>: anel vermelho pulsante.</li>
+          <li>Embarcação parada/fundeada aparece como círculo; navegando, com vetor de proa.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
   <header>
     <div>
       <h1>KRATOS — Painel Estratégico</h1>
       <div class="meta">Geofences · manobras SAA · frota SAAM (AIS)</div>
     </div>
-    <a class="nav" id="backMap" href="./">← Mapa ao vivo</a>
+    <div class="header-actions">
+      <button type="button" class="nav" id="btnManual">📘 Manual</button>
+      <a class="nav" id="backMap" href="./">← Mapa ao vivo</a>
+    </div>
   </header>
 
   <div id="loadErr" class="err" style="display:none;"></div>
+
+  <section>
+    <h2>KRATOS — Assistente Estratégico</h2>
+    <p class="hint">Pergunte sobre posição dos rebocadores, manobras programadas e concorrentes em geofence de manobra.</p>
+    <div class="strategy-box">
+      <textarea id="strategyQuestion" placeholder="Ex.: Quais concorrentes estão manobrando agora e qual o impacto no market share?"></textarea>
+      <textarea id="strategyLearnNote" placeholder="Aprendizado opcional para memória do assistente (ex.: Em navio >300m, priorizar 4 rebocadores)."></textarea>
+      <div class="strategy-actions">
+        <button type="button" id="btnStrategyAsk">Consultar assistente</button>
+        <button type="button" id="btnStrategyReport">Gerar relatório</button>
+        <button type="button" id="btnStrategyInsights">Gerar insights</button>
+      </div>
+      <div id="strategyAnswer">Aguardando pergunta.</div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Monitor de alterações da programação</h2>
+    <p class="hint">Acompanha a cada refresh: simultaneidade, atrasos, adiantamentos e mudanças (entrada/saída) na programação.</p>
+    <div id="scheduleChangesBox" class="hint">Aguardando atualização...</div>
+  </section>
 
   <section>
     <h2>Status das geofences</h2>
@@ -358,28 +570,57 @@
     </div>
   </section>
 
-  <section>
-    <h2>KRATOS — Assistente Estratégico</h2>
-    <p class="hint">Pergunte sobre posição dos rebocadores, manobras programadas e concorrentes em geofence de manobra.</p>
-    <div class="strategy-box">
-      <textarea id="strategyQuestion" placeholder="Ex.: Quais concorrentes estão manobrando agora e qual o impacto no market share?"></textarea>
-      <textarea id="strategyLearnNote" placeholder="Aprendizado opcional para memória do assistente (ex.: Em navio >300m, priorizar 4 rebocadores)."></textarea>
-      <div class="strategy-actions">
-        <button type="button" id="btnStrategyAsk">Consultar assistente</button>
-        <button type="button" id="btnStrategyReport">Gerar relatório</button>
-        <button type="button" id="btnStrategyInsights">Gerar insights</button>
-      </div>
-      <div id="strategyAnswer">Aguardando pergunta.</div>
-    </div>
-  </section>
-
-  <section>
-    <h2>Monitor de alterações da programação</h2>
-    <p class="hint">Acompanha a cada refresh: simultaneidade, atrasos, adiantamentos e mudanças (entrada/saída) na programação.</p>
-    <div id="scheduleChangesBox" class="hint">Aguardando atualização...</div>
-  </section>
-
   <script>
+    // ===== Splash screen KRATOS (barra de progresso ~15s com etapas) =====
+    (function () {
+      const splash = document.getElementById("kratosSplash");
+      if (!splash) return;
+      const bar = document.getElementById("kratosProgressBar");
+      const pctEl = document.getElementById("kratosProgressPct");
+      const stepEl = document.getElementById("kratosStep");
+      const DURATION_MS = 15000;
+      const steps = [
+        { at: 0, text: "Inicializando KRATOS…" },
+        { at: 12, text: "Conectando ao stream AIS…" },
+        { at: 28, text: "Carregando geofences e berços…" },
+        { at: 45, text: "Sincronizando programação da Praticagem-RJ…" },
+        { at: 62, text: "Mapeando frota SAAM e concorrentes…" },
+        { at: 78, text: "Avaliando maré, vento e janelas de manobra…" },
+        { at: 92, text: "Consolidando market share…" },
+        { at: 100, text: "Pronto. KRATOS no comando." }
+      ];
+      const start = performance.now();
+      let lastStep = -1;
+      function frame(now) {
+        const pct = Math.min(100, ((now - start) / DURATION_MS) * 100);
+        if (bar) bar.style.width = pct + "%";
+        if (pctEl) pctEl.textContent = Math.round(pct) + "%";
+        let idx = 0;
+        for (let i = 0; i < steps.length; i++) { if (pct >= steps[i].at) idx = i; }
+        if (idx !== lastStep && stepEl) { stepEl.textContent = steps[idx].text; lastStep = idx; }
+        if (pct < 100) {
+          requestAnimationFrame(frame);
+        } else {
+          setTimeout(() => splash.classList.add("is-hidden"), 350);
+        }
+      }
+      requestAnimationFrame(frame);
+    })();
+
+    // ===== Manual do usuário (abrir/fechar) =====
+    (function () {
+      const overlay = document.getElementById("manualOverlay");
+      const openBtn = document.getElementById("btnManual");
+      const closeBtn = document.getElementById("btnManualClose");
+      if (!overlay || !openBtn) return;
+      const open = () => overlay.classList.add("is-open");
+      const close = () => overlay.classList.remove("is-open");
+      openBtn.addEventListener("click", open);
+      if (closeBtn) closeBtn.addEventListener("click", close);
+      overlay.addEventListener("click", (e) => { if (e.target === overlay) close(); });
+      document.addEventListener("keydown", (e) => { if (e.key === "Escape") close(); });
+    })();
+
     (function () {
       if (window.location.protocol === "file:") return;
       const p = window.location.pathname || "";
