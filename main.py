@@ -2219,7 +2219,7 @@ def _build_kratos_insights() -> list[str]:
     if maneuvers:
         nxt = maneuvers[0]
         emp = str(nxt.get("empRb") or "").upper()
-        dono = "nossa (SAAM)" if emp == OWN_COMPANY_EMP_RB else (emp or "—")
+        dono = "SAAM" if emp == OWN_COMPANY_EMP_RB else (emp or "—")
         insights.append(
             f"Próxima manobra na programação: {nxt.get('vesselName','—')} às {nxt.get('pob','—')} — EMP.RB {emp or '—'} [{dono}]."
         )
@@ -2252,7 +2252,7 @@ def _build_kratos_insights() -> list[str]:
     if market:
         nosso = next((r for r in market if str(r.get("empRb")).upper() == OWN_COMPANY_EMP_RB), None)
         if nosso:
-            insights.append(f"Market share SAA (nós): {nosso.get('sharePct',0)}% das manobras na base.")
+            insights.append(f"Market share SAAM: {nosso.get('sharePct',0)}% das manobras na base.")
 
     insights.append("KRATOS vigiando o porto em tempo real — um passo à frente.")
     return [s for s in insights if s]

@@ -448,7 +448,7 @@
           <li><b>Status das geofences:</b> ocupação em tempo real (SAA e SAAM) por berço/polígono.</li>
           <li><b>Manobras SAA (EMP.RB):</b> programação com destaque por proximidade da POB.</li>
           <li><b>Frota SAAM:</b> contagem de manobras, horas em geofence e milhas náuticas.</li>
-          <li><b>Market share (Praticagem-RJ):</b> participação por empresa nas janelas hoje / 7 dias / 30 dias. A fatia da <b>SAA (SAAM, nós)</b> aparece destacada em dourado.</li>
+          <li><b>Market share (Praticagem-RJ):</b> participação por empresa nas janelas hoje / 7 dias / 30 dias. A fatia da <b>SAAM</b> aparece destacada em dourado.</li>
         </ul>
 
         <h3>No mapa ao vivo</h3>
@@ -986,7 +986,7 @@
       const rows = marketShare?.rows || [];
       // EMP.RB "SAA" representa a SAAM (nossa empresa): rótulo e cor de destaque.
       const isOwn = (r) => Boolean(r?.isOwnCompany) || String(r?.empRb || "").toUpperCase() === "SAA";
-      const labels = rows.map((r) => (isOwn(r) ? "SAA (SAAM • nós)" : r.empRb));
+      const labels = rows.map((r) => (isOwn(r) ? "SAAM" : r.empRb));
       const values = rows.map((r) => Number(r.count) || 0);
       const palette = ["rgba(55, 217, 137, 0.75)", "rgba(255, 184, 107, 0.75)", "rgba(255, 99, 132, 0.75)", "rgba(180, 140, 255, 0.75)", "rgba(120, 200, 255, 0.7)"];
       let other = 0;
