@@ -1281,7 +1281,7 @@
       </div>
       <div class="header-actions">
         <div class="header-weather" aria-label="Condições ambientais">
-          <span class="header-weather-item" title="Maré / onda">
+          <span class="header-weather-item" title="Maré (nível do mar)">
             <span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M2 14c2.2 0 2.2-2 4.4-2S8.6 14 10.8 14s2.2-2 4.4-2 2.2 2 4.4 2 2.2-2 4.4-2v2c-2.2 0-2.2 2-4.4 2s-2.2-2-4.4-2-2.2 2-4.4 2-2.2-2-4.4-2-2.2 2-4.4 2V14z"></path></svg></span><span id="topTideText">-- m</span>
           </span>
           <span class="header-weather-item" title="Vento">
@@ -1431,7 +1431,7 @@
                 <div class="v" id="weatherWindValue">-- kn (--)</div>
               </div>
               <div class="weather-item">
-                <div class="k">Maré / onda</div>
+                <div class="k">Maré (nível do mar)</div>
                 <div class="v" id="weatherTideValue">-- m</div>
               </div>
             </div>
@@ -1819,14 +1819,15 @@
           `&current=temperature_2m,wind_speed_10m,wind_direction_10m&timezone=auto`;
         const marineUrl =
           `https://marine-api.open-meteo.com/v1/marine?latitude=${lat}&longitude=${lon}` +
-          `&hourly=wave_height&timezone=auto`;
+          `&hourly=sea_level_height_msl&timezone=auto`;
         const [weatherRes, marineRes] = await Promise.all([fetch(weatherUrl), fetch(marineUrl)]);
         if (!weatherRes.ok || !marineRes.ok) throw new Error("Falha ao consultar previsão externa");
         const weather = await weatherRes.json();
         const marine = await marineRes.json();
         const current = weather?.current || {};
         const tideTimes = marine?.hourly?.time || [];
-        const tideVals = marine?.hourly?.wave_height || [];
+        // Maré real (altura do nível do mar), consistente com os insights do KRATOS.
+        const tideVals = marine?.hourly?.sea_level_height_msl || [];
         const idx0 = nearestHourlyIndex(tideTimes, current?.time || new Date().toISOString());
         const tide = Number.isFinite(Number(tideVals[idx0])) ? Number(tideVals[idx0]) : null;
         const idx = Math.max(1, idx0);
