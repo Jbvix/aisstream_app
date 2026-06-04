@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>KRATOS — Grafo Estratégico</title>
+  <script src="https://cdn.jsdelivr.net/npm/force-graph@1.43.4/dist/force-graph.min.js"></script>
+  <style>
+    :root {
+      --bg: #0e1116; --panel: #161b22; --text: #e6edf3; --muted: #8b949e;
+      --accent: #ffb703; --border: #283039;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    header {
+      display: flex; align-items: center; gap: 12px; padding: 10px 16px;
+      background: var(--panel); border-bottom: 1px solid var(--border); position: relative; z-index: 5;
+    }
+    header h1 { font-size: 1rem; margin: 0; }
+    header .meta { color: var(--muted); font-size: 0.78rem; }
+    header .spacer { flex: 1; }
+    .nav {
+      color: var(--text); text-decoration: none; font-size: 0.82rem;
+      border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; background: #1c232c;
+      cursor: pointer;
+    }
+    .nav:hover { border-color: var(--accent); color: var(--accent); }
+    #wrap { position: absolute; inset: 49px 0 0 0; }
+    #graph { width: 100%; height: 100%; }
+    #legend {
+      position: absolute; left: 12px; bottom: 12px; z-index: 5;
+      background: rgba(22,27,34,0.92); border: 1px solid var(--border); border-radius: 8px;
+      padding: 10px 12px; font-size: 0.78rem; max-width: 220px;
+    }
+    #legend h2 { font-size: 0.78rem; margin: 0 0 6px; color: var(--accent); }
+    #legend .row { display: flex; align-items: center; gap: 8px; margin: 3px 0; }
+    #legend .dot { width: 11px; height: 11px; border-radius: 50%; flex: 0 0 auto; }
+    #status {
+      position: absolute; right: 12px; top: 60px; z-index: 5; color: var(--muted);
+      font-size: 0.78rem; background: rgba(22,27,34,0.92); border: 1px solid var(--border);
+      border-radius: 6px; padding: 6px 10px;
+    }
+    #err { color: #ff7b72; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>KRATOS — Grafo Estratégico</h1>
+    <span class="meta">Manobra ↔ Navio ↔ Berço ↔ Rebocador ↔ Empresa ↔ Dia</span>
+    <span class="spacer"></span>
+    <button type="button" class="nav" id="btnReload">↻ Atualizar</button>
+    <a class="nav" id="backDash" href="#">← Painel</a>
+    <a class="nav" id="backMap" href="#">Mapa</a>
+  </header>
+
+  <div id="wrap"><div id="graph"></div></div>
+
+  <div id="legend">
+    <h2>Legenda</h2>
+    <div class="row"><span class="dot" style="background:#2ecc71"></span> Rebocador SAAM</div>
+    <div class="row"><span class="dot" style="background:#ff4d4d"></span> Rebocador concorrente</div>
+    <div class="row"><span class="dot" style="background:#4aa3ff"></span> Navio</div>
+    <div class="row"><span class="dot" style="background:#ffd23f"></span> Berço</div>
+    <div class="row"><span class="dot" style="background:#a970ff"></span> Manobra</div>
+    <div class="row"><span class="dot" style="background:#ff9f1c"></span> Empresa</div>
+    <div class="row"><span class="dot" style="background:#9aa5b1"></span> Dia</div>
+  </div>
+
+  <div id="status">Carregando grafo…</div>
+
+  <script>
+    const COLORS = {
+      "manobra": "#a970ff",
+      "navio": "#4aa3ff",
+      "berco": "#ffd23f",
+      "rebocador-saam": "#2ecc71",
+      "rebocador-concorrente": "#ff4d4d",
+      "empresa-saam": "#ffb703",
+      "empresa-concorrente": "#ff9f1c",
+      "dia": "#9aa5b1",
+    };
+
+    function basePath() {
+      let p = (window.location.pathname || "/").replace(/\/+$/, "");
+      if (p.endsWith("/graph")) p = p.slice(0, -"/graph".length);
+      return p.replace(/\/+$/, "") || "";
+    }
+    function apiUrl(path) {
+      const pp = path.startsWith("/") ? path : "/" + path;
+      const joined = basePath() + pp;
+      try { return new URL(joined, window.location.origin).href; } catch (_) { return joined; }
+    }
+    document.getElementById("backDash").href = basePath() + "/dashboard";
+    document.getElementById("backMap").href = basePath() + "/";
+
+    const elem = document.getElementById("graph");
+    const Graph = ForceGraph()(elem)
+      .backgroundColor("#0e1116")
+      .nodeId("id")
+      .nodeLabel(n => n.label)
+      .nodeColor(n => COLORS[n.group] || "#8b949e")
+      .nodeVal(n => n.val || 1)
+      .nodeRelSize(4)
+      .linkColor(() => "rgba(150,160,170,0.22)")
+      .linkWidth(0.6)
+      .onNodeClick(node => {
+        // Centraliza e dá zoom no nó clicado.
+        Graph.centerAt(node.x, node.y, 600);
+        Graph.zoom(4, 600);
+      })
+      .nodeCanvasObjectMode(() => "after")
+      .nodeCanvasObject((node, ctx, scale) => {
+        // Mostra o rótulo quando há zoom suficiente (estilo Obsidian).
+        if (scale < 1.6) return;
+        const label = node.label || "";
+        const fontSize = 11 / scale;
+        ctx.font = `${fontSize}px -apple-system, Segoe UI, Roboto, sans-serif`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "top";
+        ctx.fillStyle = "rgba(230,237,243,0.9)";
+        const r = Math.sqrt(node.val || 1) * 4 / scale;
+        ctx.fillText(label, node.x, node.y + r + 1);
+      });
+
+    function fit() { Graph.width(elem.clientWidth).height(elem.clientHeight); }
+    window.addEventListener("resize", fit);
+
+    async function load() {
+      const status = document.getElementById("status");
+      status.classList.remove("err"); status.textContent = "Carregando grafo…";
+      try {
+        const res = await fetch(apiUrl("/api/obsidian/graph"), { cache: "no-store" });
+        const data = await res.json();
+        if (!res.ok || !data.ok) throw new Error(data.error || `HTTP ${res.status}`);
+        Graph.graphData({ nodes: data.nodes || [], links: data.links || [] });
+        fit();
+        Graph.zoomToFit(600, 40);
+        status.textContent = `${(data.nodes || []).length} nós · ${(data.links || []).length} conexões`;
+      } catch (e) {
+        status.classList.add("err");
+        status.textContent = "Falha ao carregar o grafo: " + (e.message || e);
+      }
+    }
+    document.getElementById("btnReload").addEventListener("click", load);
+    fit();
+    load();
+  </script>
+</body>
+</html>

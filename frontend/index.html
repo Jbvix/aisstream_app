@@ -338,6 +338,7 @@
     }
 
     #dashboardLink.icon-link,
+    #graphLink.icon-link,
     #toggleNamesBtn.icon-link {
       font-weight: 700;
       font-size: 0.75rem;
@@ -1292,6 +1293,7 @@
           </span>
         </div>
         <a class="icon-link" id="dashboardLink" href="./dashboard" title="Dashboard estratégico (/dashboard com dados no HTML)" aria-label="Dashboard estratégico">DB</a>
+        <a class="icon-link" id="graphLink" href="./graph" title="Grafo estratégico (visualização de conexões)" aria-label="Grafo estratégico">GR</a>
         <button id="toggleNamesBtn" class="icon-link" type="button" title="Mostrar nomes das embarcações" aria-label="Mostrar nomes das embarcações">
           N
         </button>
@@ -1693,6 +1695,10 @@
     const dashboardLinkEl = document.getElementById("dashboardLink");
     if (dashboardLinkEl) {
       dashboardLinkEl.setAttribute("href", `${BASE_PATH}/dashboard`);
+    }
+    const graphLinkEl = document.getElementById("graphLink");
+    if (graphLinkEl) {
+      graphLinkEl.setAttribute("href", `${BASE_PATH}/graph`);
     }
     const WS_URL = appConfig.WS_URL || (() => {
       const proto = window.location.protocol === "https:" ? "wss" : "ws";

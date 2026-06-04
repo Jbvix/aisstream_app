@@ -1434,6 +1434,27 @@ async def obsidian_export(wait: bool = False):
     }
 
 
+@app.get("/api/obsidian/graph")
+@app.get("/dashboard/api/obsidian/graph")
+def obsidian_graph():
+    """Grafo (nós/arestas) do modelo KRATOS para a visualização web."""
+    overview = build_dashboard_overview_dict()
+    vessels = list(latest_vessel_by_mmsi.values())
+    saam_fleet = [{"mmsi": m, "name": n} for m, n in SAAM_BGRA_NAMES.items()]
+    graph = obsidian_notes.build_graph(
+        overview, vessels, saam_fleet=saam_fleet, competitor_tugs=COMPETITOR_TUGS
+    )
+    graph["ok"] = True
+    return graph
+
+
+@app.get("/graph")
+@app.get("/graph/")
+def graph_page():
+    """Página de visualização do grafo KRATOS (Graph View nativo)."""
+    return FileResponse(FRONTEND_DIR / "graph.html", media_type="text/html")
+
+
 async def _run_obsidian_export_safe(reason: str) -> dict:
     """Gera e sobe o vault em background, tolerante a falha (auto-sync)."""
     global _obsidian_export_running, _obsidian_last_export_ts

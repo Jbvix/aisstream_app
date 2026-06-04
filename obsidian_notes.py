@@ -388,3 +388,93 @@ def _index_note(maneuvers: list, vessels: list, market: list, now_iso: str) -> d
         "markdown": build_note("KRATOS — Índice", "\n".join(lines),
                                frontmatter={"tipo": "indice"}, tags=["kratos/indice"]),
     }
+
+
+# --- Grafo para visualização web (mesmo modelo das notas) ---------------------
+
+def build_graph(overview: dict, vessels: list, *, saam_fleet: list,
+                competitor_tugs: dict) -> dict:
+    """Monta nós e arestas do grafo KRATOS para render no navegador.
+
+    Reaproveita o mesmo modelo das notas (Manobra ↔ Navio ↔ Berço ↔ Empresa ↔
+    Dia, e Rebocador ↔ Empresa). Retorna ``{"nodes": [...], "links": [...]}``
+    com ``group`` por tipo (para colorir igual ao Graph View do Obsidian).
+    """
+    overview = overview or {}
+    vessels = vessels or []
+    maneuvers = list(overview.get("saaManeuvers") or [])
+
+    nodes: dict = {}
+    links: list = []
+
+    def add_node(nid: str, label: str, group: str):
+        if nid and nid not in nodes:
+            nodes[nid] = {"id": nid, "label": label, "group": group}
+
+    def add_link(a: str, b: str):
+        if a and b and a != b:
+            links.append({"source": a, "target": b})
+
+    for m in maneuvers:
+        vessel = _fmt(m.get("vesselName"))
+        berth = _fmt(m.get("berthName"))
+        emp = _emp_norm(m.get("empRb"))
+        day = _date_of(m.get("recordedAt"))
+        title = f"{vessel} — {berth}" + (f" ({day})" if day else "")
+        man_id = _fname(title)
+        add_node(man_id, title, "manobra")
+        if vessel != "—":
+            vid = _fname(vessel)
+            add_node(vid, vessel, "navio")
+            add_link(man_id, vid)
+        if berth != "—":
+            bid = _fname(berth)
+            add_node(bid, berth, "berco")
+            add_link(man_id, bid)
+        if emp != "N/A":
+            eid = _fname(emp)
+            own = _is_own(emp)
+            add_node(eid, "SAAM" if own else emp,
+                     "empresa-saam" if own else "empresa-concorrente")
+            add_link(man_id, eid)
+        if day:
+            did = _fname(day)
+            add_node(did, day, "dia")
+            add_link(man_id, did)
+
+    by_mmsi = {str(v.get("mmsi")): v for v in vessels if v.get("mmsi")}
+
+    def add_tug(name: str, company: str, own: bool):
+        tid = _fname(name)
+        add_node(tid, name, "rebocador-saam" if own else "rebocador-concorrente")
+        eid = _fname(company)
+        add_node(eid, "SAAM" if own else company,
+                 "empresa-saam" if own else "empresa-concorrente")
+        add_link(tid, eid)
+
+    for tug in (saam_fleet or []):
+        mmsi = str(tug.get("mmsi"))
+        live = by_mmsi.get(mmsi)
+        name = (live.get("shipName") if live else None) or tug.get("name") or f"SAAM {mmsi}"
+        add_tug(name, OWN_EMP, True)
+
+    for company, tugs in (competitor_tugs or {}).items():
+        for tug in tugs:
+            mmsi = str(tug.get("mmsi"))
+            live = by_mmsi.get(mmsi)
+            name = (live.get("shipName") if live else None) or tug.get("name") or f"{company} {mmsi}"
+            add_tug(name, company, False)
+
+    degree: dict = {}
+    for link in links:
+        degree[link["source"]] = degree.get(link["source"], 0) + 1
+        degree[link["target"]] = degree.get(link["target"], 0) + 1
+
+    node_list = []
+    for nid, node in nodes.items():
+        node = dict(node)
+        node["val"] = 1 + degree.get(nid, 0)
+        node_list.append(node)
+
+    return {"nodes": node_list, "links": links}
+
