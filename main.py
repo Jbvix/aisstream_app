@@ -19,6 +19,7 @@ from collections import deque
 from websockets.exceptions import ConnectionClosed
 
 import praticagem_saa
+import obsidian_supabase
 
 load_dotenv()
 
@@ -1323,6 +1324,38 @@ async def sync_saa_maneuvers_from_praticagem_dashboard_api():
 @app.post("/dashboard/api/saa-maneuvers/sync-praticagem")
 async def sync_saa_maneuvers_from_praticagem_under_dashboard():
     return await _sync_saa_from_praticagem_impl()
+
+
+# --- Integração Obsidian (Supabase Storage) — Sprint 1: Exportador Base -------
+
+@app.get("/api/obsidian/status")
+@app.get("/dashboard/api/obsidian/status")
+def obsidian_status():
+    """Diagnóstico da ponte KRATOS -> Supabase Storage (sem expor segredos)."""
+    return obsidian_supabase.config_status()
+
+
+@app.post("/api/obsidian/test-upload")
+@app.post("/dashboard/api/obsidian/test-upload")
+async def obsidian_test_upload():
+    """Sobe uma nota de saúde no bucket para validar a conexão (Sprint 1)."""
+    if not obsidian_supabase.is_configured():
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": (
+                    "Supabase não configurado. Defina SUPABASE_URL, SUPABASE_KEY "
+                    "e SUPABASE_BUCKET no .env."
+                ),
+                "status": obsidian_supabase.config_status(),
+            },
+            status_code=400,
+        )
+    try:
+        result = await obsidian_supabase.check_connection_async()
+    except obsidian_supabase.ObsidianSupabaseError as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=502)
+    return result
 
 
 @app.get("/healthz")
