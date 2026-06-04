@@ -465,14 +465,14 @@
         <h3>Integração Obsidian (Supabase)</h3>
         <ul>
           <li>O painel pode exportar o cenário como um <b>grafo de notas Markdown</b> interligadas (Manobra ↔ Navio ↔ Berço ↔ Rebocador ↔ Dia ↔ Empresa) para um bucket do <b>Supabase Storage</b>.</li>
-          <li><b>Botão “Sincronizar Obsidian (Supabase)”</b> (seção <i>Integração Obsidian</i>): gera e envia as notas na hora. A mensagem mostra quantas notas foram enviadas; ao lado do botão aparecem o bucket, o prefixo das notas e o estado da sincronização automática.</li>
+          <li><b>Botão “Sincronizar Obsidian (Supabase)”</b> (seção <i>Integração Obsidian</i>): dispara o envio das notas <b>em segundo plano</b> e responde na hora (o envio do conjunto completo pode passar do tempo-limite do navegador). Ao lado do botão aparecem o bucket, o prefixo das notas, o estado da sincronização automática e o horário da última sincronização.</li>
           <li><b>Sincronização automática:</b> quando ligada no servidor (<code>OBSIDIAN_AUTO_SYNC=1</code>), o KRATOS exporta sozinho — periodicamente e após cada sincronização da Praticagem — respeitando um intervalo mínimo (<code>OBSIDIAN_AUTO_SYNC_SECONDS</code>, padrão 5 min) para não sobrecarregar.</li>
           <li>As notas geradas ficam sob a pasta <code>kratos/</code> no bucket; no <b>Obsidian</b>, o plugin <b>Remotely Save</b> as sincroniza. As tags (<code>#kratos/rebocador/saam</code>, <code>#kratos/manobra</code>, etc.) permitem colorir o <b>Graph View</b>.</li>
           <li>Requer o Supabase configurado no servidor (<code>.env</code>); sem isso, o botão informa que a integração não está configurada.</li>
           <li><b>Como configurar o Obsidian</b> (plugin <i>Remotely Save</i>, chaves S3, cores do Graph View e casos de uso): veja o tutorial passo a passo em <code>docs/OBSIDIAN_REMOTELY_SAVE_TUTORIAL.md</code>.</li>
         </ul>
 
-        <p style="margin-top:18px;color:var(--muted);font-size:0.8rem;">Manual atualizado a cada nova implementação. Última atualização: tutorial de configuração do Obsidian/Remotely Save e Graph View (homologação da integração).</p>
+        <p style="margin-top:18px;color:var(--muted);font-size:0.8rem;">Manual atualizado a cada nova implementação. Última atualização: envio do Obsidian em segundo plano (botão não bloqueia) + horário da última sincronização.</p>
       </div>
     </div>
   </div>
@@ -1238,7 +1238,10 @@
         const auto = s.autoSync
           ? `auto a cada ${Math.round((s.autoSyncSeconds || 0) / 60)} min`
           : "auto desligado";
-        el.textContent = `Bucket: ${s.bucket} · prefixo ${s.prefix}/ · ${auto}.`;
+        const last = s.lastExportTs
+          ? ` · última sync ${new Date(s.lastExportTs * 1000).toLocaleTimeString("pt-BR")}`
+          : "";
+        el.textContent = `Bucket: ${s.bucket} · prefixo ${s.prefix}/ · ${auto}${last}.`;
       } catch (e) {
         el.textContent = "";
       }
@@ -1247,17 +1250,22 @@
     async function syncObsidian() {
       const btn = document.getElementById("btnObsidianSync");
       const msg = document.getElementById("obsidianSyncMsg");
-      if (msg) msg.textContent = "Gerando e enviando notas...";
+      if (msg) msg.textContent = "Iniciando sincronização...";
       if (btn) btn.disabled = true;
       try {
         const res = await fetch(apiUrl("/api/obsidian/export"), { method: "POST" });
         const body = await res.json().catch(() => ({}));
         if (!res.ok || !body.ok) {
           const err = body.error || (body.errors && body.errors[0] && body.errors[0].error) || `HTTP ${res.status}`;
-          const partial = body.uploaded ? ` (${body.uploaded}/${body.total} enviadas antes da falha)` : "";
-          throw new Error(err + partial);
+          throw new Error(err);
         }
-        if (msg) msg.textContent = `Sincronizado: ${body.uploaded}/${body.total} nota(s) enviadas ao bucket.`;
+        if (body.status === "started" || body.status === "running") {
+          // O envio roda em segundo plano (vault completo pode passar do timeout do gateway).
+          if (msg) msg.textContent = body.message || "Sincronização iniciada em segundo plano.";
+          setTimeout(refreshObsidianStatus, 60000);
+        } else {
+          if (msg) msg.textContent = `Sincronizado: ${body.uploaded}/${body.total} nota(s) enviadas ao bucket.`;
+        }
       } catch (e) {
         if (msg) msg.textContent = `Falha ao sincronizar Obsidian: ${String(e.message || e)}`;
       } finally {

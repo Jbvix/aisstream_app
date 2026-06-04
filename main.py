@@ -1398,8 +1398,13 @@ def _build_obsidian_vault_notes():
 
 @app.post("/api/obsidian/export")
 @app.post("/dashboard/api/obsidian/export")
-async def obsidian_export():
-    """Gera e sobe o vault completo de notas interligadas para o Supabase."""
+async def obsidian_export(wait: bool = False):
+    """Dispara o envio do vault de notas para o Supabase.
+
+    Por padrão roda em **segundo plano** e responde na hora — o vault completo
+    pode levar mais que o timeout do gateway (Cloudflare ~20 s). Use ``?wait=1``
+    para o modo síncrono (diagnóstico), que aguarda e retorna o resumo.
+    """
     if not obsidian_supabase.is_configured():
         return JSONResponse(
             {
@@ -1412,18 +1417,21 @@ async def obsidian_export():
             },
             status_code=400,
         )
-    try:
-        notes = await asyncio.to_thread(_build_obsidian_vault_notes)
-    except Exception as e:
-        return JSONResponse(
-            {"ok": False, "error": f"Falha ao gerar notas: {e}"}, status_code=500
-        )
-    result = await obsidian_supabase.upload_notes_async(notes)
-    result["generated"] = len(notes)
-    if result.get("uploaded"):
-        global _obsidian_last_export_ts
-        _obsidian_last_export_ts = time.time()
-    return JSONResponse(result, status_code=200 if result.get("ok") else 502)
+    if wait:
+        result = await _run_obsidian_export_safe("manual")
+        return JSONResponse(result, status_code=200 if result.get("ok") else 502)
+    if _obsidian_export_running:
+        return {
+            "ok": True,
+            "status": "running",
+            "message": "Sincronização já em andamento.",
+        }
+    asyncio.create_task(_run_obsidian_export_safe("manual"))
+    return {
+        "ok": True,
+        "status": "started",
+        "message": "Sincronização iniciada em segundo plano. As notas aparecem no bucket em instantes.",
+    }
 
 
 async def _run_obsidian_export_safe(reason: str) -> dict:

@@ -28,3 +28,4 @@ Exemplo: `2026-05-30-etapa-01-fundacao-kratos.md`.
 | 03 | 2026-06-04 | [Integração Obsidian — Sprint 2](2026-06-04-etapa-03-obsidian-sprint2.md) |
 | 04 | 2026-06-04 | [Integração Obsidian — Sprint 3](2026-06-04-etapa-04-obsidian-sprint3.md) |
 | 05 | 2026-06-04 | [Integração Obsidian — Sprint 4](2026-06-04-etapa-05-obsidian-sprint4.md) |
+| 06 | 2026-06-04 | [Integração Obsidian — Homologação/deploy](2026-06-04-etapa-06-obsidian-homologacao.md) |
