@@ -230,8 +230,36 @@ def check_connection(timeout: float = 20.0) -> dict:
 
 # --- Wrappers assíncronos (para uso dentro do loop do FastAPI) ----------------
 
+def upload_notes(notes, *, timeout: float = 20.0) -> dict:
+    """Sobe uma lista de notas ``[{"path", "markdown"}]`` em sequência.
+
+    Retorna resumo ``{"ok", "uploaded", "failed", "total", "paths", "errors"}``.
+    Tolerante a falha por nota: continua o lote e reporta no fim.
+    """
+    uploaded, errors, paths = 0, [], []
+    for note in notes:
+        try:
+            res = upload_note(note["path"], note["markdown"], timeout=timeout)
+            uploaded += 1
+            paths.append(res["path"])
+        except ObsidianSupabaseError as e:
+            errors.append({"path": note.get("path"), "error": str(e)})
+    return {
+        "ok": not errors,
+        "uploaded": uploaded,
+        "failed": len(errors),
+        "total": len(notes),
+        "paths": paths,
+        "errors": errors,
+    }
+
+
 async def upload_note_async(path: str, markdown: str, **kwargs) -> dict:
     return await asyncio.to_thread(upload_note, path, markdown, **kwargs)
+
+
+async def upload_notes_async(notes, **kwargs) -> dict:
+    return await asyncio.to_thread(upload_notes, notes, **kwargs)
 
 
 async def check_connection_async(**kwargs) -> dict:

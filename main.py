@@ -20,6 +20,7 @@ from websockets.exceptions import ConnectionClosed
 
 import praticagem_saa
 import obsidian_supabase
+import obsidian_notes
 
 load_dotenv()
 
@@ -32,14 +33,15 @@ AISSTREAM_API_KEY = os.getenv("AISSTREAM_API_KEY", "")
 DEFAULT_AREA = os.getenv("DEFAULT_AREA", "rio").lower()
 AISSTREAM_URL = "wss://stream.aisstream.io/v0/stream"
 SAAM_BGRA_FLEET_NAME = "SAAM-BGRA"
-SAAM_BGRA_MMSI_SET = {
-    "710012550",  # SAAM PATAXO
-    "710001249",  # SAAM PARECI
-    "710021750",  # SAAM CHILE
-    "710001593",  # SAAM HOLANDA
-    "710016030",  # SAAM LANCELOT
-    "710015310",  # SAAM ARTHUR
+SAAM_BGRA_NAMES = {
+    "710012550": "SAAM PATAXO",
+    "710001249": "SAAM PARECI",
+    "710021750": "SAAM CHILE",
+    "710001593": "SAAM HOLANDA",
+    "710016030": "SAAM LANCELOT",
+    "710015310": "SAAM ARTHUR",
 }
+SAAM_BGRA_MMSI_SET = set(SAAM_BGRA_NAMES.keys())
 # BBox operacional da Baia de Guanabara (lon/lat aproximados)
 GUANABARA_GEOFENCE = {
     "name": "Baia de Guanabara",
@@ -1356,6 +1358,49 @@ async def obsidian_test_upload():
     except obsidian_supabase.ObsidianSupabaseError as e:
         return JSONResponse({"ok": False, "error": str(e)}, status_code=502)
     return result
+
+
+def _build_obsidian_vault_notes():
+    """Reúne o estado do KRATOS e gera as notas interligadas (Sprint 2)."""
+    overview = build_dashboard_overview_dict()
+    vessels = list(latest_vessel_by_mmsi.values())
+    metocean = _fetch_metocean_context()
+    saam_fleet = [{"mmsi": m, "name": n} for m, n in SAAM_BGRA_NAMES.items()]
+    return obsidian_notes.build_vault(
+        overview,
+        vessels,
+        metocean,
+        saam_fleet=saam_fleet,
+        competitor_tugs=COMPETITOR_TUGS,
+        now_iso=get_now_iso(),
+    )
+
+
+@app.post("/api/obsidian/export")
+@app.post("/dashboard/api/obsidian/export")
+async def obsidian_export():
+    """Gera e sobe o vault completo de notas interligadas para o Supabase."""
+    if not obsidian_supabase.is_configured():
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": (
+                    "Supabase não configurado. Defina SUPABASE_URL, SUPABASE_KEY "
+                    "e SUPABASE_BUCKET no .env."
+                ),
+                "status": obsidian_supabase.config_status(),
+            },
+            status_code=400,
+        )
+    try:
+        notes = await asyncio.to_thread(_build_obsidian_vault_notes)
+    except Exception as e:
+        return JSONResponse(
+            {"ok": False, "error": f"Falha ao gerar notas: {e}"}, status_code=500
+        )
+    result = await obsidian_supabase.upload_notes_async(notes)
+    result["generated"] = len(notes)
+    return JSONResponse(result, status_code=200 if result.get("ok") else 502)
 
 
 @app.get("/healthz")
