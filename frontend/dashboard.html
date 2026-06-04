@@ -462,7 +462,16 @@
           <li><b>Insights KRATOS (canto inferior esquerdo):</b> caixa datilografada com leitura em tempo real do cenário — manobras, rebocadores SAAM (inclusive quais estão na BASE BRASCO), maré (nível, tendência e próxima preia/baixa-mar), vento, concorrentes em geofence, simultaneidade e market share. Os insights ciclam automaticamente.</li>
         </ul>
 
-        <p style="margin-top:18px;color:var(--muted);font-size:0.8rem;">Manual atualizado a cada nova implementação. Última atualização: caixa de insights do KRATOS no mapa (datilografada, ao vivo).</p>
+        <h3>Integração Obsidian (Supabase)</h3>
+        <ul>
+          <li>O painel pode exportar o cenário como um <b>grafo de notas Markdown</b> interligadas (Manobra ↔ Navio ↔ Berço ↔ Rebocador ↔ Dia ↔ Empresa) para um bucket do <b>Supabase Storage</b>.</li>
+          <li><b>Botão “Sincronizar Obsidian (Supabase)”</b> (seção <i>Integração Obsidian</i>): gera e envia as notas na hora. A mensagem mostra quantas notas foram enviadas; ao lado do botão aparecem o bucket, o prefixo das notas e o estado da sincronização automática.</li>
+          <li><b>Sincronização automática:</b> quando ligada no servidor (<code>OBSIDIAN_AUTO_SYNC=1</code>), o KRATOS exporta sozinho — periodicamente e após cada sincronização da Praticagem — respeitando um intervalo mínimo (<code>OBSIDIAN_AUTO_SYNC_SECONDS</code>, padrão 5 min) para não sobrecarregar.</li>
+          <li>As notas geradas ficam sob a pasta <code>kratos/</code> no bucket; no <b>Obsidian</b>, o plugin <b>Remotely Save</b> as sincroniza. As tags (<code>#kratos/rebocador/saam</code>, <code>#kratos/manobra</code>, etc.) permitem colorir o <b>Graph View</b>.</li>
+          <li>Requer o Supabase configurado no servidor (<code>.env</code>); sem isso, o botão informa que a integração não está configurada.</li>
+        </ul>
+
+        <p style="margin-top:18px;color:var(--muted);font-size:0.8rem;">Manual atualizado a cada nova implementação. Última atualização: integração Obsidian via Supabase (export de notas + sincronização automática).</p>
       </div>
     </div>
   </div>
@@ -574,6 +583,16 @@
     <div class="chart-wrap">
       <canvas id="chartMarketShare" aria-label="Market share de manobras"></canvas>
     </div>
+  </section>
+
+  <section>
+    <h2>Integração Obsidian (Supabase)</h2>
+    <p class="hint">Gera notas Markdown interligadas (Manobra ↔ Navio ↔ Berço ↔ Rebocador ↔ Dia ↔ Empresa) e envia para o bucket do Supabase, que o Obsidian sincroniza pelo plugin <strong>Remotely Save</strong>. Requer configuração do Supabase no servidor (<code>.env</code>).</p>
+    <div class="sync-row">
+      <button type="button" class="sync-praticagem" id="btnObsidianSync">📤 Sincronizar Obsidian (Supabase)</button>
+      <span id="obsidianStatus" class="hint" style="margin:0;"></span>
+    </div>
+    <div id="obsidianSyncMsg"></div>
   </section>
 
   <script>
@@ -1205,6 +1224,48 @@
         await load();
       }
     }
+    async function refreshObsidianStatus() {
+      const el = document.getElementById("obsidianStatus");
+      if (!el) return;
+      try {
+        const res = await fetch(apiUrl("/api/obsidian/status"));
+        const s = await res.json();
+        if (!s.configured) {
+          el.textContent = "Supabase não configurado no servidor (.env).";
+          return;
+        }
+        const auto = s.autoSync
+          ? `auto a cada ${Math.round((s.autoSyncSeconds || 0) / 60)} min`
+          : "auto desligado";
+        el.textContent = `Bucket: ${s.bucket} · prefixo ${s.prefix}/ · ${auto}.`;
+      } catch (e) {
+        el.textContent = "";
+      }
+    }
+
+    async function syncObsidian() {
+      const btn = document.getElementById("btnObsidianSync");
+      const msg = document.getElementById("obsidianSyncMsg");
+      if (msg) msg.textContent = "Gerando e enviando notas...";
+      if (btn) btn.disabled = true;
+      try {
+        const res = await fetch(apiUrl("/api/obsidian/export"), { method: "POST" });
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok || !body.ok) {
+          const err = body.error || (body.errors && body.errors[0] && body.errors[0].error) || `HTTP ${res.status}`;
+          const partial = body.uploaded ? ` (${body.uploaded}/${body.total} enviadas antes da falha)` : "";
+          throw new Error(err + partial);
+        }
+        if (msg) msg.textContent = `Sincronizado: ${body.uploaded}/${body.total} nota(s) enviadas ao bucket.`;
+      } catch (e) {
+        if (msg) msg.textContent = `Falha ao sincronizar Obsidian: ${String(e.message || e)}`;
+      } finally {
+        if (btn) btn.disabled = false;
+      }
+    }
+    document.getElementById("btnObsidianSync").addEventListener("click", syncObsidian);
+    refreshObsidianStatus();
+
     document.getElementById("btnStrategyAsk").addEventListener("click", () => askStrategyAssistant("ask"));
     document.getElementById("btnStrategyReport").addEventListener("click", () => askStrategyAssistant("report"));
     document.getElementById("btnStrategyInsights").addEventListener("click", () => askStrategyAssistant("insights"));

@@ -388,6 +388,9 @@ VESSELS_PERSIST_MIN_INTERVAL_SEC = 20.0
 VESSELS_SNAPSHOT_MAX_AGE_SEC = 6 * 60 * 60
 live_worker_task = None
 _praticagem_auto_sync_task: asyncio.Task | None = None
+_obsidian_auto_sync_task: asyncio.Task | None = None
+_obsidian_last_export_ts = 0.0  # debounce: timestamp do último export bem-sucedido
+_obsidian_export_running = False
 live_worker_thread = None
 live_worker_lock = threading.Lock()
 geofences = []
@@ -1330,11 +1333,28 @@ async def sync_saa_maneuvers_from_praticagem_under_dashboard():
 
 # --- Integração Obsidian (Supabase Storage) — Sprint 1: Exportador Base -------
 
+def _obsidian_auto_enabled() -> bool:
+    return (os.getenv("OBSIDIAN_AUTO_SYNC", "0") or "0").strip().lower() in {
+        "1", "true", "on", "yes", "sim",
+    }
+
+
+def _obsidian_auto_interval() -> int:
+    try:
+        return int(os.getenv("OBSIDIAN_AUTO_SYNC_SECONDS", "300") or "300")
+    except (TypeError, ValueError):
+        return 300
+
+
 @app.get("/api/obsidian/status")
 @app.get("/dashboard/api/obsidian/status")
 def obsidian_status():
     """Diagnóstico da ponte KRATOS -> Supabase Storage (sem expor segredos)."""
-    return obsidian_supabase.config_status()
+    status = obsidian_supabase.config_status()
+    status["autoSync"] = _obsidian_auto_enabled()
+    status["autoSyncSeconds"] = _obsidian_auto_interval()
+    status["lastExportTs"] = _obsidian_last_export_ts or None
+    return status
 
 
 @app.post("/api/obsidian/test-upload")
@@ -1400,7 +1420,59 @@ async def obsidian_export():
         )
     result = await obsidian_supabase.upload_notes_async(notes)
     result["generated"] = len(notes)
+    if result.get("uploaded"):
+        global _obsidian_last_export_ts
+        _obsidian_last_export_ts = time.time()
     return JSONResponse(result, status_code=200 if result.get("ok") else 502)
+
+
+async def _run_obsidian_export_safe(reason: str) -> dict:
+    """Gera e sobe o vault em background, tolerante a falha (auto-sync)."""
+    global _obsidian_export_running, _obsidian_last_export_ts
+    if _obsidian_export_running:
+        return {"ok": False, "skipped": "already_running"}
+    _obsidian_export_running = True
+    try:
+        notes = await asyncio.to_thread(_build_obsidian_vault_notes)
+        result = await obsidian_supabase.upload_notes_async(notes)
+        result["generated"] = len(notes)
+        result["reason"] = reason
+        if result.get("uploaded"):
+            _obsidian_last_export_ts = time.time()
+        return result
+    except Exception as e:
+        return {"ok": False, "error": str(e), "reason": reason}
+    finally:
+        _obsidian_export_running = False
+
+
+async def _obsidian_auto_export_if_due(reason: str):
+    """Dispara o export automático respeitando debounce e configuração."""
+    if not (_obsidian_auto_enabled() and obsidian_supabase.is_configured()):
+        return
+    interval = _obsidian_auto_interval()
+    if interval > 0 and (time.time() - _obsidian_last_export_ts) < interval:
+        return  # debounce: ainda dentro da janela mínima
+    await _run_obsidian_export_safe(reason)
+
+
+async def _obsidian_auto_sync_loop():
+    """Loop periódico de sincronização do Obsidian (debounce natural pelo intervalo)."""
+    interval = _obsidian_auto_interval()
+    if interval <= 0:
+        return
+    await asyncio.sleep(20)
+    while True:
+        try:
+            await _obsidian_auto_export_if_due("loop")
+        except asyncio.CancelledError:
+            break
+        except Exception:
+            pass
+        try:
+            await asyncio.sleep(interval)
+        except asyncio.CancelledError:
+            break
 
 
 @app.get("/healthz")
@@ -2908,6 +2980,8 @@ async def _praticagem_auto_sync_loop():
     while True:
         try:
             await _sync_saa_from_praticagem_impl()
+            # Após atualizar as manobras, reflete no Obsidian (se devido).
+            await _obsidian_auto_export_if_due("praticagem")
         except asyncio.CancelledError:
             break
         except Exception:
@@ -2920,7 +2994,7 @@ async def _praticagem_auto_sync_loop():
 
 @app.on_event("startup")
 async def startup_event():
-    global live_worker_task, _praticagem_auto_sync_task
+    global live_worker_task, _praticagem_auto_sync_task, _obsidian_auto_sync_task
     load_geofences()
     load_tug_stats()
     load_saa_maneuvers()
@@ -2928,11 +3002,13 @@ async def startup_event():
         live_worker_task = asyncio.create_task(live_background_worker())
     if int(os.getenv("PRATICAGEM_AUTO_SYNC_SECONDS", "60") or "60") > 0:
         _praticagem_auto_sync_task = asyncio.create_task(_praticagem_auto_sync_loop())
+    if _obsidian_auto_enabled() and _obsidian_auto_interval() > 0:
+        _obsidian_auto_sync_task = asyncio.create_task(_obsidian_auto_sync_loop())
 
 
 @app.on_event("shutdown")
 async def shutdown_event():
-    global live_worker_task, _praticagem_auto_sync_task
+    global live_worker_task, _praticagem_auto_sync_task, _obsidian_auto_sync_task
     try:
         save_tug_stats()
     except Exception:
@@ -2944,6 +3020,13 @@ async def shutdown_event():
         except (asyncio.CancelledError, Exception):
             pass
         _praticagem_auto_sync_task = None
+    if _obsidian_auto_sync_task:
+        _obsidian_auto_sync_task.cancel()
+        try:
+            await _obsidian_auto_sync_task
+        except (asyncio.CancelledError, Exception):
+            pass
+        _obsidian_auto_sync_task = None
     if live_worker_task:
         live_worker_task.cancel()
         live_worker_task = None
