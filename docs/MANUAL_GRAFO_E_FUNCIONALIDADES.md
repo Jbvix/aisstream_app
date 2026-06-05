@@ -1,5 +1,7 @@
 # KRATOS — Grafo Estratégico & Funcionalidades (Guia do Usuário)
 
+**Autor:** Jossian Brito
+
 > Guia de **uso** do KRATOS, com foco no **Grafo Estratégico**: o que é, como
 > ler, como navegar e como usar no dia a dia da operação. Inclui também um
 > panorama das funcionalidades atuais e das **aplicações futuras**.

@@ -1,5 +1,7 @@
 # KRATOS — Arquitetura & Implantação (Documento do Desenvolvedor)
 
+**Autor:** Jossian Brito
+
 > Documento técnico de referência do **KRATOS — Inteligência Naval Estratégica**.
 > Cobre arquitetura, diagrama de implantação, árvore de diretórios, fluxos de
 > dados, endpoints, variáveis de ambiente e procedimento de deploy (cPanel).

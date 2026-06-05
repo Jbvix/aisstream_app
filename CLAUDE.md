@@ -29,6 +29,9 @@ Hospedado em cPanel (`https://tuglife.live/aisstream/`), deploy via Git pull.
    criar um relatório em `docs/relatorios/` (implementações, melhorias,
    correções e lições aprendidas). Convenção: `AAAA-MM-DD-etapa-NN-<slug>.md`
    (não usar o prefixo `RELATORIO_SESSAO_`, que é gitignored).
+5. **Autoria.** Todo documento (`.md` em `docs/`, relatórios, etc.) deve constar
+   o **Autor: Jossian Brito** (linha logo abaixo do título). Em exportações
+   `.docx`/PDF, preencher também o autor nas propriedades do arquivo.
 
 ## Deploy (cPanel)
 No servidor: `cd ~/aisstream_app && git pull origin main && touch tmp/restart.txt`
