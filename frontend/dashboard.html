@@ -68,80 +68,6 @@
     }
     button.nav:hover { background: rgba(53, 200, 255, 0.12); }
 
-    /* ===== Splash screen KRATOS ===== */
-    .kratos-splash {
-      position: fixed;
-      inset: 0;
-      z-index: 9999;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: radial-gradient(1200px 700px at 50% 30%, #0d2a47, #04101e 75%);
-      transition: opacity 0.5s ease, visibility 0.5s ease;
-    }
-    .kratos-splash.is-hidden { opacity: 0; visibility: hidden; pointer-events: none; }
-    .kratos-splash__inner { text-align: center; width: min(420px, 86vw); }
-    .kratos-mark {
-      position: relative;
-      width: 132px;
-      height: 132px;
-      margin: 0 auto 22px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-    .kratos-mark__k {
-      font-family: "Space Grotesk", sans-serif;
-      font-size: 68px;
-      font-weight: 700;
-      color: var(--accent);
-      text-shadow: 0 0 18px rgba(53, 200, 255, 0.7);
-      z-index: 2;
-      animation: kratosPulse 1.8s ease-in-out infinite;
-    }
-    .kratos-mark__ring {
-      position: absolute;
-      inset: 0;
-      border-radius: 50%;
-      border: 2px solid rgba(53, 200, 255, 0.55);
-      border-top-color: var(--accent);
-      animation: kratosSpin 1.4s linear infinite;
-    }
-    .kratos-mark__ring--2 {
-      inset: 16px;
-      border-width: 1.5px;
-      border-color: rgba(53, 200, 255, 0.25);
-      border-bottom-color: var(--accent);
-      animation-duration: 2.1s;
-      animation-direction: reverse;
-    }
-    .kratos-splash__title {
-      font-family: "Space Grotesk", sans-serif;
-      font-size: 1.9rem;
-      letter-spacing: 0.16em;
-      color: var(--text);
-    }
-    .kratos-splash__subtitle { color: var(--muted); font-size: 0.85rem; margin-top: 4px; }
-    .kratos-progress {
-      margin: 26px auto 8px;
-      height: 8px;
-      border-radius: 999px;
-      background: rgba(53, 200, 255, 0.14);
-      overflow: hidden;
-    }
-    .kratos-progress__bar {
-      height: 100%;
-      width: 0%;
-      border-radius: 999px;
-      background: linear-gradient(90deg, #1c7fb8, var(--accent));
-      box-shadow: 0 0 10px rgba(53, 200, 255, 0.6);
-      transition: width 0.2s linear;
-    }
-    .kratos-progress__pct { color: var(--accent); font-size: 0.8rem; font-variant-numeric: tabular-nums; }
-    .kratos-splash__step { color: var(--muted); font-size: 0.82rem; margin-top: 10px; min-height: 1.2em; }
-    @keyframes kratosSpin { to { transform: rotate(360deg); } }
-    @keyframes kratosPulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.06); opacity: 0.82; } }
-
     /* ===== Manual do usuário ===== */
     .manual-overlay {
       position: fixed;
@@ -404,22 +330,6 @@
   </style>
 </head>
 <body>
-  <!-- Splash screen dinâmico KRATOS -->
-  <div id="kratosSplash" class="kratos-splash" role="dialog" aria-label="Inicializando KRATOS">
-    <div class="kratos-splash__inner">
-      <div class="kratos-mark" aria-hidden="true">
-        <span class="kratos-mark__k">K</span>
-        <span class="kratos-mark__ring"></span>
-        <span class="kratos-mark__ring kratos-mark__ring--2"></span>
-      </div>
-      <div class="kratos-splash__title">KRATOS</div>
-      <div class="kratos-splash__subtitle">Inteligência Naval Estratégica</div>
-      <div class="kratos-progress"><div id="kratosProgressBar" class="kratos-progress__bar"></div></div>
-      <div id="kratosProgressPct" class="kratos-progress__pct">0%</div>
-      <div id="kratosStep" class="kratos-splash__step">Inicializando…</div>
-    </div>
-  </div>
-
   <!-- Manual do usuário -->
   <div id="manualOverlay" class="manual-overlay" role="dialog" aria-label="Manual do usuário" aria-modal="true">
     <div class="manual-modal">
@@ -429,7 +339,7 @@
       </div>
       <div class="manual-modal__body">
         <h3>Visão geral</h3>
-        <p>O KRATOS monitora em tempo real a movimentação de embarcações no Porto do Rio de Janeiro e na Baía de Guanabara, com foco em antecipar manobras e acompanhar a concorrência. Ao abrir o painel, uma tela de inicialização (símbolo K com barra de progresso) prepara os dados.</p>
+        <p>O KRATOS monitora em tempo real a movimentação de embarcações no Porto do Rio de Janeiro e na Baía de Guanabara, com foco em antecipar manobras e acompanhar a concorrência. Ao abrir o <b>mapa ao vivo</b> (página inicial), uma tela de inicialização (símbolo K com barra de progresso) dá as boas-vindas e prepara os dados.</p>
         <p><b>Importante — SAA = SAAM:</b> na programação da Praticagem, o código <b>EMP.RB “SAA” representa a SAAM</b> (a nossa empresa). <b>WIL</b> e <b>CAM</b> são concorrentes.</p>
 
         <h3>KRATOS — Assistente Estratégico</h3>
@@ -473,7 +383,7 @@
           <li><b>Grafo Estratégico (nativo):</b> o botão <b>🕸️ Gráfico</b> (no painel e no mapa) abre uma página com a mesma rede do Obsidian dentro do KRATOS — nós coloridos por tipo (rebocador SAAM verde, concorrente vermelho, navio azul, berço amarelo, manobra roxo, empresa laranja, dia cinza). Clique num nó para focar; use a roda do mouse para zoom e o botão <b>↻ Atualizar</b> para recarregar.</li>
         </ul>
 
-        <p style="margin-top:18px;color:var(--muted);font-size:0.8rem;">Manual atualizado a cada nova implementação. Última atualização: Grafo Estratégico nativo (botão 🕸️ Gráfico no painel e no mapa).</p>
+        <p style="margin-top:18px;color:var(--muted);font-size:0.8rem;">Manual atualizado a cada nova implementação. Última atualização: tela de inicialização (splash) movida para o mapa ao vivo (página inicial).</p>
       </div>
     </div>
   </div>
@@ -599,42 +509,6 @@
   </section>
 
   <script>
-    // ===== Splash screen KRATOS (barra de progresso ~15s com etapas) =====
-    (function () {
-      const splash = document.getElementById("kratosSplash");
-      if (!splash) return;
-      const bar = document.getElementById("kratosProgressBar");
-      const pctEl = document.getElementById("kratosProgressPct");
-      const stepEl = document.getElementById("kratosStep");
-      const DURATION_MS = 15000;
-      const steps = [
-        { at: 0, text: "Inicializando KRATOS…" },
-        { at: 12, text: "Conectando ao stream AIS…" },
-        { at: 28, text: "Carregando geofences e berços…" },
-        { at: 45, text: "Sincronizando programação da Praticagem-RJ…" },
-        { at: 62, text: "Mapeando frota SAAM e concorrentes…" },
-        { at: 78, text: "Avaliando maré, vento e janelas de manobra…" },
-        { at: 92, text: "Consolidando market share…" },
-        { at: 100, text: "Pronto. KRATOS no comando." }
-      ];
-      const start = performance.now();
-      let lastStep = -1;
-      function frame(now) {
-        const pct = Math.min(100, ((now - start) / DURATION_MS) * 100);
-        if (bar) bar.style.width = pct + "%";
-        if (pctEl) pctEl.textContent = Math.round(pct) + "%";
-        let idx = 0;
-        for (let i = 0; i < steps.length; i++) { if (pct >= steps[i].at) idx = i; }
-        if (idx !== lastStep && stepEl) { stepEl.textContent = steps[idx].text; lastStep = idx; }
-        if (pct < 100) {
-          requestAnimationFrame(frame);
-        } else {
-          setTimeout(() => splash.classList.add("is-hidden"), 350);
-        }
-      }
-      requestAnimationFrame(frame);
-    })();
-
     // ===== Manual do usuário (abrir/fechar) =====
     (function () {
       const overlay = document.getElementById("manualOverlay");
