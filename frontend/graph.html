@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>KRATOS — Grafo Estratégico</title>
   <script src="https://cdn.jsdelivr.net/npm/force-graph@1.43.4/dist/force-graph.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/3d-force-graph@1.73.4/dist/3d-force-graph.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three-spritetext@1.8.2/dist/three-spritetext.min.js"></script>
   <style>
     :root {
       --bg: #0e1116; --panel: #161b22; --text: #e6edf3; --muted: #8b949e;
@@ -49,6 +51,7 @@
     <h1>KRATOS — Grafo Estratégico</h1>
     <span class="meta">Manobra ↔ Navio ↔ Berço ↔ Rebocador ↔ Empresa ↔ Dia</span>
     <span class="spacer"></span>
+    <button type="button" class="nav" id="btnDim" title="Alternar 2D / 3D">🧊 3D</button>
     <button type="button" class="nav" id="btnReload">↻ Atualizar</button>
     <a class="nav" id="backDash" href="#">← Painel</a>
     <a class="nav" id="backMap" href="#">Mapa</a>
@@ -95,42 +98,95 @@
     document.getElementById("backMap").href = basePath() + "/";
 
     const elem = document.getElementById("graph");
-    const Graph = ForceGraph()(elem)
-      .backgroundColor("#0e1116")
-      .nodeId("id")
-      .nodeLabel(n => n.label)
-      .nodeColor(n => COLORS[n.group] || "#8b949e")
-      .nodeVal(n => n.val || 1)
-      .nodeRelSize(4)
-      .linkColor(() => "rgba(150,160,170,0.22)")
-      .linkWidth(0.6)
-      .onNodeClick(node => {
-        // Centraliza e dá zoom no nó clicado.
-        Graph.centerAt(node.x, node.y, 600);
-        Graph.zoom(4, 600);
-      })
-      .nodeCanvasObjectMode(() => "after")
-      .nodeCanvasObject((node, ctx, scale) => {
-        // Mostra o rótulo quando há zoom suficiente (estilo Obsidian).
-        if (scale < 1.6) return;
-        const label = node.label || "";
-        const fontSize = 11 / scale;
-        ctx.font = `${fontSize}px -apple-system, Segoe UI, Roboto, sans-serif`;
-        ctx.textAlign = "center";
-        ctx.textBaseline = "top";
-        ctx.fillStyle = "rgba(230,237,243,0.9)";
-        const r = Math.sqrt(node.val || 1) * 4 / scale;
-        ctx.fillText(label, node.x, node.y + r + 1);
-      });
-
-    // Enquadra o grafo quando a simulação estabiliza (evita ficar amontoado no canto).
+    let mode = "2d";                       // "2d" | "3d"
+    let Graph = null;                      // instância atual
+    let currentData = { nodes: [], links: [] };
     let fitted = false;
-    Graph.cooldownTicks(120).onEngineStop(() => {
-      if (!fitted) { Graph.zoomToFit(500, 60); fitted = true; }
-    });
 
-    function fit() { Graph.width(elem.clientWidth).height(elem.clientHeight); }
+    // Config compartilhada entre 2D e 3D.
+    function applyCommon(g) {
+      return g
+        .backgroundColor("#0e1116")
+        .nodeId("id")
+        .nodeLabel(n => n.label)
+        .nodeColor(n => COLORS[n.group] || "#8b949e")
+        .nodeVal(n => n.val || 1)
+        .nodeRelSize(4)
+        .linkColor(() => "rgba(150,160,170,0.22)")
+        .linkWidth(0.6);
+    }
+
+    function refit() {
+      const pad = mode === "3d" ? 80 : 60;
+      try { Graph.zoomToFit(600, pad); } catch (_) {}
+    }
+
+    function buildGraph() {
+      elem.innerHTML = "";
+      fitted = false;
+      if (mode === "3d") {
+        Graph = applyCommon(ForceGraph3D()(elem))
+          .linkOpacity(0.35)
+          .onNodeClick(node => {
+            // "Voa" a câmera até o nó clicado.
+            const d = 120;
+            const h = Math.hypot(node.x || 1, node.y || 1, node.z || 1) || 1;
+            const r = 1 + d / h;
+            Graph.cameraPosition(
+              { x: (node.x || 0) * r, y: (node.y || 0) * r, z: (node.z || 0) * r },
+              node, 900
+            );
+          });
+        if (typeof SpriteText !== "undefined") {
+          Graph.nodeThreeObjectExtend(true).nodeThreeObject(n => {
+            const s = new SpriteText(n.label || "");
+            s.color = COLORS[n.group] || "#cfd8e3";
+            s.textHeight = Math.max(3, Math.sqrt(n.val || 1) * 2.2);
+            s.material.depthWrite = false;
+            return s;
+          });
+        }
+      } else {
+        Graph = applyCommon(ForceGraph()(elem))
+          .onNodeClick(node => { Graph.centerAt(node.x, node.y, 600); Graph.zoom(4, 600); })
+          .nodeCanvasObjectMode(() => "after")
+          .nodeCanvasObject((node, ctx, scale) => {
+            // Rótulo aparece com zoom suficiente (estilo Obsidian).
+            if (scale < 1.6) return;
+            const label = node.label || "";
+            const fontSize = 11 / scale;
+            ctx.font = `${fontSize}px -apple-system, Segoe UI, Roboto, sans-serif`;
+            ctx.textAlign = "center";
+            ctx.textBaseline = "top";
+            ctx.fillStyle = "rgba(230,237,243,0.9)";
+            const r = Math.sqrt(node.val || 1) * 4 / scale;
+            ctx.fillText(label, node.x, node.y + r + 1);
+          });
+      }
+      // Enquadra quando a simulação estabiliza.
+      Graph.cooldownTicks(mode === "3d" ? 100 : 120).onEngineStop(() => {
+        if (!fitted) { refit(); fitted = true; }
+      });
+      fit();
+      Graph.graphData(currentData);
+      setTimeout(refit, 1600);
+    }
+
+    function fit() { if (Graph) Graph.width(elem.clientWidth).height(elem.clientHeight); }
     window.addEventListener("resize", fit);
+
+    function updateStatus() {
+      const status = document.getElementById("status");
+      status.textContent = `${currentData.nodes.length} nós · ${currentData.links.length} conexões · ${mode.toUpperCase()}`;
+    }
+
+    function setMode(next) {
+      mode = next;
+      const btn = document.getElementById("btnDim");
+      if (btn) btn.textContent = mode === "3d" ? "🔲 2D" : "🧊 3D";
+      buildGraph();
+      updateStatus();
+    }
 
     async function load() {
       const status = document.getElementById("status");
@@ -139,19 +195,17 @@
         const res = await fetch(apiUrl("/api/obsidian/graph"), { cache: "no-store" });
         const data = await res.json();
         if (!res.ok || !data.ok) throw new Error(data.error || `HTTP ${res.status}`);
-        fitted = false;
-        Graph.graphData({ nodes: data.nodes || [], links: data.links || [] });
-        fit();
-        // Fallback: enquadra após a simulação ter tempo de se espalhar.
-        setTimeout(() => { Graph.zoomToFit(500, 60); }, 1500);
-        status.textContent = `${(data.nodes || []).length} nós · ${(data.links || []).length} conexões`;
+        currentData = { nodes: data.nodes || [], links: data.links || [] };
+        buildGraph();
+        updateStatus();
       } catch (e) {
         status.classList.add("err");
         status.textContent = "Falha ao carregar o grafo: " + (e.message || e);
       }
     }
+
     document.getElementById("btnReload").addEventListener("click", load);
-    fit();
+    document.getElementById("btnDim").addEventListener("click", () => setMode(mode === "3d" ? "2d" : "3d"));
     load();
   </script>
 </body>
