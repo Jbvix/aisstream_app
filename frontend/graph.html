@@ -123,6 +123,12 @@
         ctx.fillText(label, node.x, node.y + r + 1);
       });
 
+    // Enquadra o grafo quando a simulação estabiliza (evita ficar amontoado no canto).
+    let fitted = false;
+    Graph.cooldownTicks(120).onEngineStop(() => {
+      if (!fitted) { Graph.zoomToFit(500, 60); fitted = true; }
+    });
+
     function fit() { Graph.width(elem.clientWidth).height(elem.clientHeight); }
     window.addEventListener("resize", fit);
 
@@ -133,9 +139,11 @@
         const res = await fetch(apiUrl("/api/obsidian/graph"), { cache: "no-store" });
         const data = await res.json();
         if (!res.ok || !data.ok) throw new Error(data.error || `HTTP ${res.status}`);
+        fitted = false;
         Graph.graphData({ nodes: data.nodes || [], links: data.links || [] });
         fit();
-        Graph.zoomToFit(600, 40);
+        // Fallback: enquadra após a simulação ter tempo de se espalhar.
+        setTimeout(() => { Graph.zoomToFit(500, 60); }, 1500);
         status.textContent = `${(data.nodes || []).length} nós · ${(data.links || []).length} conexões`;
       } catch (e) {
         status.classList.add("err");
