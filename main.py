@@ -1800,6 +1800,28 @@ def _estimate_tugs_required(maneuver):
     return 2
 
 
+def _estimate_maneuver_value(maneuver):
+    """Valor comercial *relativo* da manobra (qualitativo, sem tabela de preços).
+
+    Heurística por porte do navio + rebocadores estimados: quanto maior o navio
+    e mais rebocadores necessários, maior o valor comercial da manobra.
+    """
+    def _f(v):
+        try:
+            return float(str(v).replace(",", ".").strip())
+        except Exception:
+            return 0.0
+
+    loa = _f(maneuver.get("loa"))
+    dwt = _f(maneuver.get("dwt"))
+    tugs = _estimate_tugs_required(maneuver)
+    if loa >= 300 or dwt >= 100000 or tugs >= 4:
+        return "alto"
+    if loa >= 230 or dwt >= 60000 or tugs >= 3:
+        return "medio"
+    return "padrao"
+
+
 def _parse_pob_to_datetime(pob):
     s = str(pob or "").strip()
     if not s:
@@ -2193,13 +2215,24 @@ def _strategy_context_dict():
         saa_snapshot,
         key=lambda x: str(x.get("pob") or ""),
     )[:40]
+    # Enriquece cada manobra com leitura tática: rebocadores estimados,
+    # valor comercial relativo e se é nossa (SAAM) ou de concorrente.
+    enriched = []
+    for m in upcoming:
+        emp = str(m.get("empRb") or "").strip().upper()
+        item = dict(m)
+        item["estimatedTugs"] = _estimate_tugs_required(m)
+        item["commercialValue"] = _estimate_maneuver_value(m)
+        item["isOwn"] = emp == OWN_COMPANY_EMP_RB
+        item["isCompetitor"] = emp in {"WIL", "CAM"}
+        enriched.append(item)
     competitors = _competitor_status_rows(geofence_snapshot)
     schedule_changes = _build_schedule_changes(saa_snapshot)
     memory_items = load_strategy_memory()
     return {
         "timestamp": get_now_iso(),
         "saamTugs": saam_positions,
-        "scheduledManeuvers": upcoming,
+        "scheduledManeuvers": enriched,
         "scheduledManeuverTotal": len(saa_snapshot),
         "competitors": competitors,
         "marketShare": _market_share_rows(saa_snapshot),
@@ -2261,26 +2294,51 @@ def _assistant_profile_instruction() -> str:
     )
 
 
-def _ask_grok_with_context(question: str, context: dict) -> str:
+KRATOS_SYSTEM_PROMPT = (
+    "Voce e o KRATOS — a inteligencia estrategica de operacoes portuarias do Porto "
+    "do Rio de Janeiro e da Baia de Guanabara. Pense como um enxadrista: o porto e um "
+    "tabuleiro, cada rebocador e uma peca, e seu trabalho e manter o usuario SEMPRE UM "
+    "PASSO A FRENTE do concorrente. Ao se apresentar, use o nome KRATOS.\n\n"
+    "QUEM E QUEM (campo EMP.RB da Praticagem): 'SAA' = SAAM, a NOSSA empresa (nossa frota); "
+    "'WIL' e 'CAM' sao os concorrentes. Trate SAA como nos.\n\n"
+    "COMO VOCE JOGA:\n"
+    "- Leia o tabuleiro: posicao e deslocamento de cada rebocador (nosso e concorrente), "
+    "a programacao de manobras (POB), as caracteristicas dos navios (LOA/boca/DWT) e o "
+    "valor comercial relativo de cada manobra (campo commercialValue: alto/medio/padrao).\n"
+    "- Antecipe o adversario: a partir da posicao/rumo dos rebocadores WIL/CAM e da "
+    "programacao, infira para qual manobra eles estao se posicionando e o que isso ameaca.\n"
+    "- Aprenda padroes: use as notas em userLearnedNotes e o historico da conversa para "
+    "reconhecer o modo de operar de cada concorrente.\n"
+    "- Pese as variaveis do jogo: vento e mare (campo metocean) afetam janela e numero de "
+    "rebocadores; sinalize risco e oportunidade.\n"
+    "- Proteja a nossa programacao: sugira jogadas que ganhem manobra ou posicao SEM "
+    "comprometer os compromissos ja assumidos da SAAM.\n\n"
+    "COMO VOCE FALA: portugues claro, direto e natural, como um parceiro de estrategia ao "
+    "lado do operador. Seja conversacional — faca perguntas de volta quando ajudar a decidir. "
+    "Baseie-se no contexto e no historico; se faltar dado, diga com transparencia. "
+    "Sempre que possivel, termine com a JOGADA recomendada (acao concreta) e o porque."
+)
+
+
+def _ask_grok_with_context(question: str, context: dict, history: list | None = None) -> str:
     if not GROK_API_KEY:
         return _strategy_fallback_answer(question, context)
+    messages = [
+        {
+            "role": "system",
+            "content": KRATOS_SYSTEM_PROMPT + " " + _assistant_profile_instruction(),
+        }
+    ]
+    # Memoria de conversa: ate as ultimas 8 trocas (papel user/assistant).
+    for turn in (history or [])[-8:]:
+        role = "assistant" if str(turn.get("role")) == "assistant" else "user"
+        text = str(turn.get("content") or "").strip()
+        if text:
+            messages.append({"role": role, "content": text[:2000]})
     payload = {
         "model": GROK_MODEL,
-        "temperature": 0.45,
-        "messages": [
-            {
-                "role": "system",
-                "content": (
-                    "Voce e o KRATOS, assistente de estrategia naval do porto do Rio de Janeiro e "
-                    "da Baia de Guanabara: experiente, consultivo e natural. Ao se apresentar, use o nome KRATOS. "
-                    "IMPORTANTE: na programacao da Praticagem (campo EMP.RB), o codigo 'SAA' representa a SAAM, "
-                    "que e a NOSSA empresa; 'WIL' e 'CAM' sao concorrentes. Trate 'SAA' como a nossa frota. "
-                    "Responda em portugues com linguagem clara, direta e mais solta (sem rigidez excessiva). "
-                    "Baseie-se no contexto fornecido; se faltar dado, diga isso com transparencia. "
-                    "Priorize insights acionaveis e recomendacoes praticas para operacao. "
-                    + _assistant_profile_instruction()
-                ),
-            },
+        "temperature": 0.5,
+        "messages": messages + [
             {
                 "role": "user",
                 "content": (
@@ -2399,6 +2457,12 @@ async def strategy_assistant(request: Request):
     question = str(payload.get("question") or "").strip()
     action = str(payload.get("action") or "ask").strip().lower()
     learn_note = str(payload.get("learnNote") or "").strip()
+    raw_history = payload.get("history")
+    history = []
+    if isinstance(raw_history, list):
+        for turn in raw_history:
+            if isinstance(turn, dict) and turn.get("content"):
+                history.append({"role": turn.get("role"), "content": turn.get("content")})
     if learn_note:
         append_strategy_memory(learn_note, author="user")
     if not question:
@@ -2415,7 +2479,7 @@ async def strategy_assistant(request: Request):
             "Gere insights acionaveis e hipoteses de ganho competitivo com base no contexto. "
             + question
         )
-    answer = await asyncio.to_thread(_ask_grok_with_context, question, context)
+    answer = await asyncio.to_thread(_ask_grok_with_context, question, context, history)
     append_strategy_memory(f"Pergunta: {question}\nResposta: {answer[:1200]}", author="assistant")
     return {"ok": True, "answer": answer, "context": context}
 
