@@ -1323,6 +1323,30 @@ def extract_ship_dimensions_meters(message_type, message_body):
     return length_m, beam_m
 
 
+def extract_ship_ref_offsets(message_type, message_body):
+    """
+    Offsets do ponto de referência AIS (antena) ao casco, em metros: A/B/C/D.
+    A = proa, B = popa, C = bombordo, D = boreste. LOA = A+B, Boca = C+D.
+    Permite desenhar o casco em escala real ancorado na antena (estilo MarineTraffic).
+    """
+    dim = None
+    if isinstance(message_body, dict):
+        dim = message_body.get("Dimension") or message_body.get("dimension")
+    if not isinstance(dim, dict):
+        return None
+    a = _dim_segment(dim.get("A"))
+    b = _dim_segment(dim.get("B"))
+    c = _dim_segment(dim.get("C"))
+    d = _dim_segment(dim.get("D"))
+    if a is None or b is None or c is None or d is None:
+        return None
+    loa = a + b
+    beam = c + d
+    if loa <= 0 or loa > 600 or beam <= 0 or beam > 120:
+        return None
+    return [float(a), float(b), float(c), float(d)]
+
+
 def estimate_length_from_category(ship_category):
     """Fallback visual quando não há dimensão AIS (metros aproximados)."""
     if ship_category == "rebocador_servico":
@@ -3910,6 +3934,9 @@ def extract_normalized_vessel(data):
         cached_ais_length = cached.get("lengthMetersAis")
         cached_ais_beam = cached.get("beamMetersAis")
 
+        ais_ref = extract_ship_ref_offsets(message_type, message_body)
+        ref_offsets = ais_ref if ais_ref is not None else cached.get("refOffsets")
+
         if ais_length_m is not None:
             length_source = "ais_dimension"
             length_m = ais_length_m
@@ -3930,6 +3957,7 @@ def extract_normalized_vessel(data):
             "fleet": SAAM_BGRA_FLEET_NAME if is_saam_bgra else None,
             "lengthMetersAis": ais_length_m if ais_length_m is not None else cached_ais_length,
             "beamMetersAis": ais_beam_m if ais_beam_m is not None else cached_ais_beam,
+            "refOffsets": ref_offsets,
         }
         vessel_data = {
             "source": current_mode,
@@ -3949,6 +3977,10 @@ def extract_normalized_vessel(data):
             "navStatus": message_body.get("NavigationalStatus"),
             "lengthMeters": length_m,
             "beamMeters": beam_m,
+            "refToBow": ref_offsets[0] if ref_offsets else None,
+            "refToStern": ref_offsets[1] if ref_offsets else None,
+            "refToPort": ref_offsets[2] if ref_offsets else None,
+            "refToStarboard": ref_offsets[3] if ref_offsets else None,
             "lengthSource": length_source,
             "timestamp": metadata.get("time_utc") or metadata.get("timeUTC") or get_now_iso(),
             "raw": data

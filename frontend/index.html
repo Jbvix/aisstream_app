@@ -1170,6 +1170,19 @@
       z-index: 1;
     }
 
+    /* Escala real (estilo MarineTraffic): casco em metros reais sobre a imagem.
+       O casco é posicionado de forma absoluta e o wrap gira em torno da antena. */
+    .ship-wrap--true { display: block; position: relative; }
+    .ship-shape.ship-true .ship-poly path {
+      stroke: rgba(8, 20, 36, 0.95);
+      stroke-width: 1;
+      vector-effect: non-scaling-stroke;
+    }
+    /* O anel arredondado do SAAM viraria uma elipse no casco alongado — suprimir. */
+    .ship-shape.ship-true.ship-saam::after { display: none; }
+    .ship-shape.ship-true.ship-saam .ship-poly path { stroke: #06203b; stroke-width: 1.4; }
+    .ship-shape.ship-true.ship-competitor .ship-poly path { stroke: #ff3b30; stroke-width: 1.6; }
+
     /* Parado/fundeado: círculo cheio (sem rumo), sem tracejado. */
     .ship-dot {
       position: absolute;
@@ -2794,6 +2807,41 @@
       return 90;
     }
 
+    // A partir deste zoom os cascos passam a ser desenhados em escala real
+    // (metros sobre a imagem), no estilo MarineTraffic; abaixo disso usa-se o
+    // ícone-seta de sempre, legível mesmo afastado.
+    const TRUE_SCALE_MIN_ZOOM = 14;
+    const TRUE_SCALE_MIN_PX = 16;   // só vale a pena se o casco render >= ~16px
+    const TRUE_SCALE_MAX_WRAP = 1400;
+
+    /** Metros por pixel no Web Mercator, para a latitude e zoom dados. */
+    function metersPerPixel(lat, zoom) {
+      const phi = (Number(lat) || 0) * Math.PI / 180;
+      return 156543.03392 * Math.cos(phi) / Math.pow(2, zoom);
+    }
+
+    /** Offsets do ponto de referência AIS (antena) ao casco, em metros: A/B/C/D. */
+    function getShipRefOffsetsMeters(v) {
+      const a = Number(v?.refToBow);
+      const b = Number(v?.refToStern);
+      const c = Number(v?.refToPort);
+      const d = Number(v?.refToStarboard);
+      const finite = [a, b, c, d].every((n) => Number.isFinite(n) && n >= 0);
+      const hasRef = finite && (a + b) > 0 && (c + d) > 0;
+      return { a, b, c, d, hasRef };
+    }
+
+    /** Silhueta de navio (proa pontuda no topo, costados retos, popa reta). 0° = norte. */
+    function buildVesselHullPath(w, h) {
+      const p = (n) => n.toFixed(2);
+      const shoulder = h * 0.16;            // onde a proa termina de afilar
+      return `M ${p(w * 0.5)} 0 `          // proa (ponta)
+        + `L ${p(w)} ${p(shoulder)} `      // ombro de boreste
+        + `L ${p(w)} ${p(h)} `            // popa boreste
+        + `L 0 ${p(h)} `                  // popa bombordo
+        + `L 0 ${p(shoulder)} Z`;          // ombro de bombordo
+    }
+
     function getShipIconDimensionsPx(v) {
       const loa = getShipLengthMeters(v);
       let beam = Number(v?.beamMeters);
@@ -2833,6 +2881,64 @@
         + `L 0 ${p(h)} Z`;                 // canto traseiro esquerdo
     }
 
+    /**
+     * Casco em escala geográfica real. O wrap quadrado é centrado na antena AIS
+     * e girado pelo rumo (transform-origin no centro = antena), então o ponto
+     * permanece sobre a posição mesmo com a embarcação atracada/girada.
+     */
+    function buildTrueScaleIcon(vessel, vesselColorClass, isSaam, isCompetitor, mpp, loaM, rotation) {
+      const ref = getShipRefOffsetsMeters(vessel);
+      let hullH;
+      let hullW;
+      let aPx;
+      let bPx;
+      let cPx;
+      let dPx;
+      if (ref.hasRef) {
+        hullH = (ref.a + ref.b) / mpp;
+        hullW = (ref.c + ref.d) / mpp;
+        aPx = ref.a / mpp; bPx = ref.b / mpp;
+        cPx = ref.c / mpp; dPx = ref.d / mpp;
+      } else {
+        let beamM = Number(vessel?.beamMeters);
+        if (!Number.isFinite(beamM) || beamM <= 0) beamM = Math.max(5, loaM * 0.16);
+        hullH = loaM / mpp;
+        hullW = beamM / mpp;
+        aPx = hullH / 2; bPx = hullH / 2;
+        cPx = hullW / 2; dPx = hullW / 2;
+      }
+      hullW = Math.max(3, hullW);
+      hullH = Math.max(6, hullH);
+
+      // Wrap grande o bastante para conter o casco em qualquer rotação ao redor
+      // da antena (canto mais distante = hipotenusa dos maiores offsets).
+      const far = Math.hypot(Math.max(aPx, bPx), Math.max(cPx, dPx));
+      const wrap = Math.min(TRUE_SCALE_MAX_WRAP, Math.ceil(2 * far + 10));
+      const half = wrap / 2;
+      const left = half - cPx;   // antena fica a C px da borda de bombordo
+      const top = half - aPx;    // antena fica a A px da proa (topo)
+
+      const classes = ["ship-shape", vesselColorClass, "ship-true"];
+      if (isSaam) classes.push("ship-saam");
+      if (isCompetitor) classes.push("ship-competitor");
+
+      const path = buildVesselHullPath(hullW, hullH);
+      const html = `
+        <div class="ship-wrap ship-wrap--true" style="width:${wrap}px;height:${wrap}px;transform:rotate(${rotation}deg);">
+          <div class="${classes.join(" ")}" style="position:absolute;left:${left.toFixed(1)}px;top:${top.toFixed(1)}px;width:${hullW.toFixed(1)}px;height:${hullH.toFixed(1)}px;">
+            <svg class="ship-poly" viewBox="0 0 ${hullW.toFixed(2)} ${hullH.toFixed(2)}" preserveAspectRatio="none" aria-hidden="true"><path d="${path}"></path></svg>
+          </div>
+        </div>
+      `;
+      return L.divIcon({
+        className: "vessel-div-icon",
+        html,
+        iconSize: [wrap, wrap],
+        iconAnchor: [half, half],
+        popupAnchor: [0, -Math.round(Math.max(hullH / 2, 8)) - 4]
+      });
+    }
+
     function createVesselIcon(category) {
       const safeCategory = category || "outros";
       const vesselColorClass = `vessel-${safeCategory}`;
@@ -2841,6 +2947,24 @@
         const isSaam = Boolean(vessel?.isSaamBgra || vessel?.fleet === "SAAM-BGRA");
         const competitor = !isSaam ? getCompetitorInfo(vessel) : null;
         const isCompetitor = Boolean(competitor);
+
+        // --- Modo escala real (estilo MarineTraffic) ---------------------------
+        // Em zoom alto desenhamos o casco com as dimensões reais (metros) sobre a
+        // imagem, girado pelo rumo e ancorado no ponto da antena AIS — assim um
+        // navio atracado fica deitado exatamente sobre o cais.
+        const z = Number(map?.getZoom?.() ?? 11);
+        const lat = Number(vessel?.latitude);
+        if (z >= TRUE_SCALE_MIN_ZOOM && Number.isFinite(lat)) {
+          const mpp = metersPerPixel(lat, z);
+          const loaM = getShipLengthMeters(vessel);
+          if (loaM / mpp >= TRUE_SCALE_MIN_PX) {
+            const trueIcon = buildTrueScaleIcon(
+              vessel, vesselColorClass, isSaam, isCompetitor, mpp, loaM, rotation
+            );
+            if (trueIcon) return trueIcon;
+          }
+        }
+
         const { hullW, hullH, wrap } = getShipIconDimensionsPx(vessel);
 
         const sog = Number(vessel?.sog);

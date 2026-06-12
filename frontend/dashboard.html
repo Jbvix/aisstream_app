@@ -414,10 +414,11 @@
 
         <h3>No mapa ao vivo</h3>
         <ul>
-          <li>Ícones em formato de seta apontam o rumo (proa pontuda, popa em V); o tamanho cresce ao dar zoom in e diferencia rebocador (menor) de navio (maior).</li>
+          <li><b>Escala real (estilo MarineTraffic):</b> ao aproximar o zoom (a partir do nível ~14), as embarcações deixam de ser ícones de tamanho fixo e passam a ser desenhadas como o <b>casco em escala geográfica real</b> (comprimento × boca em metros, vindos do AIS) sobre a imagem de satélite — um navio atracado fica <b>deitado exatamente sobre o cais</b>, no tamanho certo e alinhado ao rumo. O casco é ancorado no ponto da antena AIS, então a silhueta se posiciona como na realidade. Afastando o zoom, voltam os ícones-seta, legíveis mesmo de longe.</li>
+          <li>Em zoom afastado, ícones em formato de seta apontam o rumo (proa pontuda, popa em V); o tamanho cresce ao dar zoom in e diferencia rebocador (menor) de navio (maior).</li>
           <li>Cores por tipo: carga/contêiner/ro-ro verde, petroleiro vermelho, passageiros azul, rebocador teal.</li>
-          <li><b>Frota própria (SAAM)</b>: brilho dourado. <b>Concorrentes (WIL/CAM)</b>: anel vermelho pulsante.</li>
-          <li>Embarcação parada/fundeada aparece como círculo; navegando, com vetor de proa proporcional à velocidade.</li>
+          <li><b>Frota própria (SAAM)</b>: brilho dourado. <b>Concorrentes (WIL/CAM)</b>: contorno/anel vermelho.</li>
+          <li>Embarcação parada/fundeada aparece como círculo (zoom afastado) ou casco em escala real (zoom aproximado); navegando, com vetor de proa proporcional à velocidade.</li>
           <li><b>Visualizar nomes:</b> ao ativar, os navios programados para <b>manobra pela SAAM</b> (EMP.RB = SAA), dentro ou fora da BG, aparecem com o nome em <b>label dourado destacado</b>.</li>
           <li><b>Persistência:</b> as embarcações continuam no mapa após recarregar a página (F5) e após reinício do servidor, exibindo a última posição conhecida até a próxima atualização do AIS.</li>
           <li><b>Painel Frota (barra lateral do mapa):</b> inclua, substitua ou remova MMSIs de rebocadores quando a frota SAAM ou concorrente (WIL/CAM) mudar — a alteração vale na hora para o mapa, as lâmpadas do topo e o KRATOS. O KRATOS também verifica a frota: se um rebocador cadastrado estiver sem sinal AIS, ele informa que possivelmente saiu <b>barra fora</b> / está fora da cobertura do Rio de Janeiro.</li>
