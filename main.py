@@ -2895,103 +2895,61 @@ KRATOS_APP_GUIDE = (
 # Fonte: NPCP-RJ (3a Revisao), atualizada pelas Portarias CPRJ/COMOPNAV/MB
 # no 11 (06/03/2026) e no 110 (14/05/2026), Capitania dos Portos do Rio de Janeiro.
 KRATOS_NPCP_KNOWLEDGE = (
-    "NORMAS LOCAIS DO PORTO (NPCP-RJ) — CONHECIMENTO ESTRATEGICO:\n"
-    "Voce conhece as normas locais vigentes da Capitania dos Portos do Rio de Janeiro "
-    "(NPCP-RJ, 3a Revisao), atualizadas pelas Portarias CPRJ/COMOPNAV/MB no 11, de 06/03/2026, "
-    "e no 110, de 14/05/2026 (ambas em vigor). Use como referencia para antecipar demanda de "
-    "rebocadores, janelas de manobra e restricoes de calado/porte. Cite a portaria e o terminal "
-    "quando relevante e, em decisao critica, recomende confirmar na publicacao oficial.\n"
-    "POR QUE IMPORTA PARA A SAAM: cada terminal define QUANTOS rebocadores e qual TTE minimo a "
-    "manobra exige — isso e demanda direta da nossa frota. Onde a norma DISPENSA rebocador "
-    "(tipicamente navios/EAM com Posicionamento Dinamico - DP), a demanda cai; sinalize. Janelas "
-    "de mare/vento e restricoes diurno/noturno concentram manobras no tempo — antecipe "
-    "sobreposicao e necessidade de mais rebocadores.\n"
-    "DEMANDA DE REBOCADOR POR AREA (oportunidades):\n"
-    "- Operacao de ferro-gusa (Cais Comercial, cabecos ~95-99, destino Area de Fundeio no 3, "
-    "alternativa no 9): comboio de balsa nao propulsada + DOIS rebocadores — um de no minimo "
-    "45 TTE (puxa a balsa) e outro de no minimo 25 TTE (apoio a atracacao/desatracacao). "
-    "Velocidade media 3 nos; sem praticagem obrigatoria; janela com visibilidade >=2 milhas "
-    "nauticas e vento ate 20 nos; diurno ou noturno. Balsa LOA 108 m, boca 28 m, calado 4,9 m; "
-    "comboio ~150 m. Oportunidade recorrente de reboque.\n"
-    "- Porto de Angra dos Reis (TPAR, Baia da Ilha Grande): atracacao longitudinal exige NO "
-    "MINIMO DOIS rebocadores AZIMUTAIS de >=45 TTE cada. EAM dotada de DP dispensa rebocador "
-    "(a criterio do comandante). Cais continuo 392 m (Berco 101 ~120 m; Berco 102 ~211 m). "
-    "Navio-tipo carga/graneleiro/tanque ate LOA 190 m. Manobras com vento ate 15 nos (rajada 20), "
-    "visibilidade >=1 milha nautica, mare de enchente 1:1 quando necessaria; canal restrito a "
-    "1 navio por vez a 3 nos. Forte demanda de reboque azimutal pesado.\n"
-    "- Estaleiro EISA (Ilha do Governador): entrada e saida de cascos e embarcacoes SOB REBOQUE "
-    "obrigatorio, exceto pequeno porte (lanchas, pesqueiros, rebocadores). Manobras assessoradas "
-    "por Agente de Manobras e Docagem (AMD); na praticagem, transferencia pratico/AMD na isobata "
-    "de 10 m. Vento <=15 nos, velocidade <5 nos. Bercos ate LOA 230 m e boca 40 m. Demanda de "
-    "reboque para docagem e entrada de cascos.\n"
-    "MENOS DEMANDA (DP dispensa rebocador):\n"
-    "- Terminal Brasco - Base Niteroi: navios-tipo com DP dispensam rebocador na atracacao e "
-    "desatracacao (auxiliares so a criterio do comandante). Manobras SOMENTE nos estofos de mare. "
-    "Vento <15 nos, visibilidade >2 milhas nauticas, diurno/noturno; so 1 navio por vez no canal. "
-    "POB: atracacao a partir de 2 h antes da preamar/baixa-mar; desatracacao a partir de 1 h "
-    "antes. Bercos: B1 LOA 97 m, B2 LOA 45 m, B3 LOA 94 m.\n"
-    "OUTROS NAVIOS-TIPO: Subsea7 LOA 85,5 m / boca 18,3 m / calado 3,04 m (3,46 m com mare 1:1). "
-    "Rio Brasil Terminal (RBT): tipo 1 (EAM) LOA 160 m / boca 33 m; tipo 2 (carga geral) LOA "
-    "140 m / boca 22 m; calado 5,7 m (ate 6,5 m com mare 1:1).\n"
-    "CANAIS, CALADOS E RESTRICOES DE PORTE (Porto do Rio):\n"
-    "- Cais Comercial por trecho de cabecos: 36-110 calado 10,30 m (+0,70 m de mare, max 11,00); "
-    "110-129 9,00 m (max 9,70); 129-205 8,50 m (max 9,00) com LOA <=185 m; 205-216 8,20 m "
-    "(max 9,00).\n"
-    "- TECON-RJ: ate 349 m de LOA, calado ate 14,50 m (15,30 m com mare). Prioridade do canal e "
-    "dos porta-conteineres do proprio TECON e dos Roll-on/Roll-off. Programacao previa obrigatoria; "
-    "avisar a Praticagem pelo VHF canal 12 (chamar 'Praticagem Rio') com 30 min de antecedencia.\n"
-    "- Restricao de porte no trecho 197-216 (via TECON): LOA de 120 a 150 m sem restricao "
-    "(diurno ou noturno); LOA de 150 a 185 m APENAS manobras DIURNAS; acima de 185 m nao passa. "
-    "Navios-tanque do Terminal de Oleo (cabecos 197-205) tem regras especificas de canal por "
-    "calado e bordo de atracacao.\n"
-    "=> Implicacao tatica: a restricao diurno-only para navios grandes concentra manobras de dia "
-    "— antecipe pico e sobreposicao no periodo diurno, com mais rebocadores demandados.\n"
-    "PRATICAGEM (ZP-15) — contexto de disponibilidade: a Escala de Rodizio Unica (ERU) exige no "
-    "minimo 58 fainas por quadrimestre por pratico (50% = 29; 75% = 43). Cota por subzona: Baia de "
-    "Guanabara 14, Forno 1, Sepetiba/Ilha Grande/Angra 8, Acu 2 (total 25; as 33 restantes em "
-    "qualquer subzona). Periodo de escala do pratico: das 11h01 de um dia as 11h do dia seguinte.\n"
-    "\n"
-    "BASE COMPLETA — NPCP-RJ (3a Revisao, Mod.2): voce conhece a NPCP-RJ inteira (6 capitulos): "
-    "1 areas de jurisdicao; 2 fatos e acidentes da navegacao; 3 dotacao de material de seguranca; "
-    "4 procedimentos para navios no porto (trafego, praticagem, rebocadores); 5 parametros "
-    "operacionais (calado maximo, terminais, bercos, fundeadouros); 6 vias navegaveis. A "
-    "jurisdicao (ZP-15) abrange a Baia de Guanabara (Porto do Rio e Niteroi), a Baia de Sepetiba "
-    "(Porto de Itaguai e Porto Sudeste), a Baia da Ilha Grande/Angra dos Reis (TPAR e terminais), "
-    "o Porto do Acu, Paraty e o Porto do Forno. Detalhe humano em "
-    "docs/conhecimento/npcp-rj-3rev-resumo-estrategico.md.\n"
-    "ESCADA DE REBOQUE POR PORTE (exigencia minima de rebocadores e TTE — tonelada de tracao "
-    "estatica; e a metrica de demanda da nossa frota). Regras gerais do Porto do Rio (Cais "
-    "Comercial/canais), salvo regra especifica do terminal:\n"
-    "- LOA ate 120 m (diurno/noturno): 2 rebocadores de >=40 TTE cada.\n"
-    "- LOA 120-150 m: 3 rebocadores de >=40 TTE (ou 2 se o navio tiver bow thruster).\n"
-    "- LOA ate 165-185 m (manobras diurnas): 3 rebocadores de >=40 TTE, sendo 2 azimutais (ou 2 "
-    "azimutais se tiver bow thruster); ate 185 m ha restricao se houver navio de boca >30 m "
-    "atracado entre os cabecos 150 e 178.\n"
-    "- LOA > 200 m ou calado > 8 m: 2 rebocadores azimutais de >=43 TTE.\n"
-    "- Navios-tanque do Terminal de Oleo, LOA <=185 m: 3 rebocadores de >=45 TTE (2 azimutais + "
-    "1 TKM de mais de um eixo).\n"
-    "- TECON-RJ, navios grandes (calado ate 14,6 m com mare): 295-335 m de LOA (ou boca 42-48,5 m) "
-    "= 2 rebocadores de 60 TTE + 2 de 55 TTE, todos azimutais; 335-349 m de LOA (ou boca 48,5-52 m) "
-    "= 2 de 70 TTE + 2 de 60 TTE, todos azimutais.\n"
-    "- Somatorios para navios muito grandes: LOA > 290 m sem thruster = 4 rebocadores, somatorio "
-    "160 TTE (>=2 azimutais + 2 TKM, min 40 por unidade); com thruster = 3 rebocadores, somatorio "
-    "140 TTE.\n"
-    "TERMINAIS/CASOS DE ALTA DEMANDA: navio de gas (LNGC) = 5 rebocadores azimutais (2 de >=70 TTE "
-    "+ 3 de >=60 TTE). Pieres de petroleo (PP-I, PP-II, PS-I, PS-II) = rebocadores azimutais de "
-    ">=50 TTE. Quadro de boias = manter 2 rebocadores de >=45 TTE disponiveis para atendimento em "
-    "ate 15 min; amarracao com 4 rebocadores de 45 TTE. Carga perigosa: DWT >=40.000 t = 2 "
-    "rebocadores de >=60 TTE com cabos passados; DWT entre 5.000 e 40.000 t = 2 de >=45 TTE.\n"
-    "REGRA DE OURO: quando o rebocador (e o bow thruster) e obrigatorio, o Comandante NAO pode "
-    "dispensa-lo. Praticagem e obrigatoria para embarcacoes com AB a partir de 500 (Lei 9.537/97). "
-    "Os praticos aguardam nos Pontos de Espera de Pratico (PEP) da ZP-15.\n"
-    "FUNDEADOUROS E TRAFEGO: ha Areas de Fundeio numeradas (ex.: no 2, no 3, no 9) usadas para "
-    "espera/staging — o ferro-gusa carrega na Area de Fundeio no 3 (alternativa no 9). Velocidade "
-    "maxima de 3 nos nos canais restritos da Baia da Ilha Grande e ate 5 nos em areas especificas. "
-    "Contato: Praticagem pelo VHF canal 12 ('Praticagem Rio', via Atalaia); canal 16 para chamada "
-    "e seguranca.\n"
-    "USO: ao responder, relacione o porte do navio (LOA/boca/calado/DWT) e o terminal com a "
-    "exigencia de rebocadores/TTE acima para estimar a demanda da SAAM; cite a faixa aplicada e "
-    "recomende confirmar na NPCP-RJ oficial em decisao critica."
+    # Foco operacional atual: Baia de Guanabara. Fonte: NPCP-RJ (3a Rev., Mod.2)
+    # + Portarias CPRJ no 11 e no 110/2026. Detalhe humano em
+    # docs/conhecimento/npcp-rj-bg-terminais.md (fichas por terminal).
+    """NORMAS LOCAIS DO PORTO (NPCP-RJ) — CONHECIMENTO ESTRATEGICO — FOCO: BAIA DE GUANABARA.
+Fontes: NPCP-RJ (3a Revisao, Mod.2) e Portarias CPRJ/COMOPNAV/MB no 11 (06/03/2026) e no 110 (14/05/2026), em vigor. Use para antecipar demanda de rebocadores (numero, tipo e TTE — tonelada de tracao estatica), janelas e restricoes; cite o terminal/regra aplicada e, em decisao critica, recomende confirmar na publicacao oficial. As demais subzonas da ZP-15 (Itaguai/Sepetiba, Angra/TPAR, Acu, Paraty, Forno) constam na norma, mas o foco operacional atual e a Baia de Guanabara.
+
+POR QUE IMPORTA PARA A SAAM: cada terminal define QUANTOS rebocadores e qual TTE minimo a manobra exige — demanda direta da nossa frota. Onde ha dispensa (navios/EAM com DP e sistemas plenos), a demanda cai. Janelas de mare/vento e restricoes diurno/noturno CONCENTRAM manobras no tempo — antecipe picos e sobreposicao.
+
+CAIS COMERCIAL (Gamboa / Sao Cristovao / Caju):
+- Gamboa: LOA <=165 m e calado <=8 m = 2 rebocadores TKM >=43 TTE; LOA 165-200 m com giro = 2 (1 azimutal + 1 TKM) ou 3 TKM, todos >=43 TTE (sem giro: 2 TKM >=43 TTE); LOA >200 m ou calado >8 m = 2 azimutais >=43 TTE. Giro leve recomendado (atracar BE para carregar; BB para descarregar).
+- Sao Cristovao: LOA <=120 m (diurno/noturno) = 2 rebocadores >=40 TTE; 120-150 m = 3 >=40 TTE (2 se tiver bow thruster); 150-185 m (SO DIURNO) = 3 >=40 TTE sendo 2 azimutais (2 azimutais com thruster; ate 185 m exige cabecos 150-178 livres de navio com boca >30 m).
+- Calados por trecho: cabecos 36-110 = 10,30 m (max 11,00 com mare); 110-129 = 9,00 (max 9,70); 129-205 = 8,50 (max 9,00; LOA <=185 m); 205-216 = 8,20 (max 9,00).
+
+TECON-RJ (ate 349 m de LOA; calado 14,50 m, ate 15,30 com mare; prioridade do canal: porta-conteineres do TECON e Ro-Ro; programacao previa + aviso a Praticagem VHF 12 com 30 min). Escada de reboque:
+- LOA <=155 m: 2 rebocadores, somatorio 80 TTE (>=1 azimutal, min 40/un.);
+- 155-200 m: 2 azimutais, somatorio 80 TTE;
+- 200-250 m (ou DWT 40-60 mil t): 3 rebocadores, somatorio 90 TTE (2 azimutais); com bow thruster: 2 azimutais, somatorio 80;
+- 250-290 m (ou DWT 60-80 mil t): 3 rebocadores, somatorio 140 TTE; com thruster: somatorio 120;
+- LOA >290 m sem thruster: 4 rebocadores, somatorio 160 TTE (2 azimutais + 2 TKM, min 40/un.); com thruster: 3, somatorio 140;
+- Gigantes com calado 14,5-14,6 m: LOA 295-335 m (boca 42-48,5 m) = 2x60 TTE + 2x55 TTE, todos azimutais; LOA 335-349 m (boca 48,5-52 m) = 2x70 TTE + 2x60 TTE, todos azimutais. Dois praticos quando LOA >295 m ou boca >42 m; vento <=15 nos; manobras diurnas para os muito grandes.
+- Restricao de porte no trecho 197-216 (via TECON): LOA 120-150 m diurno/noturno; 150-185 m SO DIURNO; acima de 185 m nao passa.
+
+TERMINAL DE OLEO (cabecos 197-205): navios-tanque LOA <=185 m = 3 rebocadores >=45 TTE (2 azimutais + 1 TKM multi-eixo). Canal por calado/bordo: entrada com calado 6,10-7,80 m SO via canal do TECON; saida atracado BE via Canal Comercial (calado <=6,10 m); atracado BB sai via TECON.
+
+TERMINAL ALMIRANTE TAMANDARE (Ilha d'Agua, Petrobras — pieres PP-I, PP-II, PS-I, PS-II; canal de 10 milhas dragado a 17 m). TODOS os rebocadores azimutais >=50 TTE:
+- PP-I (LOA 279,5 m): DWT <=60 mil t e calado <=12 m = 2; calado >12 m = 3; DWT >60 mil = 4.
+- PP-II (LOA 259 m): 3 (DWT <=60 mil, calado <=12 m) a 4 (DWT 60-135 mil ou calado >12 m; 90-135 mil = diurno).
+- PS-I (LOA 186,4 m): 2 a 3 conforme giro. PS-II (LOA 175 m): DWT <=7 mil = 2; 7-15 mil = 3; >15 mil = 4.
+- Calado >11,50 m vindo de fora da BG: entrada e saida DIURNAS. Alta demanda recorrente de reboque pesado.
+
+GLP TAIC/TAIR (Ilhas Comprida e Redonda, Petrobras): TAIC = 3 azimutais >=45 TTE (calado leve ate 6,40 m) ou 4 azimutais >=45 TTE (carregado ate 10,60 m). TAIR = minimo 3 azimutais >=45 TTE; atracacao SO DIURNA e contra a corrente. Os rebocadores ESCOLTAM o navio desde antes da Ponte Rio-Niteroi ate o terminal (entrada) e ate a Ponte (saida).
+
+GNL (terminal flexivel de regaseificacao, pieres PG-1/PG-2, LNGC ate LOA 315 m): entrada = 2 rebocadores (azimutais ou TKM) somatorio >=120 TTE com CABOS PASSADOS no vao central da Ponte Rio-Niteroi; atracacao/desatracacao/saida = 3 azimutais >=40 TTE; apos atracado, 1 rebocador >=45 TTE de PRONTIDAO 24 h. Entrada so diurna; zona de seguranca 500-600 m; transito interno <=8 nos; VHF 13.
+
+MANGUINHOS (quadro de boias, navio ate LOA ~190 m): amarracao = 4 rebocadores >=45 TTE (3 azimutais + 1 TKM); desamarracao = 4 (2 azimutais + 2 TKM); STANDBY de 2 rebocadores >=45 TTE prontos em ate 15 min enquanto o navio estiver amarrado. Diurno; mare vazante; vento <=16 nos.
+
+NEOLUBES (Ponte do Thun, Shell; LOA ate 206 m): 2 azimutais >=50 TTE em TODAS as manobras; SO DIURNO; 1 navio por vez no canal; vento <=15 nos.
+
+NITEROI / CAJU — dispensas e casos leves (menos demanda):
+- Brasco Base Niteroi: navio-tipo com DP dispensa rebocador; manobras SO nos estofos de mare; 1 navio por vez no canal.
+- MacLaren Ilha da Conceicao e BHGE Caximbau: navio tipo 1 (LOA 146 m) = 2 rebocadores >=40 TTE (azimutal/TKM/ASD); tipo 2 (LOA 97 m) com sistemas plenos = dispensado.
+- Braskem (LOA 130 m): 2 TKM >=35 TTE; diurno. Subsea7 (LOA 85,5 m): dispensado com sistemas plenos.
+- RBT/CLIP (Caju): tipo 1 EAM (LOA 160 m) dispensado; tipo 2 carga geral (LOA 140 m) = 2 TKM/ASD >=45 TTE.
+
+ESTALEIROS: EISA (Ilha do Governador) = entrada/saida de cascos SOB REBOQUE obrigatorio (DWT <=45 mil t = 2 azimutais; 45-55 mil = 3 azimutais; apoio maritimo com DP = dispensado); assessoria por AMD, transferencia pratico/AMD na isobata de 10 m. Maua (Niteroi): bercos ate LOA 230 m; sem exigencia explicita de rebocador na norma.
+
+FERRO-GUSA (Cais Comercial, cabecos ~95-99 <-> Area de Fundeio no 3, alternativa no 9): comboio ~150 m = 1 rebocador >=45 TTE (conduz a balsa) + 1 >=25 TTE (apoio a atracacao); 3 nos; sem praticagem obrigatoria; visibilidade >=2 milhas nauticas, vento <=20 nos; diurno/noturno; VHF 12. Oportunidade recorrente.
+
+CARGA PERIGOSA (regra geral): DWT >=40.000 t = 2 rebocadores (TKM/ASD) >=60 TTE com cabos passados; DWT 5.000-40.000 t com carga perigosa = 2 rebocadores >=45 TTE.
+
+REGRAS DE OURO: quando o rebocador (ou bow thruster) e obrigatorio, o Comandante NAO pode dispensa-lo. Praticagem obrigatoria para AB >=500 (Lei 9.537/97); os praticos aguardam nos Pontos de Espera de Pratico (PEP). ERU da ZP-15: minimo 58 fainas/quadrimestre por pratico; periodo de escala das 11h01 as 11h do dia seguinte.
+
+FUNDEADOUROS E CONTATO (BG): Areas de Fundeio numeradas (ex.: no 2, no 3, no 9) para espera/staging. Praticagem no VHF canal 12 ('Praticagem Rio', via Atalaia); VHF 16 chamada/seguranca; GNL opera no VHF 13.
+
+USO: cruze o porte do navio (LOA/boca/calado/DWT) e o terminal da manobra programada com as exigencias acima para estimar QUANTOS rebocadores e qual TTE a manobra demanda; aponte as janelas (diurno/mare) que concentram demanda; cite a regra aplicada."""
 )
 
 
