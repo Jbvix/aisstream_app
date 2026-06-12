@@ -24,6 +24,7 @@ Inventário do que o KRATOS enxerga ao conversar (texto e voz). Fonte:
 | 13 | **Perfil do usuário** | `userProfile` | nome, função e padrões de decisão (persistido em `kratos_user_profile.json`) |
 | 14 | **Visão do mapa** | `userMapView` | centro, zoom e área visível (enviado pela voz ao vivo do mapa; aceito também no chat) |
 | 16 | **Status AIS da frota** | `fleetAisStatus` | para cada rebocador cadastrado (nosso e concorrente): ativo, última posição/idade do sinal, ou "sem sinal — possivelmente barra fora / fora da cobertura do Rio". Frota editável no painel **Frota** do mapa (`/api/fleet`). |
+| 17 | **Guia da interface** | `KRATOS_APP_GUIDE` (prompt) | mapa completo das telas (mapa, painel estratégico, grafo): header, lâmpadas, chips de maré/vento, dock lateral, painéis, ícones, caixa de insights, seções do painel. Permite **tour guiado por partes** quando o usuário pede ("me faça um tour"). |
 | 15 | Histórico da conversa | `history` | últimos 8 turnos (texto); na voz, a própria sessão Realtime mantém o fio |
 
 ## Comportamentos ligados ao conhecimento
