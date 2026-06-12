@@ -9,6 +9,7 @@ data/users/default/strategy_memory.json
 data/users/*/vessels_snapshot.json
 data/users/*/vessels_snapshot.json.tmp
 data/users/*/kratos_user_profile.json
+data/users/*/fleet_config.json
 
 __pycache__/
 *.pyc

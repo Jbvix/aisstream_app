@@ -1058,6 +1058,15 @@
       .kratos-insights { width: 240px; max-width: 60vw; }
     }
 
+    /* Lista do painel Frota */
+    .fleet-list { display: flex; flex-direction: column; gap: 4px; font-size: 0.78rem; }
+    .fleet-group { color: var(--muted); font-weight: 700; margin-top: 6px; letter-spacing: 0.04em; }
+    .fleet-row { display: flex; align-items: center; gap: 6px; padding: 3px 6px; border: 1px solid var(--line-soft); border-radius: 8px; background: rgba(9, 22, 37, 0.6); }
+    .fleet-row .nm { flex: 1; color: var(--text); }
+    .fleet-row .mm { color: var(--muted); font-variant-numeric: tabular-nums; }
+    .fleet-row button { background: transparent; border: none; color: #ff8a8a; cursor: pointer; font-size: 0.85rem; padding: 0 2px; }
+    .fleet-row button.swap { color: var(--accent); }
+
     .vessel-icon {
       width: 26px;
       height: 26px;
@@ -1432,6 +1441,9 @@
       <button type="button" class="dock-btn" data-panel="weather" title="Tempo, maré e vento" aria-label="Tempo, maré e vento">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 19h11a4 4 0 0 0 .7-7.94A6 6 0 0 0 6.2 9.9 4.2 4.2 0 0 0 6 19zm2-9a3 3 0 0 1 5.65-1.41l.32.64.72.06A2.5 2.5 0 0 1 17 11.8l-.08.67.64.22A2 2 0 0 1 17 16H8a2 2 0 0 1 0-4z"/></svg>
       </button>
+      <button type="button" class="dock-btn" data-panel="frota" title="Frota (MMSI dos rebocadores)" aria-label="Gestão de frota">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l2.5 5H19l-3.5 3 1.5 5-5-3-5 3 1.5-5L5 7h4.5L12 2z" opacity=".35"/><path d="M4 17h16l-1.5 3h-13L4 17zm2.2-2L5 9h3V7h3V5h2v2h3v2h3l-1.2 6H6.2z"/></svg>
+      </button>
       <div class="dock-spacer"></div>
     </aside>
 
@@ -1562,6 +1574,51 @@
               <select id="areaSelect"></select>
             </div>
             <button id="applyAreaBtn">Aplicar área</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="panel-frota" class="float-panel" data-panel="frota" role="dialog" aria-label="Gestão de frota">
+        <div class="float-panel__header" data-drag-handle="true">
+          <div class="float-panel__title">Frota — MMSI dos rebocadores</div>
+          <div class="float-panel__actions">
+            <button type="button" class="float-panel__icon-btn" data-panel-close="frota" aria-label="Fechar painel Frota">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="float-panel__body">
+          <div class="menu-card">
+            <p class="hint" style="margin:0 0 8px;">Inclua ou substitua rebocadores quando a frota SAAM ou concorrente mudar. As alterações valem para o mapa, o painel e o KRATOS.</p>
+            <div id="fleetList" class="fleet-list">Carregando frota…</div>
+          </div>
+          <div class="menu-card">
+            <div class="control">
+              <label for="fleetCompany">Frota</label>
+              <select id="fleetCompany">
+                <option value="SAAM">SAAM (nossa)</option>
+                <option value="WIL">WIL (concorrente)</option>
+                <option value="CAM">CAM (concorrente)</option>
+              </select>
+            </div>
+            <div class="control">
+              <label for="fleetMmsi">MMSI</label>
+              <input id="fleetMmsi" type="text" inputmode="numeric" placeholder="Ex.: 710012345" />
+            </div>
+            <div class="control">
+              <label for="fleetName">Nome do rebocador</label>
+              <input id="fleetName" type="text" placeholder="Ex.: SAAM TITAN" />
+            </div>
+            <div class="control" id="fleetAbbrWrap">
+              <label for="fleetAbbr">Sigla (lâmpada do topo, só SAAM)</label>
+              <input id="fleetAbbr" type="text" maxlength="3" placeholder="Ex.: TT" />
+            </div>
+            <div class="control">
+              <label for="fleetReplace">Substituir (opcional)</label>
+              <select id="fleetReplace"><option value="">— apenas incluir —</option></select>
+            </div>
+            <button type="button" id="fleetSaveBtn">Salvar na frota</button>
+            <div id="fleetMsg" class="hint" style="margin-top:6px;min-height:1.1em;"></div>
           </div>
         </div>
       </section>
@@ -1749,6 +1806,134 @@
     const COMPETITOR_BY_MMSI = new Map(COMPETITOR_ROSTER.map((t) => [String(t.mmsi), t]));
     function getCompetitorInfo(v) {
       return COMPETITOR_BY_MMSI.get(String(v?.mmsi || "")) || null;
+    }
+
+    // ===== Gestão de frota (painel "Frota"): sincroniza rosters com o backend =====
+    function applyFleetToRosters(fleet) {
+      SAAM_BGRA_ROSTER.length = 0;
+      (fleet.saam || []).forEach((t) => SAAM_BGRA_ROSTER.push({ mmsi: String(t.mmsi), name: t.name, abbr: t.abbr || String(t.mmsi).slice(-2) }));
+      COMPETITOR_ROSTER.length = 0;
+      COMPETITOR_BY_MMSI.clear();
+      Object.entries(fleet.competitors || {}).forEach(([company, tugs]) => {
+        (tugs || []).forEach((t) => {
+          const row = { mmsi: String(t.mmsi), name: t.name, company };
+          COMPETITOR_ROSTER.push(row);
+          COMPETITOR_BY_MMSI.set(row.mmsi, row);
+        });
+      });
+    }
+
+    function renderFleetPanel(fleet) {
+      const list = document.getElementById("fleetList");
+      const replaceSel = document.getElementById("fleetReplace");
+      if (!list) return;
+      const esc = (s) => escapeHtml(String(s ?? ""));
+      let html = "";
+      const section = (label, tugs, showAbbr) => {
+        html += `<div class="fleet-group">${label}</div>`;
+        (tugs || []).forEach((t) => {
+          const ab = showAbbr && t.abbr ? ` <span class="mm">[${esc(t.abbr)}]</span>` : "";
+          html += `<div class="fleet-row"><span class="nm">${esc(t.name)}${ab}</span><span class="mm">${esc(t.mmsi)}</span>`
+            + `<button type="button" title="Remover" data-fleet-remove="${esc(t.mmsi)}">✕</button></div>`;
+        });
+        if (!tugs || !tugs.length) html += `<div class="fleet-row"><span class="nm" style="color:var(--muted)">— vazio —</span></div>`;
+      };
+      section("SAAM (nossa)", fleet.saam, true);
+      section("WIL", (fleet.competitors || {}).WIL, false);
+      section("CAM", (fleet.competitors || {}).CAM, false);
+      list.innerHTML = html;
+      // Popular o seletor "substituir" com todos os rebocadores atuais.
+      if (replaceSel) {
+        const opts = ['<option value="">— apenas incluir —</option>'];
+        (fleet.saam || []).forEach((t) => opts.push(`<option value="${esc(t.mmsi)}">SAAM · ${esc(t.name)} (${esc(t.mmsi)})</option>`));
+        Object.entries(fleet.competitors || {}).forEach(([c, tugs]) => (tugs || []).forEach((t) => opts.push(`<option value="${esc(t.mmsi)}">${esc(c)} · ${esc(t.name)} (${esc(t.mmsi)})</option>`)));
+        replaceSel.innerHTML = opts.join("");
+      }
+    }
+
+    function refreshFleetDependentUi() {
+      renderSaamHeaderLamps();
+      renderSaamBgraFleetPanel();
+      refreshMarkerIconsForZoom();   // anel de concorrente / dourado SAAM
+      markers.forEach((entry) => entry.marker.setPopupContent(vesselPopup(entry.vessel)));
+    }
+
+    async function loadFleet() {
+      try {
+        const res = await fetch(apiUrl("/api/fleet"));
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!data.ok || !data.fleet) return;
+        applyFleetToRosters(data.fleet);
+        renderFleetPanel(data.fleet);
+        refreshFleetDependentUi();
+      } catch (_) {}
+    }
+
+    function setupFleetPanel() {
+      const saveBtn = document.getElementById("fleetSaveBtn");
+      const msg = document.getElementById("fleetMsg");
+      const companySel = document.getElementById("fleetCompany");
+      const abbrWrap = document.getElementById("fleetAbbrWrap");
+      const list = document.getElementById("fleetList");
+      if (!saveBtn) return;
+      const setMsg = (t, ok) => { if (msg) { msg.textContent = t; msg.style.color = ok ? "#37d989" : "#ff8a8a"; } };
+      if (companySel && abbrWrap) {
+        const syncAbbr = () => { abbrWrap.style.display = companySel.value === "SAAM" ? "" : "none"; };
+        companySel.addEventListener("change", syncAbbr);
+        syncAbbr();
+      }
+      saveBtn.addEventListener("click", async () => {
+        const payload = {
+          fleet: companySel?.value || "SAAM",
+          mmsi: document.getElementById("fleetMmsi")?.value || "",
+          name: document.getElementById("fleetName")?.value || "",
+          abbr: document.getElementById("fleetAbbr")?.value || "",
+          replaceMmsi: document.getElementById("fleetReplace")?.value || "",
+        };
+        saveBtn.disabled = true;
+        try {
+          const res = await fetch(apiUrl("/api/fleet/tug"), {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Accept: "application/json" },
+            body: JSON.stringify(payload),
+          });
+          const body = await res.json().catch(() => ({}));
+          if (!res.ok || !body.ok) throw new Error(body.error || `HTTP ${res.status}`);
+          applyFleetToRosters(body.fleet);
+          renderFleetPanel(body.fleet);
+          refreshFleetDependentUi();
+          setMsg("Frota atualizada. KRATOS já enxerga a mudança.", true);
+          ["fleetMmsi", "fleetName", "fleetAbbr"].forEach((id) => { const el = document.getElementById(id); if (el) el.value = ""; });
+        } catch (e) {
+          setMsg(String(e.message || e), false);
+        } finally {
+          saveBtn.disabled = false;
+        }
+      });
+      if (list) {
+        list.addEventListener("click", async (ev) => {
+          const btn = ev.target.closest("[data-fleet-remove]");
+          if (!btn) return;
+          const mmsi = btn.getAttribute("data-fleet-remove");
+          if (!window.confirm(`Remover o rebocador MMSI ${mmsi} da frota?`)) return;
+          try {
+            const res = await fetch(apiUrl("/api/fleet/tug/remove"), {
+              method: "POST",
+              headers: { "Content-Type": "application/json", Accept: "application/json" },
+              body: JSON.stringify({ mmsi }),
+            });
+            const body = await res.json().catch(() => ({}));
+            if (!res.ok || !body.ok) throw new Error(body.error || `HTTP ${res.status}`);
+            applyFleetToRosters(body.fleet);
+            renderFleetPanel(body.fleet);
+            refreshFleetDependentUi();
+            setMsg("Rebocador removido.", true);
+          } catch (e) {
+            setMsg(String(e.message || e), false);
+          }
+        });
+      }
     }
     const SAAM_STALE_MS = 5 * 60 * 1000;
     let socket = null;
@@ -2066,7 +2251,8 @@
       area: document.getElementById("panel-area"),
       filters: document.getElementById("panel-filters"),
       geofence: document.getElementById("panel-geofence"),
-      saam: document.getElementById("panel-saam")
+      saam: document.getElementById("panel-saam"),
+      frota: document.getElementById("panel-frota")
     };
 
     const FloatPanels = (() => {
@@ -3869,6 +4055,9 @@
         // Navios que a SAAM vai manobrar (EMP.RB = SAA): atualiza a cada 2 min.
         refreshSaamManeuverNames().catch(() => {});
         setInterval(() => { refreshSaamManeuverNames().catch(() => {}); }, 120000);
+        // Gestão de frota: sincroniza rosters com o backend e arma o painel.
+        setupFleetPanel();
+        loadFleet().catch(() => {});
         // Insights do KRATOS na caixa datilografada (canto inferior esquerdo).
         refreshKratosInsights().catch(() => {});
         setInterval(() => { refreshKratosInsights().catch(() => {}); }, KRATOS_INSIGHTS_REFRESH_MS);

@@ -469,6 +469,85 @@ def load_vessels_snapshot():
         latest_vessel_by_mmsi[mmsi] = v
 
 
+# ===== Frota dinâmica (SAAM e concorrentes editáveis em runtime) =====
+
+def fleet_config_file() -> Path:
+    return user_data_dir(DASHBOARD_USER_ID) / "fleet_config.json"
+
+
+def _current_fleet_config() -> dict:
+    return {
+        "saam": [
+            {"mmsi": m, "name": SAAM_BGRA_NAMES.get(m, ""), "abbr": SAAM_MMSI_ABBR.get(m, m[-2:])}
+            for m in sorted(SAAM_BGRA_MMSI_SET)
+        ],
+        "competitors": {
+            company: [dict(t) for t in tugs] for company, tugs in COMPETITOR_TUGS.items()
+        },
+    }
+
+
+def _rebuild_fleet_structures(saam: list, competitors: dict):
+    """Atualiza in-place as estruturas globais de frota (todas as referências
+    do app passam a enxergar a frota nova) e corrige o flag isSaamBgra do buffer."""
+    SAAM_BGRA_NAMES.clear()
+    SAAM_MMSI_ABBR.clear()
+    for t in saam:
+        m = str(t.get("mmsi") or "").strip()
+        if not m:
+            continue
+        SAAM_BGRA_NAMES[m] = str(t.get("name") or f"SAAM {m[-4:]}").strip()
+        SAAM_MMSI_ABBR[m] = (str(t.get("abbr") or "").strip() or m[-2:]).upper()[:3]
+    SAAM_BGRA_MMSI_SET.clear()
+    SAAM_BGRA_MMSI_SET.update(SAAM_BGRA_NAMES.keys())
+    COMPETITOR_TUGS.clear()
+    for company, tugs in (competitors or {}).items():
+        rows = []
+        for t in tugs or []:
+            m = str(t.get("mmsi") or "").strip()
+            if m:
+                rows.append({"mmsi": m, "name": str(t.get("name") or m).strip()})
+        COMPETITOR_TUGS[str(company).strip().upper()] = rows
+    COMPETITOR_COMPANY_BY_MMSI.clear()
+    COMPETITOR_COMPANY_BY_MMSI.update(
+        {t["mmsi"]: company for company, tugs in COMPETITOR_TUGS.items() for t in tugs}
+    )
+    # Reclassifica embarcações já no buffer (o flag é gravado na ingestão).
+    for m, v in list(latest_vessel_by_mmsi.items()):
+        if isinstance(v, dict):
+            v["isSaamBgra"] = m in SAAM_BGRA_MMSI_SET
+
+
+def save_fleet_config():
+    try:
+        fleet_config_file().write_text(
+            json.dumps(_current_fleet_config(), ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+    except OSError:
+        pass
+
+
+_fleet_config_loaded = False
+
+
+def ensure_fleet_config_loaded():
+    """Carrega a frota persistida (se existir) sobrepondo os padrões do código."""
+    global _fleet_config_loaded
+    if _fleet_config_loaded:
+        return
+    _fleet_config_loaded = True
+    try:
+        p = fleet_config_file()
+        if not p.exists():
+            return
+        cfg = json.loads(p.read_text(encoding="utf-8"))
+        if isinstance(cfg, dict) and (cfg.get("saam") or cfg.get("competitors")):
+            _rebuild_fleet_structures(cfg.get("saam") or [], cfg.get("competitors") or {})
+    except (OSError, json.JSONDecodeError):
+        pass
+
+
 def migrate_legacy_geofences_if_needed(user_id: str):
     dest = geofences_file_for_user(user_id)
     if dest.exists():
@@ -1074,6 +1153,7 @@ def ensure_vessels_snapshot_loaded():
 def ensure_live_worker_started():
     global live_worker_thread
     ensure_vessels_snapshot_loaded()
+    ensure_fleet_config_loaded()
     if current_mode != "live" or not AISSTREAM_API_KEY:
         return
     with live_worker_lock:
@@ -2361,8 +2441,43 @@ def _recent_tracks_summary():
     return out
 
 
-# ===== Perfil do usuário (KRATOS conhece quem opera) =====
+def _fleet_ais_status():
+    """Status AIS de cada rebocador cadastrado (nosso e concorrente).
 
+    Sem posição ou sem atualização há muito tempo => possivelmente saiu barra
+    fora / fora da área de cobertura do Rio de Janeiro.
+    """
+    now = time.time()
+
+    def status_row(mmsi: str, name: str, fleet: str):
+        v = latest_vessel_by_mmsi.get(mmsi)
+        row = {"mmsi": mmsi, "name": name, "fleet": fleet}
+        if not v or v.get("latitude") is None:
+            row["aisStatus"] = (
+                "sem sinal AIS na cobertura (Rio de Janeiro) — possivelmente barra fora / fora da área"
+            )
+            return row
+        ts = _parse_vessel_timestamp_unix(v)
+        age_min = round((now - ts) / 60) if ts and now > ts else None
+        row["lastLat"] = round(float(v["latitude"]), 5)
+        row["lastLon"] = round(float(v["longitude"]), 5)
+        if age_min is not None:
+            row["lastSeenMinutesAgo"] = age_min
+        if age_min is not None and age_min > 60:
+            row["aisStatus"] = (
+                f"sem atualização há {age_min} min — possivelmente saiu barra fora ou desligou o AIS"
+            )
+        else:
+            row["aisStatus"] = "ativo"
+        return row
+
+    rows = [status_row(m, n, "SAAM") for m, n in SAAM_BGRA_NAMES.items()]
+    for company, tugs in COMPETITOR_TUGS.items():
+        rows.extend(status_row(t["mmsi"], t.get("name", t["mmsi"]), company) for t in tugs)
+    return rows
+
+
+# ===== Perfil do usuário (KRATOS conhece quem opera) =====
 def kratos_profile_file() -> Path:
     return user_data_dir(DASHBOARD_USER_ID) / "kratos_user_profile.json"
 
@@ -2496,6 +2611,7 @@ def _strategy_context_dict():
         "userLearnedNotes": memory_items[:30],
         # Expansões de conhecimento:
         "vesselsOverview": _compact_vessels_overview(),
+        "fleetAisStatus": _fleet_ais_status(),
         "geofencesMap": _geofences_summary(),
         "maneuverDistances": _distances_and_eta_summary(enriched),
         "recentTracks": _recent_tracks_summary(),
@@ -2587,7 +2703,13 @@ KRATOS_SYSTEM_PROMPT = (
     "- Use distancias e ETA: maneuverDistances traz a distancia em milhas nauticas e o ETA de "
     "cada rebocador (nosso e concorrente) ate os navios das proximas manobras.\n"
     "- Leia a tendencia de deslocamento: recentTracks mostra o rastro recente dos rebocadores "
-    "(direcao, distancia percorrida, janela de tempo) — antecipe para onde cada um esta indo.\n\n"
+    "(direcao, distancia percorrida, janela de tempo) — antecipe para onde cada um esta indo.\n"
+    "- Verificacao de frota: fleetAisStatus traz o status AIS de cada rebocador cadastrado "
+    "(nosso e concorrente). Se um rebocador esta 'sem sinal' ou sem atualizacao ha muito tempo, "
+    "informe que ele possivelmente saiu BARRA FORA / esta fora da area de cobertura do Rio de "
+    "Janeiro (ou com AIS desligado). Se perguntarem por rebocador ou MMSI que nao consta na "
+    "frota cadastrada, procure em vesselsOverview; nao constando, diga que nao ha sinal na "
+    "cobertura do Rio e lembre que e possivel cadastra-lo no painel 'Frota' do mapa.\n\n"
     "FOCO: mantenha a conversa exclusivamente em operacoes portuarias, navegacao, apoio "
     "maritimo, meteorologia operacional, seguranca da navegacao e normas maritimas "
     "(NORMAM/Marinha do Brasil, SOLAS, MARPOL, COLREG). Pode orientar sobre essas normas com "
@@ -2787,6 +2909,68 @@ async def strategy_assistant(request: Request):
 async def strategy_assistant_under_dashboard_path(request: Request):
     """Mesmo comportamento de /api/dashboard/strategy-assistant para subpath /dashboard."""
     return await strategy_assistant(request)
+
+
+# ===== Gestão de frota (inclusão/substituição/remoção de rebocadores) =====
+VALID_FLEETS = {"SAAM", "WIL", "CAM"}
+
+
+@app.get("/api/fleet")
+def get_fleet():
+    ensure_fleet_config_loaded()
+    return {"ok": True, "fleet": _current_fleet_config()}
+
+
+@app.post("/api/fleet/tug")
+async def upsert_fleet_tug(request: Request):
+    """Inclui ou substitui um rebocador na frota.
+
+    Body: {fleet: "SAAM"|"WIL"|"CAM", mmsi, name, abbr?, replaceMmsi?}
+    Se replaceMmsi vier, o rebocador antigo é removido (substituição).
+    """
+    ensure_fleet_config_loaded()
+    payload = await request.json()
+    fleet = str(payload.get("fleet") or "").strip().upper()
+    mmsi = "".join(ch for ch in str(payload.get("mmsi") or "") if ch.isdigit())
+    name = str(payload.get("name") or "").strip().upper()
+    abbr = str(payload.get("abbr") or "").strip().upper()
+    replace_mmsi = "".join(ch for ch in str(payload.get("replaceMmsi") or "") if ch.isdigit())
+    if fleet not in VALID_FLEETS:
+        return JSONResponse({"ok": False, "error": f"fleet deve ser uma de {sorted(VALID_FLEETS)}"}, status_code=400)
+    if not (7 <= len(mmsi) <= 9):
+        return JSONResponse({"ok": False, "error": "MMSI inválido (use 7 a 9 dígitos)."}, status_code=400)
+    if not name:
+        return JSONResponse({"ok": False, "error": "Informe o nome do rebocador."}, status_code=400)
+
+    cfg = _current_fleet_config()
+    saam = [t for t in cfg["saam"] if t["mmsi"] not in (mmsi, replace_mmsi)]
+    comps = {
+        c: [t for t in tugs if t["mmsi"] not in (mmsi, replace_mmsi)]
+        for c, tugs in cfg["competitors"].items()
+    }
+    if fleet == "SAAM":
+        saam.append({"mmsi": mmsi, "name": name, "abbr": abbr or mmsi[-2:]})
+    else:
+        comps.setdefault(fleet, []).append({"mmsi": mmsi, "name": name})
+    _rebuild_fleet_structures(saam, comps)
+    save_fleet_config()
+    return {"ok": True, "fleet": _current_fleet_config()}
+
+
+@app.post("/api/fleet/tug/remove")
+async def remove_fleet_tug(request: Request):
+    """Remove um rebocador da frota. Body: {mmsi}."""
+    ensure_fleet_config_loaded()
+    payload = await request.json()
+    mmsi = "".join(ch for ch in str(payload.get("mmsi") or "") if ch.isdigit())
+    if not mmsi:
+        return JSONResponse({"ok": False, "error": "MMSI obrigatório."}, status_code=400)
+    cfg = _current_fleet_config()
+    saam = [t for t in cfg["saam"] if t["mmsi"] != mmsi]
+    comps = {c: [t for t in tugs if t["mmsi"] != mmsi] for c, tugs in cfg["competitors"].items()}
+    _rebuild_fleet_structures(saam, comps)
+    save_fleet_config()
+    return {"ok": True, "fleet": _current_fleet_config()}
 
 
 # ===== KRATOS Voz ao vivo (xAI Realtime Voice API) =====
