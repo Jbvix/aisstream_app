@@ -297,6 +297,16 @@
       opacity: 0.5;
       cursor: not-allowed;
     }
+    .strategy-box button.mic-active {
+      background: rgba(255, 75, 75, 0.22);
+      border-color: rgba(255, 75, 75, 0.7);
+      color: #ff8a8a;
+      animation: micPulse 1.2s ease-in-out infinite;
+    }
+    @keyframes micPulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(255, 75, 75, 0.5); }
+      50% { box-shadow: 0 0 0 6px rgba(255, 75, 75, 0); }
+    }
     /* Fio de conversa do KRATOS */
     #strategyAnswer {
       display: flex;
@@ -380,6 +390,8 @@
           <li><b>Gerar relatório:</b> resumo executivo consolidado do cenário atual.</li>
           <li><b>Gerar insights:</b> hipóteses e oportunidades acionáveis.</li>
           <li><b>Limpar conversa:</b> recomeça o fio do zero.</li>
+          <li><b>🎙️ Falar:</b> fale com o KRATOS pelo microfone (reconhecimento de voz PT-BR); sua fala vira mensagem e é enviada.</li>
+          <li><b>🔊 Voz:</b> o KRATOS responde em voz alta (síntese PT-BR). Clique para ligar/desligar. Recursos de voz funcionam melhor no Chrome/Edge.</li>
           <li><b>Aprendizado:</b> registre regras operacionais (ex.: “navio &gt;300m, priorizar 4 rebocadores”) para a memória do KRATOS.</li>
         </ul>
 
@@ -402,7 +414,7 @@
           <li>Embarcação parada/fundeada aparece como círculo; navegando, com vetor de proa proporcional à velocidade.</li>
           <li><b>Visualizar nomes:</b> ao ativar, os navios programados para <b>manobra pela SAAM</b> (EMP.RB = SAA), dentro ou fora da BG, aparecem com o nome em <b>label dourado destacado</b>.</li>
           <li><b>Persistência:</b> as embarcações continuam no mapa após recarregar a página (F5) e após reinício do servidor, exibindo a última posição conhecida até a próxima atualização do AIS.</li>
-          <li><b>Insights KRATOS (canto inferior esquerdo):</b> caixa datilografada com leitura em tempo real do cenário — manobras, rebocadores SAAM (inclusive quais estão na BASE BRASCO), maré (nível, tendência e próxima preia/baixa-mar), vento, concorrentes em geofence, simultaneidade e market share. Os insights ciclam automaticamente.</li>
+          <li><b>Insights KRATOS (canto inferior esquerdo):</b> caixa datilografada com leitura em tempo real do cenário — manobras, rebocadores SAAM (inclusive quais estão na BASE BRASCO), maré (nível, tendência e próxima preia/baixa-mar), vento, concorrentes em geofence, simultaneidade e market share. Os insights ciclam automaticamente. O botão 🔊 narra os insights em voz.</li>
         </ul>
 
         <h3>Integração Obsidian (Supabase)</h3>
@@ -444,6 +456,8 @@
       <textarea id="strategyLearnNote" placeholder="Aprendizado opcional para memória do KRATOS (ex.: Em navio >300m, priorizar 4 rebocadores)."></textarea>
       <div class="strategy-actions">
         <button type="button" id="btnStrategyAsk">Conversar com KRATOS</button>
+        <button type="button" id="btnStrategyMic" title="Falar com o KRATOS (microfone)">🎙️ Falar</button>
+        <button type="button" id="btnStrategyVoice" title="KRATOS responde em voz" aria-pressed="false">🔊 Voz: ligada</button>
         <button type="button" id="btnStrategyReport">Gerar relatório</button>
         <button type="button" id="btnStrategyInsights">Gerar insights</button>
         <button type="button" id="btnStrategyClear">Limpar conversa</button>
@@ -1005,6 +1019,76 @@
         .replaceAll(">", "&gt;");
     }
 
+    // ===== KRATOS Voice: fala (TTS) e escuta (STT) via Web Speech API =====
+    const KratosVoice = (() => {
+      const synth = window.speechSynthesis || null;
+      const SR = window.SpeechRecognition || window.webkitSpeechRecognition || null;
+      let voiceEnabled = true;
+      let preferredVoice = null;
+
+      function pickVoice() {
+        if (!synth) return null;
+        const voices = synth.getVoices() || [];
+        // Prefere voz pt-BR; cai para qualquer pt; senão a padrão.
+        preferredVoice =
+          voices.find((v) => /pt[-_]BR/i.test(v.lang)) ||
+          voices.find((v) => /^pt/i.test(v.lang)) ||
+          preferredVoice;
+        return preferredVoice;
+      }
+      if (synth) {
+        pickVoice();
+        synth.onvoiceschanged = pickVoice;
+      }
+
+      // Limpa marcações/emojis para a fala soar natural.
+      function clean(text) {
+        return String(text || "")
+          .replace(/[*_`#>]/g, "")
+          .replace(/\s+/g, " ")
+          .trim();
+      }
+
+      function speak(text) {
+        if (!synth || !voiceEnabled) return;
+        const t = clean(text);
+        if (!t) return;
+        try {
+          synth.cancel();
+          const u = new SpeechSynthesisUtterance(t.slice(0, 600));
+          u.lang = "pt-BR";
+          u.rate = 1.02;
+          u.pitch = 0.95;
+          if (preferredVoice) u.voice = preferredVoice;
+          synth.speak(u);
+        } catch (_) {}
+      }
+      function stop() { try { synth && synth.cancel(); } catch (_) {} }
+      function setEnabled(on) { voiceEnabled = !!on; if (!on) stop(); }
+      function isEnabled() { return voiceEnabled; }
+      function ttsSupported() { return !!synth; }
+      function sttSupported() { return !!SR; }
+
+      // Reconhecimento de fala (uma frase por vez).
+      function listen(onResult, onState) {
+        if (!SR) { onState && onState("unsupported"); return null; }
+        const rec = new SR();
+        rec.lang = "pt-BR";
+        rec.interimResults = false;
+        rec.maxAlternatives = 1;
+        rec.onstart = () => onState && onState("listening");
+        rec.onerror = (e) => onState && onState("error:" + (e.error || ""));
+        rec.onend = () => onState && onState("idle");
+        rec.onresult = (e) => {
+          const txt = e.results?.[0]?.[0]?.transcript || "";
+          if (txt) onResult && onResult(txt);
+        };
+        try { rec.start(); } catch (_) {}
+        return rec;
+      }
+      return { speak, stop, setEnabled, isEnabled, ttsSupported, sttSupported, listen };
+    })();
+
     async function askStrategyAssistant(action) {
       const qEl = document.getElementById("strategyQuestion");
       const learnEl = document.getElementById("strategyLearnNote");
@@ -1054,7 +1138,9 @@
         if (!res.ok || !body.ok) {
           throw new Error(body.error || `HTTP ${res.status}`);
         }
-        kratosChatHistory.push({ role: "assistant", content: String(body.answer || "Sem resposta.") });
+        const answer = String(body.answer || "Sem resposta.");
+        kratosChatHistory.push({ role: "assistant", content: answer });
+        KratosVoice.speak(answer);
         if (learnEl) learnEl.value = "";
       } catch (e) {
         kratosChatHistory.push({ role: "assistant", content: `Falha no KRATOS: ${String(e.message || e)}` });
@@ -1241,6 +1327,53 @@
         askStrategyAssistant("ask");
       }
     });
+
+    // ===== Botões de voz =====
+    (function setupVoiceButtons() {
+      const micBtn = document.getElementById("btnStrategyMic");
+      const voiceBtn = document.getElementById("btnStrategyVoice");
+      const qEl = document.getElementById("strategyQuestion");
+
+      // Liga/desliga a fala do KRATOS.
+      if (voiceBtn) {
+        if (!KratosVoice.ttsSupported()) {
+          voiceBtn.textContent = "🔇 Voz indisponível";
+          voiceBtn.disabled = true;
+        } else {
+          voiceBtn.addEventListener("click", () => {
+            const on = !KratosVoice.isEnabled();
+            KratosVoice.setEnabled(on);
+            voiceBtn.textContent = on ? "🔊 Voz: ligada" : "🔇 Voz: desligada";
+            voiceBtn.setAttribute("aria-pressed", String(on));
+          });
+        }
+      }
+
+      // Microfone: fala vira texto e envia direto.
+      if (micBtn) {
+        if (!KratosVoice.sttSupported()) {
+          micBtn.textContent = "🎙️ Mic indisponível";
+          micBtn.disabled = true;
+        } else {
+          let listening = false;
+          micBtn.addEventListener("click", () => {
+            if (listening) return;
+            KratosVoice.stop(); // não ouvir a si mesmo
+            KratosVoice.listen(
+              (text) => {
+                if (qEl) qEl.value = text;
+                askStrategyAssistant("ask");
+              },
+              (state) => {
+                listening = state === "listening";
+                micBtn.textContent = listening ? "🎙️ Ouvindo…" : "🎙️ Falar";
+                micBtn.classList.toggle("mic-active", listening);
+              }
+            );
+          });
+        }
+      }
+    })();
     document.getElementById("marketWindow").addEventListener("change", () => {
       renderMarketShare(getSelectedMarketShare());
     });

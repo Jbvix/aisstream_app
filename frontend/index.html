@@ -1016,6 +1016,20 @@
       text-transform: uppercase;
       letter-spacing: 0.05em;
     }
+    .kratos-insights__btn {
+      margin-left: 6px;
+      background: transparent;
+      border: 1px solid var(--line-soft);
+      border-radius: 6px;
+      color: var(--accent);
+      font-size: 0.75rem;
+      line-height: 1;
+      padding: 3px 6px;
+      cursor: pointer;
+      pointer-events: auto;
+    }
+    .kratos-insights__btn[aria-pressed="false"] { opacity: 0.5; }
+    .kratos-insights__btn:hover { background: rgba(53, 200, 255, 0.14); }
     .kratos-insights__live::before {
       content: "";
       width: 6px;
@@ -1663,6 +1677,7 @@
           <span class="kratos-insights__k">K</span>
           <span class="kratos-insights__title">KRATOS · Insights</span>
           <span class="kratos-insights__live">ao vivo</span>
+          <button type="button" id="kratosVoiceBtn" class="kratos-insights__btn" title="Narrar insights em voz" aria-pressed="false">🔊</button>
         </div>
         <div class="kratos-insights__text"><span id="kratosInsightText"></span><span class="kratos-insights__cursor">▋</span></div>
       </div>
@@ -2843,11 +2858,43 @@
     let kratosTypeTimer = null;
     let kratosHoldTimer = null;
 
+    // Voz dos insights (TTS via Web Speech). Desligada por padrão no mapa.
+    const KratosMapVoice = (() => {
+      const synth = window.speechSynthesis || null;
+      let enabled = false;
+      let voice = null;
+      function pick() {
+        if (!synth) return;
+        const vs = synth.getVoices() || [];
+        voice = vs.find((v) => /pt[-_]BR/i.test(v.lang)) || vs.find((v) => /^pt/i.test(v.lang)) || voice;
+      }
+      if (synth) { pick(); synth.onvoiceschanged = pick; }
+      function speak(text) {
+        if (!synth || !enabled) return;
+        const t = String(text || "").replace(/[*_`#>]/g, "").trim();
+        if (!t) return;
+        try {
+          synth.cancel();
+          const u = new SpeechSynthesisUtterance(t.slice(0, 280));
+          u.lang = "pt-BR"; u.rate = 1.02; u.pitch = 0.95;
+          if (voice) u.voice = voice;
+          synth.speak(u);
+        } catch (_) {}
+      }
+      return {
+        supported: () => !!synth,
+        isOn: () => enabled,
+        setOn: (v) => { enabled = !!v; if (!enabled && synth) synth.cancel(); },
+        speak,
+      };
+    })();
+
     function typeKratosInsight(text) {
       const el = document.getElementById("kratosInsightText");
       if (!el) return;
       if (kratosTypeTimer) clearTimeout(kratosTypeTimer);
       if (kratosHoldTimer) clearTimeout(kratosHoldTimer);
+      KratosMapVoice.speak(text);  // narra o insight (se a voz estiver ligada)
       let i = 0;
       const step = () => {
         el.textContent = text.slice(0, i);
@@ -3794,6 +3841,19 @@
         // Insights do KRATOS na caixa datilografada (canto inferior esquerdo).
         refreshKratosInsights().catch(() => {});
         setInterval(() => { refreshKratosInsights().catch(() => {}); }, KRATOS_INSIGHTS_REFRESH_MS);
+        // Botão de voz dos insights no mapa.
+        (function () {
+          const vb = document.getElementById("kratosVoiceBtn");
+          if (!vb) return;
+          if (!KratosMapVoice.supported()) { vb.textContent = "🔇"; vb.disabled = true; vb.title = "Voz indisponível neste navegador"; return; }
+          vb.addEventListener("click", () => {
+            const on = !KratosMapVoice.isOn();
+            KratosMapVoice.setOn(on);
+            vb.setAttribute("aria-pressed", String(on));
+            vb.textContent = on ? "🔊" : "🔇";
+            vb.title = on ? "Narração de insights ligada" : "Narração de insights desligada";
+          });
+        })();
         setInterval(() => {
           renderSaamBgraFleetPanel();
         }, 2000);
