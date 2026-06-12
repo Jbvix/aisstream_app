@@ -2347,10 +2347,21 @@ def _geofences_summary():
             lons = [p[1] for p in pts]
             entry["centerLat"] = round(sum(lats) / len(lats), 5)
             entry["centerLon"] = round(sum(lons) / len(lons), 5)
-            entry["vertices"] = [[round(p[0], 5), round(p[1], 5)] for p in pts][:14]
-            entry["approxSpanNm"] = round(
-                _haversine_nm(min(lats), min(lons), max(lats), max(lons)), 2
-            )
+            entry["vertices"] = [[round(p[0], 5), round(p[1], 5)] for p in pts][:20]
+            if g.get("type") == "corredor":
+                # Corredor = rota: comprimento total ao longo da polilinha.
+                length = sum(
+                    _haversine_nm(pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1])
+                    for i in range(len(pts) - 1)
+                )
+                entry["role"] = "corredor de trafego (rota navegavel)"
+                entry["lengthNm"] = round(length, 2)
+                entry["startLat"], entry["startLon"] = round(pts[0][0], 5), round(pts[0][1], 5)
+                entry["endLat"], entry["endLon"] = round(pts[-1][0], 5), round(pts[-1][1], 5)
+            else:
+                entry["approxSpanNm"] = round(
+                    _haversine_nm(min(lats), min(lons), max(lats), max(lons)), 2
+                )
         center = geom.get("center") or []
         if len(center) == 2:
             entry["centerLat"] = round(center[0], 5)
@@ -2706,7 +2717,10 @@ KRATOS_SYSTEM_PROMPT = (
     "CORREDORES DE TRAFEGO (canais navegaveis, limitados pela profundidade) — como estradas no "
     "mar. Por isso o trajeto real e o tempo sao MAIORES que a linha reta. Trate a linha reta como "
     "estimativa minima/referencia; deixe claro que a distancia efetiva segue o corredor "
-    "navegavel. Quando houver rastro recente (recentTracks) use-o para estimar melhor o caminho.\n"
+    "navegavel. Em geofencesMap, os itens com role 'corredor de trafego' sao essas rotas "
+    "(com lengthNm, inicio e fim) cadastradas pelo usuario e nomeadas; use-as para raciocinar "
+    "sobre o caminho real, citando o corredor pelo nome quando fizer sentido. Quando houver rastro "
+    "recente (recentTracks), use-o para refinar o trajeto.\n"
     "- Leia a tendencia de deslocamento: recentTracks mostra o rastro recente dos rebocadores "
     "(direcao, distancia percorrida, janela de tempo) — antecipe para onde cada um esta indo.\n"
     "- Verificacao de frota: fleetAisStatus traz o status AIS de cada rebocador cadastrado "
@@ -2758,7 +2772,8 @@ KRATOS_APP_GUIDE = (
     "com etiqueta dourada). "
     "Barra lateral esquerda (dock), de cima para baixo: Status (conexao AIS e mensagens), "
     "Area (area de monitoramento), Filtros (por tipo de embarcacao e frota), Geofences (criar e "
-    "editar bercos, bases e poligonos direto no mapa), SAAM-BGRA (painel da frota com status), "
+    "editar bercos, bases, poligonos e CORREDORES DE TRAFEGO — rotas navegaveis nomeadas — direto "
+    "no mapa), SAAM-BGRA (painel da frota com status), "
     "Entrada/Saida BG (fluxo de embarcacoes na baia e grafico 24h), Tempo (previsao, mare e "
     "vento) e Frota (incluir, substituir ou remover MMSIs de rebocadores SAAM/WIL/CAM). "
     "No mapa: embarcacoes sao setas coloridas por tipo (verde carga/conteiner, vermelho "

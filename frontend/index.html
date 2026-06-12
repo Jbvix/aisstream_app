@@ -1680,6 +1680,7 @@
                 <option value="berco">Berço</option>
                 <option value="base_rebocador">Base Rebocador</option>
                 <option value="polygon">Polígono Geral</option>
+                <option value="corredor">Corredor de tráfego (rota)</option>
               </select>
             </div>
             <div class="control">
@@ -3444,9 +3445,23 @@
       }
     }
 
+    function isCorridorDraft() {
+      return (geofenceTypeEl && geofenceTypeEl.value === "corredor");
+    }
+
     function redrawDraftLayer() {
       clearDraftLayer();
       if (geofenceDrawPoints.length < 2) return;
+      if (isCorridorDraft()) {
+        // Corredor = rota (polilinha), não área.
+        geofenceDraftLayer = L.polyline(geofenceDrawPoints, {
+          color: "#ffd400",
+          weight: 4,
+          opacity: 0.9,
+          dashArray: "8 5"
+        }).addTo(map);
+        return;
+      }
       geofenceDraftLayer = L.polygon(geofenceDrawPoints, {
         color: "#35c8ff",
         weight: 2,
@@ -3461,13 +3476,15 @@
       geofenceDrawPoints = [];
       clearDraftLayer();
       if (geofenceEditorHintEl) {
-        geofenceEditorHintEl.textContent =
-          "Clique no mapa para adicionar vértices. Finalize e salve como novo geofence.";
+        geofenceEditorHintEl.textContent = isCorridorDraft()
+          ? "Corredor de tráfego: clique ao longo da rota navegável (mínimo 2 pontos). Dê um nome e salve."
+          : "Clique no mapa para adicionar vértices. Finalize e salve como novo geofence.";
       }
     }
 
     function finishGeofenceDraw() {
-      if (geofenceDrawPoints.length < 3) return;
+      const min = isCorridorDraft() ? 2 : 3;
+      if (geofenceDrawPoints.length < min) return;
       redrawDraftLayer();
       geofenceDrawMode = false;
     }
@@ -3645,6 +3662,19 @@
         if (editingGeofenceId && geofenceId === editingGeofenceId) return;
         const geometry = geofence.geometry || {};
         const coords = geometry.coordinates || [];
+        // Corredor de tráfego = rota (polilinha), renderizado como linha.
+        if (geofence.type === "corredor") {
+          if (coords.length < 2) return;
+          const line = L.polyline(coords, {
+            color: geofence.color || "#ffd400",
+            weight: 4,
+            opacity: 0.85,
+            dashArray: "8 5"
+          }).addTo(map);
+          line.bindTooltip(`${geofence.name} (corredor de tráfego)`, { direction: "top" });
+          geofenceLayers.set(geofenceId, line);
+          return;
+        }
         if (coords.length < 3) return;
         const occ = occupancyByGeofenceId.get(geofenceId);
         const vesselCount = Number(occ?.vesselCount || 0);
@@ -3929,14 +3959,16 @@
     }
 
     async function saveCurrentGeofence() {
-      if (geofenceDrawPoints.length < 3) return;
+      const isCorridor = isCorridorDraft();
+      const min = isCorridor ? 2 : 3;
+      if (geofenceDrawPoints.length < min) return;
       const payload = {
-        name: geofenceNameEl.value || "Novo geofence",
+        name: geofenceNameEl.value || (isCorridor ? "Novo corredor" : "Novo geofence"),
         type: geofenceTypeEl.value || "berco",
         fleetScope: geofenceFleetScopeEl.value || "all",
         geometry: { coordinates: geofenceDrawPoints.map((p) => [p.lat, p.lng]) },
         isActive: true,
-        color: "#35c8ff"
+        color: isCorridor ? "#ffd400" : "#35c8ff"
       };
       const response = await fetch(apiUrl("/api/geofences"), {
         method: "POST",
