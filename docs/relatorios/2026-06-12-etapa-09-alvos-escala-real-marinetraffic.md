@@ -78,6 +78,23 @@ Após publicar, os alvos passaram a "aparecer e sumir" de forma intermitente.
   também passa a registrar a assinatura. Embarcações atracadas/paradas (rumo e
   posição estáveis) deixam de recriar o ícone a cada tick — fim da piscada.
 
+### Segunda rodada — ruído de COG/SOG em embarcações paradas
+
+A piscada persistiu após a guarda por assinatura. Causa raiz adicional: navios
+atracados/fundeados transmitem heading **511** ("indisponível"); o código caía no
+**COG, que a ~0 kn é puro ruído** (salta aleatoriamente a cada mensagem AIS).
+A rotação mudava a cada tick → a assinatura mudava → o ícone era recriado a cada
+tick mesmo com a guarda. O SOG oscilando em torno de 0,5 kn também alternava
+círculo↔casco.
+
+Correções (`frontend/index.html`):
+- `getIconRotationDegrees` estabilizada por MMSI: heading válido é sempre usado
+  (e memorizado); **COG só é aceito com a embarcação em movimento**; parado e sem
+  heading, a rotação **congela na última conhecida** (`lastRotationByMmsi`).
+- `isVesselMoving` com **histerese** (vira "em movimento" a ≥0,7 kn e só volta a
+  "parado" abaixo de 0,3 kn), usada no ícone e na assinatura — fim da alternância
+  círculo/casco com SOG ruidoso perto do limiar.
+
 ## Arquivos alterados
 - `main.py` — extração/cache/payload dos offsets de referência (A/B/C/D).
 - `frontend/index.html` — modo escala real (helpers, `buildTrueScaleIcon`, CSS) e

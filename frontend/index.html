@@ -2796,9 +2796,48 @@
       return 0;
     }
 
+    // Estado por MMSI para estabilizar o visual entre atualizações:
+    // - rotação: parado e sem heading válido, o COG é ruído (salta aleatoriamente
+    //   a ~0 kn) — manter a última rotação conhecida evita o casco girar/piscar.
+    // - movimento: histerese em torno do limiar de SOG evita alternância
+    //   círculo/casco quando a velocidade oscila perto de 0,5 kn.
+    const lastRotationByMmsi = new Map();
+    const movingStateByMmsi = new Map();
+
+    /** Em movimento, com histerese (sobe a 0,7 kn, só cai abaixo de 0,3 kn). */
+    function isVesselMoving(v) {
+      const key = String(v?.mmsi || "");
+      const sog = Number(v?.sog);
+      const prev = movingStateByMmsi.get(key) === true;
+      if (!Number.isFinite(sog)) return prev;
+      const moving = prev
+        ? sog >= VESSEL_MOVING_SOG_KN - 0.2
+        : sog >= VESSEL_MOVING_SOG_KN + 0.2;
+      movingStateByMmsi.set(key, moving);
+      return moving;
+    }
+
     /** Rotação CSS: com a proa no topo do polígono, 0° já aponta para norte. */
     function getIconRotationDegrees(v) {
-      return getIconBearingDegrees(v);
+      const key = String(v?.mmsi || "");
+      const heading = Number(v?.heading);
+      if (isValidHeadingDeg(heading)) {
+        lastRotationByMmsi.set(key, heading);
+        return heading;
+      }
+      if (isVesselMoving(v)) {
+        const cog = Number(v?.cog);
+        if (Number.isFinite(cog)) {
+          const rot = cog === 360 ? 0 : cog;
+          if (rot >= 0 && rot <= 359) {
+            lastRotationByMmsi.set(key, rot);
+            return rot;
+          }
+        }
+      }
+      // Parado e sem heading: congelar na última rotação conhecida.
+      const last = lastRotationByMmsi.get(key);
+      return Number.isFinite(last) ? last : 0;
     }
 
     function getShipLengthMeters(v) {
@@ -2968,7 +3007,7 @@
         const { hullW, hullH, wrap } = getShipIconDimensionsPx(vessel);
 
         const sog = Number(vessel?.sog);
-        const moving = Number.isFinite(sog) && sog >= VESSEL_MOVING_SOG_KN;
+        const moving = isVesselMoving(vessel);
 
         const classes = ["ship-shape", vesselColorClass];
         if (isSaam) classes.push("ship-saam");
@@ -3307,7 +3346,7 @@
       const z = Number(map?.getZoom?.() ?? 11);
       const rotStep = Math.round(getIconRotationDegrees(v) / 3);
       const sog = Number(v?.sog);
-      const moving = Number.isFinite(sog) && sog >= VESSEL_MOVING_SOG_KN ? 1 : 0;
+      const moving = isVesselMoving(v) ? 1 : 0;
       const cat = getShipCategory(v);
       const isSaam = (v?.isSaamBgra || v?.fleet === "SAAM-BGRA") ? 1 : 0;
       const comp = isSaam ? 0 : (getCompetitorInfo(v) ? 1 : 0);
