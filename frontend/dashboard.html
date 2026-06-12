@@ -385,8 +385,8 @@
 
         <h3>KRATOS — Assistente Estratégico (conversa)</h3>
         <ul>
-          <li><b>Conversar com KRATOS:</b> diálogo contínuo — ele mantém o fio da conversa (memória de turno) e raciocina como um enxadrista do porto, sempre um passo à frente do concorrente. Enter envia; Shift+Enter quebra linha.</li>
-          <li><b>O que ele lê do tabuleiro:</b> posição e deslocamento dos rebocadores (nossos e WIL/CAM), manobras programadas (POB), características dos navios (LOA/boca/DWT), <b>valor comercial relativo</b> da manobra (alto/médio/padrão), maré e vento.</li>
+          <li><b>Conversar com KRATOS:</b> diálogo contínuo — ele mantém o fio da conversa (memória de turno) e atua como assistente operacional estrategista, antecipando movimentos e mantendo a equipe um passo à frente. Enter envia; Shift+Enter quebra linha.</li>
+          <li><b>O que ele lê do cenário operacional:</b> posição e deslocamento dos rebocadores (nossos e WIL/CAM), manobras programadas (POB), características dos navios (LOA/boca/DWT), <b>valor comercial relativo</b> da manobra (alto/médio/padrão), maré e vento.</li>
           <li><b>Gerar relatório:</b> resumo executivo consolidado do cenário atual.</li>
           <li><b>Gerar insights:</b> hipóteses e oportunidades acionáveis.</li>
           <li><b>Limpar conversa:</b> recomeça o fio do zero.</li>
@@ -450,10 +450,10 @@
 
   <section>
     <h2>KRATOS — Assistente Estratégico</h2>
-    <p class="hint">Converse com o KRATOS sobre o tabuleiro do porto: posição e padrões dos concorrentes, manobras programadas, valor comercial, maré e vento. Ele mantém o fio da conversa.</p>
+    <p class="hint">Converse com o KRATOS sobre o cenário operacional do porto: posição e padrões dos concorrentes, manobras programadas, valor comercial, maré e vento. Ele mantém o fio da conversa.</p>
     <div class="strategy-box">
       <div id="strategyAnswer"><div class="chat-msg chat-msg--placeholder">Inicie a conversa com o KRATOS.</div></div>
-      <textarea id="strategyQuestion" placeholder="Ex.: Para qual manobra o WIL está se posicionando agora? Qual a melhor jogada sem comprometer nossa programação?"></textarea>
+      <textarea id="strategyQuestion" placeholder="Ex.: Para qual manobra o WIL está se posicionando agora? Qual a melhor recomendação sem comprometer nossa programação?"></textarea>
       <textarea id="strategyLearnNote" placeholder="Aprendizado opcional para memória do KRATOS (ex.: Em navio >300m, priorizar 4 rebocadores)."></textarea>
       <div class="strategy-actions">
         <button type="button" id="btnStrategyAsk">Conversar com KRATOS</button>
@@ -1349,7 +1349,7 @@
       if (qEl) qEl.value = "";
       const typing = document.createElement("div");
       typing.className = "chat-msg chat-msg--kratos chat-typing";
-      typing.textContent = "KRATOS analisando o tabuleiro…";
+      typing.textContent = "KRATOS analisando o cenário operacional…";
       out.appendChild(typing);
       out.scrollTop = out.scrollHeight;
 

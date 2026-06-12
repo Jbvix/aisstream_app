@@ -20,7 +20,7 @@ recursos de voz do navegador usados como alternativa.
 1. O usuário clica **🎧 Voz ao vivo** no painel.
 2. O backend cunha um **token efêmero** em `POST https://api.x.ai/v1/realtime/client_secrets`
    (a `XAI_API_KEY` **nunca** vai ao navegador) e devolve as instruções do KRATOS
-   com o **contexto operacional fresco** (insights do tabuleiro).
+   com o **contexto operacional fresco** (insights do cenário do porto).
 3. O navegador conecta a `wss://api.x.ai/v1/realtime?model=grok-voice-latest`
    usando o subprotocolo `xai-client-secret.<token>` e envia `session.update`
    com: voz `leo`, instruções, `server_vad`, transcrição (`grok-2-audio`) e
@@ -76,7 +76,8 @@ Depois **reinicie** o app (`touch tmp/restart.txt`).
 
 ### Persona da voz
 As instruções da sessão de voz usam a **persona oficial do KRATOS** (estrategista
-naval / enxadrista do porto, SAA = SAAM, WIL/CAM concorrentes) + o contexto
+assistente operacional estrategista de navegação e apoio portuário, SAA = SAAM,
+WIL/CAM concorrentes — sem termos de jogos/xadrez) + o contexto
 operacional do momento, com diretriz de respostas curtas para conversa falada.
 Para alterar a persona, edite `_kratos_voice_instructions()` em `main.py`.
 
