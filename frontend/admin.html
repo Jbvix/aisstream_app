@@ -42,6 +42,15 @@
     .muted { color:var(--muted); }
     .q { color:var(--text); } .a { color:var(--muted); }
     .err { color:#ffb4b4; font-size:0.82rem; }
+    .form-row { display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; margin-bottom:14px; }
+    .form-row label { display:flex; flex-direction:column; gap:4px; font-size:0.7rem; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; }
+    .form-row input, .form-row select { padding:8px 10px; border-radius:8px; border:1px solid var(--line); background:rgba(9,22,37,.85); color:var(--text); font:inherit; min-width:200px; }
+    .btn-sm { padding:5px 9px; border-radius:8px; border:1px solid var(--line); background:rgba(53,200,255,.12); color:var(--accent); font-weight:600; cursor:pointer; font-size:0.72rem; text-decoration:none; display:inline-block; margin:1px 2px; }
+    .btn-sm:hover { background:rgba(53,200,255,.22); }
+    .btn-sm.bad { color:var(--bad); border-color:rgba(255,91,82,.5); background:rgba(255,91,82,.12); }
+    .pill.ativo { background:rgba(55,217,137,.18); color:var(--good); }
+    .pill.expirado { background:rgba(255,212,0,.16); color:var(--warn); }
+    .pill.revogado { background:rgba(255,91,82,.18); color:var(--bad); }
   </style>
 </head>
 <body>
@@ -69,6 +78,7 @@
       <button class="tab active" data-view="efficacy">Eficácia & Uso</button>
       <button class="tab" data-view="audit">Auditoria (conversas)</button>
       <button class="tab" data-view="health">Saúde & Resultado</button>
+      <button class="tab" data-view="invites">Convites de acesso</button>
     </div>
 
     <section id="view-efficacy" class="view active">
@@ -106,6 +116,39 @@
         <div class="chart-wrap"><canvas id="chartShare"></canvas></div>
       </section>
     </section>
+
+    <section id="view-invites" class="view">
+      <section class="block">
+        <h2>Convites de acesso ao app</h2>
+        <p class="muted" style="font-size:0.78rem;margin:0 0 6px;">
+          Gere um token de acesso por convidado, defina a validade e envie o link por <b>WhatsApp</b> ou <b>e-mail</b>.
+          Você pode revogar a qualquer momento.
+        </p>
+        <p class="muted" style="font-size:0.75rem;margin:0 0 12px;">
+          Controle de acesso: <b id="acState">—</b>.
+          <span id="acHint"></span>
+        </p>
+        <div class="form-row">
+          <label>Rótulo do convidado
+            <input id="invLabel" type="text" placeholder="Ex.: João — Operação" maxlength="80" />
+          </label>
+          <label>Validade
+            <select id="invDays">
+              <option value="7">7 dias</option>
+              <option value="30" selected>30 dias</option>
+              <option value="90">90 dias</option>
+              <option value="">Sem expiração</option>
+            </select>
+          </label>
+          <button type="button" class="btn" id="invCreate">Gerar convite</button>
+        </div>
+        <div id="invErr" class="err" style="margin-bottom:8px;"></div>
+        <table>
+          <thead><tr><th>Convidado</th><th>Status</th><th>Validade</th><th>Último acesso</th><th>Enviar / Ações</th></tr></thead>
+          <tbody id="invRows"></tbody>
+        </table>
+      </section>
+    </section>
   </main>
 
 <script>
@@ -116,6 +159,15 @@
   function apiUrl(path) { return `${API_BASE}${path}`; }
   async function api(path) {
     const res = await fetch(apiUrl(path), { headers: { "X-Admin-Token": token, Accept: "application/json" } });
+    if (res.status === 401) throw new Error("unauthorized");
+    return res.json();
+  }
+  async function apiPost(path, body) {
+    const res = await fetch(apiUrl(path), {
+      method: "POST",
+      headers: { "X-Admin-Token": token, "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify(body || {}),
+    });
     if (res.status === 401) throw new Error("unauthorized");
     return res.json();
   }
@@ -210,8 +262,91 @@
       renderHealth(ov);
       const co = await api("/api/admin/conversations?limit=300");
       renderAudit(co.events || []);
+      await loadInvites();
     } catch (e) {
       if (String(e.message) === "unauthorized") { showGate("Token inválido ou ADMIN_TOKEN não configurado no servidor."); }
+    }
+  }
+
+  // ===== Convites de acesso =====
+  function accessUrl(t) { return location.origin + API_BASE + "/entrar?c=" + encodeURIComponent(t); }
+  function inviteMessage(label, url) {
+    const quem = label && label !== "Convidado" ? ` (${label})` : "";
+    return `Olá${quem}! Seu acesso ao KRATOS — Inteligência Naval Estratégica. Toque para entrar: ${url}`;
+  }
+  function fmtExpiry(inv) {
+    if (inv.status === "revogado") return "revogado";
+    if (!inv.expiresAt) return "sem expiração";
+    return fmtTime(inv.expiresAt * 1000);
+  }
+  function fmtLastAccess(inv) {
+    if (!inv.lastAccessAt) return "—";
+    return fmtTime(inv.lastAccessAt * 1000) + (inv.accessCount ? ` (${inv.accessCount}×)` : "");
+  }
+
+  async function loadInvites() {
+    let d;
+    try { d = await api("/api/admin/invites"); } catch (e) { if (String(e.message)==="unauthorized") throw e; return; }
+    const acEl = document.getElementById("acState");
+    const hintEl = document.getElementById("acHint");
+    if (acEl) {
+      acEl.textContent = d.accessControl ? "ATIVADO (app só por convite)" : "desativado";
+      acEl.style.color = d.accessControl ? "var(--good)" : "var(--warn)";
+    }
+    if (hintEl) {
+      hintEl.textContent = d.accessControl
+        ? "O app exige convite. O ADMIN_TOKEN sempre entra."
+        : "Para exigir convite, defina ACCESS_CONTROL=on no servidor e reinicie. Os convites já podem ser gerados desde já.";
+    }
+    renderInvites(d.invites || []);
+  }
+
+  function renderInvites(invites) {
+    const tb = document.getElementById("invRows");
+    if (!invites.length) { tb.innerHTML = `<tr><td colspan="5" class="muted">Nenhum convite gerado ainda.</td></tr>`; return; }
+    tb.innerHTML = invites.map(inv => {
+      const url = accessUrl(inv.token);
+      const msg = inviteMessage(inv.label, url);
+      const wa = "https://wa.me/?text=" + encodeURIComponent(msg);
+      const mail = "mailto:?subject=" + encodeURIComponent("Seu acesso ao KRATOS") + "&body=" + encodeURIComponent(msg);
+      const active = inv.status === "ativo";
+      const actions = active ? `
+        <a class="btn-sm" href="${wa}" target="_blank" rel="noopener">WhatsApp</a>
+        <a class="btn-sm" href="${mail}">E-mail</a>
+        <button class="btn-sm" data-copy="${esc(url)}">Copiar link</button>
+        <button class="btn-sm bad" data-revoke="${esc(inv.token)}">Revogar</button>`
+        : `<span class="muted">—</span>`;
+      return `<tr>
+        <td>${esc(inv.label || "Convidado")}</td>
+        <td><span class="pill ${esc(inv.status)}">${esc(inv.status)}</span></td>
+        <td class="muted">${esc(fmtExpiry(inv))}</td>
+        <td class="muted">${esc(fmtLastAccess(inv))}</td>
+        <td>${actions}</td>
+      </tr>`;
+    }).join("");
+    tb.querySelectorAll("[data-copy]").forEach(b => b.addEventListener("click", async () => {
+      try { await navigator.clipboard.writeText(b.dataset.copy); b.textContent = "Copiado!"; setTimeout(()=>b.textContent="Copiar link", 1500); }
+      catch (_) { prompt("Copie o link de acesso:", b.dataset.copy); }
+    }));
+    tb.querySelectorAll("[data-revoke]").forEach(b => b.addEventListener("click", async () => {
+      if (!confirm("Revogar este convite? O acesso será cortado imediatamente.")) return;
+      try { await apiPost("/api/admin/invites/revoke", { token: b.dataset.revoke }); await loadInvites(); }
+      catch (e) { document.getElementById("invErr").textContent = "Falha ao revogar."; }
+    }));
+  }
+
+  async function createInvite() {
+    const errEl = document.getElementById("invErr");
+    errEl.textContent = "";
+    const label = document.getElementById("invLabel").value.trim();
+    const daysVal = document.getElementById("invDays").value;
+    try {
+      const d = await apiPost("/api/admin/invites", { label, expiresInDays: daysVal ? Number(daysVal) : null });
+      if (!d.ok) throw new Error("fail");
+      document.getElementById("invLabel").value = "";
+      await loadInvites();
+    } catch (e) {
+      errEl.textContent = String(e.message) === "unauthorized" ? "Sessão expirada — recarregue." : "Falha ao gerar convite.";
     }
   }
 
@@ -240,6 +375,7 @@
   });
   document.getElementById("tokenInput").addEventListener("keydown", (e) => { if (e.key === "Enter") document.getElementById("enterBtn").click(); });
   document.getElementById("refreshBtn").addEventListener("click", loadAll);
+  document.getElementById("invCreate").addEventListener("click", createInvite);
 
   if (token) showApp(); else showGate();
 </script>

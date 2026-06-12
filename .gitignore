@@ -11,6 +11,7 @@ data/users/*/vessels_snapshot.json.tmp
 data/users/*/kratos_user_profile.json
 data/users/*/fleet_config.json
 data/users/*/kratos_events.jsonl
+data/users/*/access_invites.json
 
 __pycache__/
 *.pyc

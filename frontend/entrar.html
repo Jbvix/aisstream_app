@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>KRATOS — Acesso</title>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+  <style>
+    :root { --bg:#071424; --panel:#10253d; --line:#2f4f6d; --text:#eaf4ff; --muted:#9ab6d4; --accent:#35c8ff; --good:#37d989; --bad:#ff5b52; }
+    * { box-sizing:border-box; }
+    body { margin:0; min-height:100vh; font-family:"IBM Plex Sans",sans-serif; background:
+      radial-gradient(1200px 600px at 50% -10%, rgba(53,200,255,.10), transparent 60%), var(--bg);
+      color:var(--text); display:flex; align-items:center; justify-content:center; padding:20px; }
+    .card { width:100%; max-width:420px; background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:30px 26px; text-align:center; box-shadow:0 18px 50px rgba(0,0,0,.45); }
+    .kmark { width:64px; height:64px; margin:0 auto 14px; border-radius:50%; border:2px solid var(--accent); display:flex; align-items:center; justify-content:center; font-family:"Space Grotesk",sans-serif; font-weight:700; font-size:2rem; color:var(--accent); box-shadow:0 0 18px rgba(53,200,255,.35) inset; }
+    h1 { font-family:"Space Grotesk",sans-serif; font-size:1.25rem; margin:0 0 4px; }
+    .sub { color:var(--muted); font-size:0.82rem; margin:0 0 18px; }
+    .state { color:var(--muted); font-size:0.9rem; min-height:1.2em; margin:10px 0; }
+    input { width:100%; padding:11px 12px; border-radius:10px; border:1px solid var(--line); background:rgba(9,22,37,.85); color:var(--text); font:inherit; text-align:center; letter-spacing:.5px; }
+    button { width:100%; margin-top:12px; padding:11px 16px; border-radius:11px; border:1px solid var(--accent); background:rgba(53,200,255,.16); color:var(--accent); font-weight:700; cursor:pointer; font:inherit; }
+    button:hover { background:rgba(53,200,255,.26); }
+    button:disabled { opacity:.6; cursor:default; }
+    .err { color:#ffb4b4; font-size:0.82rem; min-height:1.1em; margin-top:10px; }
+    .foot { color:var(--muted); font-size:0.7rem; margin-top:18px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="kmark">K</div>
+    <h1>KRATOS</h1>
+    <p class="sub">Inteligência Naval Estratégica</p>
+    <div id="state" class="state">Acesso restrito — informe seu convite.</div>
+    <form id="form" autocomplete="off">
+      <input id="tokenInput" type="text" placeholder="Cole aqui seu token de convite" />
+      <button type="submit" id="enterBtn">Entrar</button>
+    </form>
+    <div id="err" class="err"></div>
+    <div class="foot">Recebeu um link de convite? Ele já entra automaticamente.</div>
+  </div>
+
+<script>
+  const API_BASE = (() => { const p = location.pathname; const i = p.indexOf("/entrar"); return i >= 0 ? p.slice(0, i) : ""; })();
+  const stateEl = document.getElementById("state");
+  const errEl = document.getElementById("err");
+  const btn = document.getElementById("enterBtn");
+  const input = document.getElementById("tokenInput");
+
+  function getParam(name) { return new URLSearchParams(location.search).get(name) || ""; }
+  function homeUrl() { return (API_BASE || "") + "/"; }
+
+  async function tryToken(token, viaLink) {
+    errEl.textContent = "";
+    if (!token) { errEl.textContent = "Informe o token de convite."; return; }
+    btn.disabled = true;
+    stateEl.textContent = viaLink ? "Validando seu convite…" : "Verificando…";
+    try {
+      const res = await fetch(API_BASE + "/api/access/validate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ token }),
+      });
+      const data = await res.json();
+      if (data && data.valid) {
+        stateEl.textContent = "Acesso liberado. Redirecionando…";
+        location.replace(homeUrl());
+      } else {
+        stateEl.textContent = "Acesso restrito — informe seu convite.";
+        errEl.textContent = "Convite inválido, expirado ou revogado. Solicite um novo ao administrador.";
+        btn.disabled = false;
+      }
+    } catch (e) {
+      stateEl.textContent = "Acesso restrito — informe seu convite.";
+      errEl.textContent = "Falha ao validar. Tente novamente.";
+      btn.disabled = false;
+    }
+  }
+
+  document.getElementById("form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    tryToken(input.value.trim(), false);
+  });
+
+  // Convite por link: /entrar?c=<token> entra sozinho.
+  const linkToken = getParam("c") || getParam("access");
+  if (linkToken) { input.value = linkToken; tryToken(linkToken, true); }
+</script>
+</body>
+</html>

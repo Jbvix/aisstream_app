@@ -426,6 +426,13 @@
           <li><b>Insights KRATOS (canto inferior esquerdo):</b> caixa datilografada com leitura em tempo real do cenário — manobras, rebocadores SAAM (inclusive quais estão na BASE BRASCO), maré (nível, tendência e próxima preia/baixa-mar), vento, concorrentes em geofence, simultaneidade e market share. Os insights ciclam automaticamente. O botão 🎧 abre a <b>conversa por voz ao vivo</b> com o KRATOS direto do mapa.</li>
         </ul>
 
+        <h3>Acesso por convite (token)</h3>
+        <ul>
+          <li>O app pode operar em modo <b>acesso só por convite</b>: cada convidado recebe um <b>link de acesso</b> por <b>WhatsApp</b> ou <b>e-mail</b> e entra com um clique (a página <code>/entrar</code> grava um cookie de sessão). Também é possível colar o token manualmente em <code>/entrar</code>.</li>
+          <li>Os convites são <b>gerados e gerenciados na página do administrador</b> (aba <i>Convites de acesso</i>): rótulo do convidado, validade (7/30/90 dias ou sem expiração), último acesso e <b>revogação imediata</b>.</li>
+          <li>A trava só vale quando o servidor está com <code>ACCESS_CONTROL=on</code>; o <code>ADMIN_TOKEN</code> é chave-mestra e sempre entra. Detalhes em <code>docs/PAGINA_ADMIN.md</code>.</li>
+        </ul>
+
         <h3>Integração Obsidian (Supabase)</h3>
         <ul>
           <li>O painel pode exportar o cenário como um <b>grafo de notas Markdown</b> interligadas (Manobra ↔ Navio ↔ Berço ↔ Rebocador ↔ Dia ↔ Empresa) para um bucket do <b>Supabase Storage</b>.</li>

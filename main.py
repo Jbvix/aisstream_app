@@ -12,6 +12,7 @@ import websockets
 import time
 import threading
 import uuid
+import secrets
 import urllib.request
 import urllib.error
 from pathlib import Path
@@ -368,6 +369,44 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def access_gate_middleware(request: Request, call_next):
+    """Trava o app (mapa + painel) atras de token de convite quando ACCESS_CONTROL_ON.
+    Admin (/admin, /api/admin/*) e a propria pagina de entrada ficam de fora; o
+    ADMIN_TOKEN funciona como chave-mestra."""
+    if not ACCESS_CONTROL_ON:
+        return await call_next(request)
+    path = request.url.path
+    if _is_access_exempt(path):
+        return await call_next(request)
+    qtoken = (request.query_params.get("access") or "").strip()
+    token = (
+        qtoken
+        or request.cookies.get(ACCESS_COOKIE_NAME)
+        or request.headers.get("X-Access-Token")
+        or ""
+    ).strip()
+    is_master = bool(ADMIN_TOKEN) and token == ADMIN_TOKEN
+    if is_master or access_token_is_valid(token):
+        response = await call_next(request)
+        if qtoken:  # chegou pelo link de convite -> fixa o cookie de sessao
+            secure = request.headers.get("x-forwarded-proto", request.url.scheme) == "https"
+            response.set_cookie(
+                ACCESS_COOKIE_NAME, token, max_age=ACCESS_COOKIE_MAX_AGE,
+                httponly=True, samesite="lax", secure=secure,
+            )
+        if not is_master:
+            try:
+                _touch_access_invite(token)
+            except Exception:
+                pass
+        return response
+    accept = request.headers.get("accept", "")
+    if path.startswith("/api/") or "application/json" in accept:
+        return JSONResponse({"ok": False, "error": "acesso restrito — convite necessário"}, status_code=401)
+    return RedirectResponse(url="/entrar")
 
 current_area_key = DEFAULT_AREA if DEFAULT_AREA in AREAS else "rio"
 current_mode = "live"
@@ -816,6 +855,143 @@ def append_strategy_memory(note: str, author: str = "user"):
 
 # ===== Telemetria / auditoria do KRATOS (página do administrador) =====
 ADMIN_TOKEN = (os.getenv("ADMIN_TOKEN") or "").strip()
+
+
+# ===== Controle de acesso por convite (token) =====
+# Quando ACCESS_CONTROL_ON, o app (mapa + painel) passa a exigir um token de
+# convite valido (cookie, ?access= ou cabecalho). O ADMIN_TOKEN funciona sempre
+# como chave-mestra, evitando lockout do dono. Desligado por padrao: o deploy do
+# codigo nao tranca o site ate o dono ativar ACCESS_CONTROL=on no servidor.
+ACCESS_CONTROL_ON = (os.getenv("ACCESS_CONTROL") or "off").strip().lower() in ("1", "on", "true", "yes", "sim")
+ACCESS_COOKIE_NAME = "kratos_access"
+ACCESS_COOKIE_MAX_AGE = 60 * 60 * 24 * 30  # 30 dias
+_access_lock = threading.Lock()
+
+
+def access_invites_file() -> Path:
+    return user_data_dir(DASHBOARD_USER_ID) / "access_invites.json"
+
+
+def _load_access_invites() -> list:
+    try:
+        p = access_invites_file()
+        if p.exists():
+            data = json.loads(p.read_text(encoding="utf-8"))
+            if isinstance(data, dict):
+                return list(data.get("invites") or [])
+            if isinstance(data, list):
+                return data
+    except (OSError, json.JSONDecodeError):
+        pass
+    return []
+
+
+def _save_access_invites(invites: list):
+    access_invites_file().write_text(
+        json.dumps({"invites": invites}, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+
+
+def _invite_status(inv: dict, now: float | None = None) -> str:
+    now = now if now is not None else time.time()
+    if inv.get("revoked"):
+        return "revogado"
+    exp = inv.get("expiresAt")
+    try:
+        if exp and now > float(exp):
+            return "expirado"
+    except (TypeError, ValueError):
+        pass
+    return "ativo"
+
+
+def create_access_invite(label: str, expires_in_days=None) -> dict:
+    now = time.time()
+    try:
+        days = int(expires_in_days) if expires_in_days else None
+    except (TypeError, ValueError):
+        days = None
+    inv = {
+        "token": secrets.token_urlsafe(24),
+        "label": (str(label or "").strip() or "Convidado")[:80],
+        "createdAt": now,
+        "expiresAt": (now + days * 86400) if days and days > 0 else None,
+        "revoked": False,
+        "lastAccessAt": None,
+        "accessCount": 0,
+    }
+    with _access_lock:
+        invites = _load_access_invites()
+        invites.append(inv)
+        _save_access_invites(invites)
+    return inv
+
+
+def revoke_access_invite(token: str) -> bool:
+    found = False
+    with _access_lock:
+        invites = _load_access_invites()
+        for inv in invites:
+            if inv.get("token") == token and not inv.get("revoked"):
+                inv["revoked"] = True
+                found = True
+        if found:
+            _save_access_invites(invites)
+    return found
+
+
+def access_token_is_valid(token: str) -> bool:
+    if not token:
+        return False
+    now = time.time()
+    for inv in _load_access_invites():
+        if inv.get("token") == token and _invite_status(inv, now) == "ativo":
+            return True
+    return False
+
+
+def _touch_access_invite(token: str):
+    """Atualiza ultimo acesso no maximo 1x/min por token (evita escrita por request)."""
+    now = time.time()
+    with _access_lock:
+        invites = _load_access_invites()
+        changed = False
+        for inv in invites:
+            if inv.get("token") == token:
+                last = 0.0
+                try:
+                    last = float(inv.get("lastAccessAt") or 0)
+                except (TypeError, ValueError):
+                    last = 0.0
+                if now - last > 60:
+                    inv["lastAccessAt"] = now
+                    inv["accessCount"] = int(inv.get("accessCount") or 0) + 1
+                    changed = True
+        if changed:
+            _save_access_invites(invites)
+
+
+def _public_invite_view(inv: dict, now: float | None = None) -> dict:
+    return {
+        "token": inv.get("token"),
+        "label": inv.get("label"),
+        "createdAt": inv.get("createdAt"),
+        "expiresAt": inv.get("expiresAt"),
+        "revoked": bool(inv.get("revoked")),
+        "lastAccessAt": inv.get("lastAccessAt"),
+        "accessCount": int(inv.get("accessCount") or 0),
+        "status": _invite_status(inv, now),
+    }
+
+
+ACCESS_EXEMPT_PREFIXES = (
+    "/entrar", "/api/access/", "/admin", "/api/admin/",
+    "/favicon", "/robots.txt", "/healthz",
+)
+
+
+def _is_access_exempt(path: str) -> bool:
+    return any(path == p or path.startswith(p) for p in ACCESS_EXEMPT_PREFIXES)
 _kratos_events_lock = threading.Lock()
 KRATOS_EVENTS_MAX = 5000  # eventos mantidos em disco (rolling)
 
@@ -3282,6 +3458,87 @@ async def admin_conversations(request: Request, limit: int = 200):
     events = load_kratos_events(limit=KRATOS_EVENTS_MAX)
     convo = [e for e in events if e.get("type") in ("chat", "feedback", "voice_session", "error")]
     return {"ok": True, "events": convo[-limit:][::-1]}
+
+
+async def _read_json_body(request: Request) -> dict:
+    try:
+        data = await request.json()
+        return data if isinstance(data, dict) else {}
+    except (json.JSONDecodeError, ValueError):
+        return {}
+
+
+# ----- Controle de acesso por convite: APIs públicas (porta de entrada) -----
+@app.get("/api/access/status")
+async def access_status(request: Request):
+    token = (
+        request.cookies.get(ACCESS_COOKIE_NAME)
+        or request.query_params.get("access")
+        or ""
+    ).strip()
+    has = (
+        (not ACCESS_CONTROL_ON)
+        or (bool(ADMIN_TOKEN) and token == ADMIN_TOKEN)
+        or access_token_is_valid(token)
+    )
+    return {"ok": True, "accessControl": ACCESS_CONTROL_ON, "hasValidAccess": bool(has)}
+
+
+@app.post("/api/access/validate")
+async def access_validate(request: Request):
+    data = await _read_json_body(request)
+    token = str(data.get("token") or "").strip()
+    valid = (bool(ADMIN_TOKEN) and token == ADMIN_TOKEN) or access_token_is_valid(token)
+    if not valid:
+        return JSONResponse({"ok": True, "valid": False})
+    resp = JSONResponse({"ok": True, "valid": True})
+    secure = request.headers.get("x-forwarded-proto", request.url.scheme) == "https"
+    resp.set_cookie(
+        ACCESS_COOKIE_NAME, token, max_age=ACCESS_COOKIE_MAX_AGE,
+        httponly=True, samesite="lax", secure=secure,
+    )
+    return resp
+
+
+@app.post("/api/access/logout")
+async def access_logout():
+    resp = JSONResponse({"ok": True})
+    resp.delete_cookie(ACCESS_COOKIE_NAME)
+    return resp
+
+
+@app.get("/entrar")
+async def access_gate_page():
+    return FileResponse(FRONTEND_DIR / "entrar.html", media_type="text/html")
+
+
+# ----- Gestão de convites: APIs do administrador (exigem ADMIN_TOKEN) -----
+@app.get("/api/admin/invites")
+async def admin_invites_list(request: Request):
+    if not _admin_authorized(request):
+        return JSONResponse({"ok": False, "error": "não autorizado"}, status_code=401)
+    now = time.time()
+    invites = [_public_invite_view(inv, now) for inv in _load_access_invites()]
+    invites.sort(key=lambda x: x.get("createdAt") or 0, reverse=True)
+    return {"ok": True, "accessControl": ACCESS_CONTROL_ON, "invites": invites}
+
+
+@app.post("/api/admin/invites")
+async def admin_invites_create(request: Request):
+    if not _admin_authorized(request):
+        return JSONResponse({"ok": False, "error": "não autorizado"}, status_code=401)
+    data = await _read_json_body(request)
+    inv = create_access_invite(data.get("label"), data.get("expiresInDays"))
+    return {"ok": True, "invite": _public_invite_view(inv)}
+
+
+@app.post("/api/admin/invites/revoke")
+async def admin_invites_revoke(request: Request):
+    if not _admin_authorized(request):
+        return JSONResponse({"ok": False, "error": "não autorizado"}, status_code=401)
+    data = await _read_json_body(request)
+    ok = revoke_access_invite(str(data.get("token") or "").strip())
+    return {"ok": bool(ok)}
 
 
 @app.get("/admin")
