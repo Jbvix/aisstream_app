@@ -63,7 +63,23 @@ casam com a pegada real da embarcação sobre a imagem de satélite.
 - O AIS já trazia A/B/C/D; bastava parar de descartá-los para habilitar a
   ancoragem realista do casco no cais.
 
+## Correção pós-deploy — intermitência dos alvos (piscar)
+
+Após publicar, os alvos passaram a "aparecer e sumir" de forma intermitente.
+
+- **Causa:** `upsertMarker` chamava `setIcon()` a cada atualização (WebSocket/poll,
+  ~a cada 0,8 s). Para um `divIcon`, `setIcon` destrói e recria o elemento DOM do
+  marcador; com os novos cascos em escala real (SVG maior) essa recriação a cada
+  tick ficou visível como piscada.
+- **Correção:** introduzida a assinatura `vesselIconSignature(v)` (categoria, rumo
+  em passos de 3°, em movimento, passo de SOG, SAAM/concorrente, zoom, LOA/boca,
+  offsets A/B/C/D). O ícone só é recriado quando a assinatura muda; a posição
+  continua sendo atualizada via `setLatLng`, que não pisca. `refreshMarkerIconsForZoom`
+  também passa a registrar a assinatura. Embarcações atracadas/paradas (rumo e
+  posição estáveis) deixam de recriar o ícone a cada tick — fim da piscada.
+
 ## Arquivos alterados
 - `main.py` — extração/cache/payload dos offsets de referência (A/B/C/D).
-- `frontend/index.html` — modo escala real (helpers, `buildTrueScaleIcon`, CSS).
+- `frontend/index.html` — modo escala real (helpers, `buildTrueScaleIcon`, CSS) e
+  correção da intermitência (`vesselIconSignature`, guarda no `upsertMarker`).
 - `frontend/dashboard.html` — Manual do usuário atualizado (seção "No mapa ao vivo").

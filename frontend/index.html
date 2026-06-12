@@ -3299,10 +3299,31 @@
       markers.forEach((entry) => applyMarkerFilter(entry));
     }
 
+    // Assinatura do que define o visual do ícone. Só recriamos o divIcon (que
+    // destrói/recria o DOM e causa "piscada") quando algo aqui muda; a posição
+    // é sempre atualizada via setLatLng, que não pisca. O rumo é arredondado em
+    // passos de 3° para não recriar o ícone a cada micro-oscilação do heading.
+    function vesselIconSignature(v) {
+      const z = Number(map?.getZoom?.() ?? 11);
+      const rotStep = Math.round(getIconRotationDegrees(v) / 3);
+      const sog = Number(v?.sog);
+      const moving = Number.isFinite(sog) && sog >= VESSEL_MOVING_SOG_KN ? 1 : 0;
+      const cat = getShipCategory(v);
+      const isSaam = (v?.isSaamBgra || v?.fleet === "SAAM-BGRA") ? 1 : 0;
+      const comp = isSaam ? 0 : (getCompetitorInfo(v) ? 1 : 0);
+      const loa = Math.round(getShipLengthMeters(v));
+      const beam = Math.round(Number(v?.beamMeters) || 0);
+      const ref = `${Math.round(Number(v?.refToBow) || 0)},${Math.round(Number(v?.refToStern) || 0)},${Math.round(Number(v?.refToPort) || 0)},${Math.round(Number(v?.refToStarboard) || 0)}`;
+      // Em movimento, o vetor de proa cresce com o SOG: arredondar para inteiro.
+      const sogStep = moving ? Math.round(Math.min(sog, 18)) : 0;
+      return `${cat}|${rotStep}|${moving}|${sogStep}|${isSaam}|${comp}|${z}|${loa}|${beam}|${ref}`;
+    }
+
     function refreshMarkerIconsForZoom() {
       markers.forEach((entry) => {
         const shipCategory = getShipCategory(entry.vessel);
         entry.marker.setIcon(createVesselIcon(shipCategory)(entry.vessel));
+        entry.iconSig = vesselIconSignature(entry.vessel);
       });
     }
 
@@ -3361,7 +3382,7 @@
           className: "vessel-name-label",
           offset: [12, 0]
         });
-        const entry = { marker, vessel: vesselData };
+        const entry = { marker, vessel: vesselData, iconSig: vesselIconSignature(vesselData) };
         markers.set(key, entry);
         applyMarkerFilter(entry);
         applyNameLabelStyle(entry);
@@ -3369,7 +3390,12 @@
         const entry = markers.get(key);
         entry.vessel = vesselData;
         entry.marker.setLatLng(latLng);
-        entry.marker.setIcon(createVesselIcon(shipCategory)(vesselData));
+        // Só recria o ícone (operação que "pisca") quando o visual muda de fato.
+        const sig = vesselIconSignature(vesselData);
+        if (entry.iconSig !== sig) {
+          entry.marker.setIcon(createVesselIcon(shipCategory)(vesselData));
+          entry.iconSig = sig;
+        }
         entry.marker.setPopupContent(vesselPopup(vesselData));
         entry.marker.setTooltipContent(vesselData.shipName || "Sem nome");
         applyMarkerFilter(entry);
