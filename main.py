@@ -2490,6 +2490,95 @@ async def strategy_assistant_under_dashboard_path(request: Request):
     return await strategy_assistant(request)
 
 
+# ===== KRATOS Voz ao vivo (xAI Realtime Voice API) =====
+KRATOS_VOICE_ID = (os.getenv("XAI_VOICE") or "leo").strip() or "leo"
+KRATOS_REALTIME_MODEL = (os.getenv("XAI_REALTIME_MODEL") or "grok-voice-latest").strip()
+
+
+def _kratos_voice_instructions() -> str:
+    """Instruções do agente de voz: persona KRATOS + contexto operacional fresco."""
+    try:
+        insights = _build_kratos_insights()
+    except Exception:
+        insights = []
+    contexto = "\n".join(f"- {s}" for s in insights[:10])
+    return (
+        KRATOS_SYSTEM_PROMPT
+        + "\n\nVOZ: fale em portugues do Brasil, tom calmo, tecnico e com autoridade, "
+        "como um estrategista ao lado do operador. Respostas CURTAS e objetivas "
+        "(conversa falada): 1 a 3 frases por turno, sem listas longas. "
+        "Se o usuario interromper, pare e ouca. Nunca invente dados; se faltar "
+        "informacao, diga com transparencia.\n\n"
+        "CONTEXTO OPERACIONAL AGORA (Baia de Guanabara):\n" + contexto
+    )
+
+
+def _mint_realtime_client_secret() -> dict:
+    """Cunha um token efemero no xAI para o navegador conectar ao Realtime.
+
+    A XAI_API_KEY fica apenas no servidor; o browser usa o token via
+    subprotocolo `xai-client-secret.<token>`.
+    """
+    req = urllib.request.Request(
+        url="https://api.x.ai/v1/realtime/client_secrets",
+        data=json.dumps({"expires_after": {"seconds": 300}}).encode("utf-8"),
+        headers={
+            "Authorization": f"Bearer {GROK_API_KEY}",
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        },
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=15) as resp:
+        return json.loads(resp.read().decode("utf-8"))
+
+
+@app.post("/api/kratos/voice-session")
+async def kratos_voice_session():
+    """Inicia uma sessão de voz ao vivo: token efêmero + configuração da sessão."""
+    if not GROK_API_KEY:
+        return JSONResponse(
+            {"ok": False, "error": "XAI_API_KEY não configurada no servidor."},
+            status_code=503,
+        )
+    try:
+        secret = await asyncio.to_thread(_mint_realtime_client_secret)
+    except urllib.error.HTTPError as exc:
+        detail = ""
+        try:
+            detail = exc.read().decode("utf-8")[:300]
+        except Exception:
+            pass
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": f"xAI recusou a criação do token ({exc.code}). "
+                "Verifique se a chave tem o endpoint Voice habilitado no console.x.ai.",
+                "detail": detail,
+            },
+            status_code=502,
+        )
+    except Exception as exc:
+        return JSONResponse({"ok": False, "error": f"Falha ao cunhar token: {exc}"}, status_code=502)
+    token = secret.get("value") or ""
+    if not token:
+        return JSONResponse({"ok": False, "error": "Resposta do xAI sem token."}, status_code=502)
+    return {
+        "ok": True,
+        "token": token,
+        "expiresAt": secret.get("expires_at"),
+        "model": KRATOS_REALTIME_MODEL,
+        "voice": KRATOS_VOICE_ID,
+        "instructions": _kratos_voice_instructions(),
+    }
+
+
+@app.post("/dashboard/api/kratos/voice-session")
+async def kratos_voice_session_under_dashboard_path():
+    """Mesmo comportamento para o subpath /dashboard."""
+    return await kratos_voice_session()
+
+
 def _wind_label(metocean: dict) -> str:
     spd = metocean.get("windSpeedKmh")
     if not isinstance(spd, (int, float)):

@@ -2,83 +2,92 @@
 
 Autor: Jossian Brito
 
-Este documento explica como configurar o **cérebro** do KRATOS (xAI Grok) no
-servidor e como funciona a **voz** (fala e escuta).
+Este documento explica como configurar o **cérebro** do KRATOS (xAI Grok) e a
+**voz ao vivo** (xAI Realtime Voice API, voz **Leo**) no servidor, além dos
+recursos de voz do navegador usados como alternativa.
 
 ---
 
-## 1. Arquitetura: cérebro x voz (importante)
-
-O KRATOS separa duas camadas:
+## 1. Arquitetura: três camadas de voz/inteligência
 
 | Camada | Tecnologia | Onde roda |
 |--------|-----------|-----------|
-| **Cérebro** (raciocínio estratégico) | **xAI Grok** (`/v1/chat/completions`) | Backend (`main.py`) |
-| **Voz** (falar e ouvir) | **Web Speech API** | Navegador (Chrome/Edge) |
+| **Cérebro** (chat de texto, relatórios, insights) | xAI Grok (`/v1/chat/completions`) | Backend (`main.py`) |
+| **🎧 Voz ao vivo** (conversa falada em tempo real) | **xAI Realtime Voice API** (`wss://api.x.ai/v1/realtime`, modelo `grok-voice-latest`, voz **Leo**) | Navegador ↔ xAI (token efêmero do backend) |
+| **🎙️/🔊 Voz do navegador** (alternativa) | Web Speech API (STT/TTS) | Navegador (Chrome/Edge) |
 
-> ⚠️ **A API do xAI é de texto.** Ela não expõe um endpoint público de TTS
-> (falar) nem STT (ouvir). A "voz do Grok" do app oficial da xAI **não** está
-> disponível via API. Por isso, a voz do KRATOS é feita no **navegador** com a
-> Web Speech API — gratuita, em PT-BR, sem chave adicional. O Grok continua
-> sendo quem **pensa**; o navegador é quem **fala e escuta**.
+### Como a voz ao vivo funciona (fluxo)
+1. O usuário clica **🎧 Voz ao vivo** no painel.
+2. O backend cunha um **token efêmero** em `POST https://api.x.ai/v1/realtime/client_secrets`
+   (a `XAI_API_KEY` **nunca** vai ao navegador) e devolve as instruções do KRATOS
+   com o **contexto operacional fresco** (insights do tabuleiro).
+3. O navegador conecta a `wss://api.x.ai/v1/realtime?model=grok-voice-latest`
+   usando o subprotocolo `xai-client-secret.<token>` e envia `session.update`
+   com: voz `leo`, instruções, `server_vad`, transcrição (`grok-2-audio`) e
+   áudio PCM 16-bit 24 kHz (captura via AudioWorklet `pcm-processor-worklet.js`).
+4. O áudio do microfone é **bufferizado até `session.updated`** (nada se perde)
+   e depois flui em tempo real; a resposta volta em chunks PCM reproduzidos em
+   fila gapless. Se o usuário **falar por cima**, a reprodução é cortada e um
+   `response.cancel` é enviado (interrupção natural).
+5. As falas (usuário e KRATOS) aparecem **transcritas** no fio da conversa.
 
 ---
 
-## 2. Console xAI — obter a chave de API
+## 2. Console xAI — chave e endpoint Voice
 
 1. Acesse **https://console.x.ai/**.
-2. Faça login / crie a conta da organização.
-3. Em **API Keys**, clique **Create API Key**, nomeie (ex.: `kratos-prod`) e copie.
-4. Em **Billing/Credits**, garanta créditos ativos.
-5. (Opcional) Em **Models**, confirme o modelo desejado — o KRATOS usa por
-   padrão `grok-3-mini` (ajustável por variável de ambiente).
+2. Em **API Keys**, crie/edite a chave (ex.: `kratos-prod`) e **habilite o
+   endpoint Voice** para ela.
+3. Em **Billing/Credits**, garanta créditos ativos.
+4. (Opcional) Na **Voice library** do console, ouça as vozes built-in
+   (Ara, Eve, **Leo**, Rex, Sal). O KRATOS usa **Leo** por padrão.
 
 > 🔒 Trate a chave como senha. **Nunca** versione no Git — somente como variável
 > de ambiente no cPanel.
+> ℹ️ A Voice API atende na região `us-east-1`.
 
 ---
 
 ## 3. Configurar no cPanel (Aplicação Python)
 
-Em **Setup Python App → Environment variables**, defina:
+Em **Setup Python App → Environment variables**:
 
 | Variável | Valor | Observação |
 |----------|-------|------------|
-| `XAI_API_KEY` | *(sua chave do console xAI)* | obrigatória para respostas com Grok |
-| `XAI_MODEL` | `grok-3-mini` | opcional; troque se quiser outro modelo |
+| `XAI_API_KEY` | *(chave do console xAI)* | obrigatória (texto e voz) — com endpoint Voice habilitado |
+| `XAI_MODEL` | `grok-3-mini` | modelo do chat de texto (opcional) |
+| `XAI_REALTIME_MODEL` | `grok-voice-latest` | modelo da voz ao vivo (opcional, é o padrão) |
+| `XAI_VOICE` | `leo` | voz do KRATOS (opcional, é o padrão; alternativas: ara, eve, rex, sal) |
 
-Depois **reinicie** o app (ou `touch tmp/restart.txt`).
+Depois **reinicie** o app (`touch tmp/restart.txt`).
 
-> Sem `XAI_API_KEY`, o KRATOS continua funcionando em **modo local** (respostas
-> por regras a partir do contexto real), apenas sem a fluência do Grok.
-
----
-
-## 4. Voz do KRATOS (Web Speech API)
-
-### Onde
-- **Painel (dashboard):** botões **🎙️ Falar** (você fala → vira mensagem) e
-  **🔊 Voz** (KRATOS responde falando). A conversa mantém memória de turno.
-- **Mapa:** botão **🔊** na caixa de insights narra os insights em voz.
-
-### Requisitos
-- Navegador **Chrome** ou **Edge** (melhor suporte à Web Speech API).
-- **HTTPS** (já é o caso em `tuglife.live`) — o microfone exige conexão segura.
-- Permitir o **microfone** quando o navegador solicitar (para o 🎙️ Falar).
-- Áudio do dispositivo ligado (para ouvir o 🔊).
-
-### Comportamento
-- A fala usa voz **pt-BR** se o sistema tiver uma instalada; senão, cai para a
-  voz padrão do navegador.
-- O reconhecimento captura **uma frase por vez** e envia automaticamente.
-- Se o navegador não suportar, os botões aparecem desabilitados com aviso — o
-  chat por texto continua normal.
+> Sem `XAI_API_KEY`, o chat cai no **modo local** (regras) e a voz ao vivo
+> retorna erro explicando a ausência da chave.
 
 ---
 
-## 5. Evolução futura (voz premium, opcional)
+## 4. Uso no painel
 
-Para uma voz mais natural ("comandante"), é possível plugar um TTS premium
-(ex.: ElevenLabs ou OpenAI TTS) no backend, gerando áudio a partir do texto do
-Grok. Isso exige chave/serviço próprio e custo por uso — fica como evolução,
-sem bloquear o uso atual.
+- **🎧 Voz ao vivo** — conversa falada natural com a voz **Leo**; interrompível;
+  transcrições no chat. Requer HTTPS (ok em `tuglife.live`) e permissão de microfone.
+- **🎙️ Falar** — alternativa: reconhecimento de voz do navegador vira mensagem de texto.
+- **🔊 Voz** — alternativa: o navegador lê em voz alta as respostas do chat de texto.
+- **Mapa** — botão 🔊 na caixa de insights narra os insights (voz do navegador).
+
+### Persona da voz
+As instruções da sessão de voz usam a **persona oficial do KRATOS** (estrategista
+naval / enxadrista do porto, SAA = SAAM, WIL/CAM concorrentes) + o contexto
+operacional do momento, com diretriz de respostas curtas para conversa falada.
+Para alterar a persona, edite `_kratos_voice_instructions()` em `main.py`.
+
+---
+
+## 5. Solução de problemas
+
+| Sintoma | Causa provável | Ação |
+|---------|----------------|------|
+| "xAI recusou a criação do token (4xx)" | Chave sem endpoint Voice habilitado | Habilitar Voice na chave no console.x.ai |
+| Voz não conecta / fecha logo | Sem créditos, rede bloqueando WSS | Conferir billing; testar rede |
+| Microfone não abre | Permissão negada / sem HTTPS | Autorizar mic; usar https |
+| Sem transcrição do usuário | — | Já configurado (`input_audio_transcription: grok-2-audio`) |
+| Áudio picotado | Aba em segundo plano/CPU | Manter aba ativa durante a conversa |
