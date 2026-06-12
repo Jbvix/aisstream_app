@@ -2890,6 +2890,69 @@ KRATOS_APP_GUIDE = (
 )
 
 
+# Conhecimento estrategico das normas locais (NPCP-RJ) — o KRATOS usa como
+# referencia para antecipar DEMANDA DE REBOCADOR, janelas de manobra e restricoes.
+# Fonte: NPCP-RJ (3a Revisao), atualizada pelas Portarias CPRJ/COMOPNAV/MB
+# no 11 (06/03/2026) e no 110 (14/05/2026), Capitania dos Portos do Rio de Janeiro.
+KRATOS_NPCP_KNOWLEDGE = (
+    "NORMAS LOCAIS DO PORTO (NPCP-RJ) — CONHECIMENTO ESTRATEGICO:\n"
+    "Voce conhece as normas locais vigentes da Capitania dos Portos do Rio de Janeiro "
+    "(NPCP-RJ, 3a Revisao), atualizadas pelas Portarias CPRJ/COMOPNAV/MB no 11, de 06/03/2026, "
+    "e no 110, de 14/05/2026 (ambas em vigor). Use como referencia para antecipar demanda de "
+    "rebocadores, janelas de manobra e restricoes de calado/porte. Cite a portaria e o terminal "
+    "quando relevante e, em decisao critica, recomende confirmar na publicacao oficial.\n"
+    "POR QUE IMPORTA PARA A SAAM: cada terminal define QUANTOS rebocadores e qual TTE minimo a "
+    "manobra exige — isso e demanda direta da nossa frota. Onde a norma DISPENSA rebocador "
+    "(tipicamente navios/EAM com Posicionamento Dinamico - DP), a demanda cai; sinalize. Janelas "
+    "de mare/vento e restricoes diurno/noturno concentram manobras no tempo — antecipe "
+    "sobreposicao e necessidade de mais rebocadores.\n"
+    "DEMANDA DE REBOCADOR POR AREA (oportunidades):\n"
+    "- Operacao de ferro-gusa (Cais Comercial, cabecos ~95-99, destino Area de Fundeio no 3, "
+    "alternativa no 9): comboio de balsa nao propulsada + DOIS rebocadores — um de no minimo "
+    "45 TTE (puxa a balsa) e outro de no minimo 25 TTE (apoio a atracacao/desatracacao). "
+    "Velocidade media 3 nos; sem praticagem obrigatoria; janela com visibilidade >=2 milhas "
+    "nauticas e vento ate 20 nos; diurno ou noturno. Balsa LOA 108 m, boca 28 m, calado 4,9 m; "
+    "comboio ~150 m. Oportunidade recorrente de reboque.\n"
+    "- Porto de Angra dos Reis (TPAR, Baia da Ilha Grande): atracacao longitudinal exige NO "
+    "MINIMO DOIS rebocadores AZIMUTAIS de >=45 TTE cada. EAM dotada de DP dispensa rebocador "
+    "(a criterio do comandante). Cais continuo 392 m (Berco 101 ~120 m; Berco 102 ~211 m). "
+    "Navio-tipo carga/graneleiro/tanque ate LOA 190 m. Manobras com vento ate 15 nos (rajada 20), "
+    "visibilidade >=1 milha nautica, mare de enchente 1:1 quando necessaria; canal restrito a "
+    "1 navio por vez a 3 nos. Forte demanda de reboque azimutal pesado.\n"
+    "- Estaleiro EISA (Ilha do Governador): entrada e saida de cascos e embarcacoes SOB REBOQUE "
+    "obrigatorio, exceto pequeno porte (lanchas, pesqueiros, rebocadores). Manobras assessoradas "
+    "por Agente de Manobras e Docagem (AMD); na praticagem, transferencia pratico/AMD na isobata "
+    "de 10 m. Vento <=15 nos, velocidade <5 nos. Bercos ate LOA 230 m e boca 40 m. Demanda de "
+    "reboque para docagem e entrada de cascos.\n"
+    "MENOS DEMANDA (DP dispensa rebocador):\n"
+    "- Terminal Brasco - Base Niteroi: navios-tipo com DP dispensam rebocador na atracacao e "
+    "desatracacao (auxiliares so a criterio do comandante). Manobras SOMENTE nos estofos de mare. "
+    "Vento <15 nos, visibilidade >2 milhas nauticas, diurno/noturno; so 1 navio por vez no canal. "
+    "POB: atracacao a partir de 2 h antes da preamar/baixa-mar; desatracacao a partir de 1 h "
+    "antes. Bercos: B1 LOA 97 m, B2 LOA 45 m, B3 LOA 94 m.\n"
+    "OUTROS NAVIOS-TIPO: Subsea7 LOA 85,5 m / boca 18,3 m / calado 3,04 m (3,46 m com mare 1:1). "
+    "Rio Brasil Terminal (RBT): tipo 1 (EAM) LOA 160 m / boca 33 m; tipo 2 (carga geral) LOA "
+    "140 m / boca 22 m; calado 5,7 m (ate 6,5 m com mare 1:1).\n"
+    "CANAIS, CALADOS E RESTRICOES DE PORTE (Porto do Rio):\n"
+    "- Cais Comercial por trecho de cabecos: 36-110 calado 10,30 m (+0,70 m de mare, max 11,00); "
+    "110-129 9,00 m (max 9,70); 129-205 8,50 m (max 9,00) com LOA <=185 m; 205-216 8,20 m "
+    "(max 9,00).\n"
+    "- TECON-RJ: ate 349 m de LOA, calado ate 14,50 m (15,30 m com mare). Prioridade do canal e "
+    "dos porta-conteineres do proprio TECON e dos Roll-on/Roll-off. Programacao previa obrigatoria; "
+    "avisar a Praticagem pelo VHF canal 12 (chamar 'Praticagem Rio') com 30 min de antecedencia.\n"
+    "- Restricao de porte no trecho 197-216 (via TECON): LOA de 120 a 150 m sem restricao "
+    "(diurno ou noturno); LOA de 150 a 185 m APENAS manobras DIURNAS; acima de 185 m nao passa. "
+    "Navios-tanque do Terminal de Oleo (cabecos 197-205) tem regras especificas de canal por "
+    "calado e bordo de atracacao.\n"
+    "=> Implicacao tatica: a restricao diurno-only para navios grandes concentra manobras de dia "
+    "— antecipe pico e sobreposicao no periodo diurno, com mais rebocadores demandados.\n"
+    "PRATICAGEM (ZP-15) — contexto de disponibilidade: a Escala de Rodizio Unica (ERU) exige no "
+    "minimo 58 fainas por quadrimestre por pratico (50% = 29; 75% = 43). Cota por subzona: Baia de "
+    "Guanabara 14, Forno 1, Sepetiba/Ilha Grande/Angra 8, Acu 2 (total 25; as 33 restantes em "
+    "qualquer subzona). Periodo de escala do pratico: das 11h01 de um dia as 11h do dia seguinte."
+)
+
+
 def _ask_grok_with_context(question: str, context: dict, history: list | None = None) -> str:
     if not GROK_API_KEY:
         return _strategy_fallback_answer(question, context)
@@ -2899,6 +2962,7 @@ def _ask_grok_with_context(question: str, context: dict, history: list | None = 
             "content": (
                 KRATOS_SYSTEM_PROMPT
                 + "\n\n" + KRATOS_APP_GUIDE
+                + "\n\n" + KRATOS_NPCP_KNOWLEDGE
                 + "\n\n" + _profile_instruction_block()
                 + " " + _assistant_profile_instruction()
             ),
@@ -3365,6 +3429,7 @@ def _kratos_voice_instructions(map_view: dict | None = None) -> str:
     return (
         KRATOS_SYSTEM_PROMPT
         + "\n\n" + KRATOS_APP_GUIDE
+        + "\n\n" + KRATOS_NPCP_KNOWLEDGE
         + "\n\n" + _profile_instruction_block()
         + "\n\nVOZ: fale em portugues do Brasil, tom calmo, tecnico e com autoridade, "
         "como um parceiro operacional ao lado da equipe. Respostas CURTAS (1 a 2 frases por "
