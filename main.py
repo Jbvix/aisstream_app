@@ -2392,10 +2392,11 @@ def _distances_and_eta_summary(enriched_maneuvers):
             dists.append({
                 "tug": (t.get("shipName") or "").strip() or t.get("mmsi"),
                 "fleet": fleet,
-                "distanceNm": round(d, 2),
-                "etaMinAtCurrentSpeed": eta,
+                "distanceNmStraight": round(d, 2),
+                "etaMinStraightLine": eta,
+                "note": "linha reta; trajeto real pelo corredor navegavel e maior",
             })
-        dists.sort(key=lambda x: x["distanceNm"])
+        dists.sort(key=lambda x: x["distanceNmStraight"])
         rows.append({
             "vessel": m.get("vesselName"),
             "pob": m.get("pob"),
@@ -2700,8 +2701,12 @@ KRATOS_SYSTEM_PROMPT = (
     "responder 'que navio esta fundeado em tal ponto'.\n"
     "- Conheca a demarcacao das areas: geofencesMap traz vertices, centro e dimensao de cada "
     "geofence (bercos, base de rebocadores, poligonos) — oriente sobre limites quando perguntado.\n"
-    "- Use distancias e ETA: maneuverDistances traz a distancia em milhas nauticas e o ETA de "
-    "cada rebocador (nosso e concorrente) ate os navios das proximas manobras.\n"
+    "- Use distancias e ETA com ressalva: maneuverDistances traz distancia EM LINHA RETA "
+    "(distanceNmStraight) e o ETA correspondente. IMPORTANTE: os rebocadores navegam por "
+    "CORREDORES DE TRAFEGO (canais navegaveis, limitados pela profundidade) — como estradas no "
+    "mar. Por isso o trajeto real e o tempo sao MAIORES que a linha reta. Trate a linha reta como "
+    "estimativa minima/referencia; deixe claro que a distancia efetiva segue o corredor "
+    "navegavel. Quando houver rastro recente (recentTracks) use-o para estimar melhor o caminho.\n"
     "- Leia a tendencia de deslocamento: recentTracks mostra o rastro recente dos rebocadores "
     "(direcao, distancia percorrida, janela de tempo) — antecipe para onde cada um esta indo.\n"
     "- Verificacao de frota: fleetAisStatus traz o status AIS de cada rebocador cadastrado "
@@ -2718,6 +2723,13 @@ KRATOS_SYSTEM_PROMPT = (
     "contexto operacional.\n\n"
     "COMO VOCE FALA: portugues claro, direto e natural, como um parceiro operacional ao "
     "lado da equipe de manobra.\n"
+    "UNIDADES E SIGLAS POR EXTENSO: ao falar (e tambem ao escrever), pronuncie as unidades e "
+    "siglas por extenso, nunca soletre as letras. Use: 'milhas nauticas' para nm/NM; "
+    "'milha nautica' no singular; 'nos' para kn/knots (ex.: '8 nos'); 'metros' para m; "
+    "'graus' para o simbolo de grau; 'SAAM' fala-se 'saam' (uma palavra, nao soletrar); "
+    "'POB' fala-se 'P-O-B'; 'MMSI' fala-se 'M-M-S-I'; 'AIS' fala-se 'A-I-S'; 'BG' diga "
+    "'Baia de Guanabara'; 'EMP.RB' diga 'empresa de reboque'. Ex.: '0,8 milha nautica', "
+    "'reboque a 6 nos'.\n"
     "REGRA DE OURO — SEJA COMEDIDO E REATIVO:\n"
     "- Responda APENAS o que o usuario perguntou. NUNCA despeje dados, listas ou relatorios "
     "nao solicitados. O contexto operacional que voce recebe e so para consulta — use o "
@@ -3067,7 +3079,8 @@ def _kratos_voice_instructions(map_view: dict | None = None) -> str:
         ctx = _strategy_context_dict()
         for r in (ctx.get("maneuverDistances") or [])[:6]:
             tops = ", ".join(
-                f"{d['tug']}/{d['fleet']} {d['distanceNm']}nm" for d in r.get("tugDistances", [])[:4]
+                f"{d['tug']}/{d['fleet']} {d['distanceNmStraight']} milhas nauticas (linha reta)"
+                for d in r.get("tugDistances", [])[:4]
             )
             dist_lines.append(f"{r['vessel']} (POB {r['pob']}): {tops}")
     except Exception:
