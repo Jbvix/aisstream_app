@@ -30,3 +30,4 @@ Exemplo: `2026-05-30-etapa-01-fundacao-kratos.md`.
 | 05 | 2026-06-04 | [Integração Obsidian — Sprint 4](2026-06-04-etapa-05-obsidian-sprint4.md) |
 | 06 | 2026-06-04 | [Integração Obsidian — Homologação/deploy](2026-06-04-etapa-06-obsidian-homologacao.md) |
 | 07 | 2026-06-04 | [Grafo Estratégico nativo (Graph View web)](2026-06-04-etapa-07-grafo-web.md) |
+| 08 | 2026-06-12 | [KRATOS Conversacional, Voz ao Vivo e Administração](2026-06-12-etapa-08-kratos-conversacional-voz-admin.md) |
