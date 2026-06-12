@@ -1086,6 +1086,13 @@
       transform-origin: 50% 50%;
     }
 
+    /* Mantém o ícone em camada de GPU: reduz qualquer flash de repaint quando
+       o divIcon é trocado (ex.: embarcação manobrando). */
+    .vessel-div-icon {
+      backface-visibility: hidden;
+      transform: translateZ(0);
+    }
+
     .ship-shape {
       position: relative;
       width: var(--ship-w, 14px);
