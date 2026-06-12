@@ -415,7 +415,7 @@
           <li>Embarcação parada/fundeada aparece como círculo; navegando, com vetor de proa proporcional à velocidade.</li>
           <li><b>Visualizar nomes:</b> ao ativar, os navios programados para <b>manobra pela SAAM</b> (EMP.RB = SAA), dentro ou fora da BG, aparecem com o nome em <b>label dourado destacado</b>.</li>
           <li><b>Persistência:</b> as embarcações continuam no mapa após recarregar a página (F5) e após reinício do servidor, exibindo a última posição conhecida até a próxima atualização do AIS.</li>
-          <li><b>Insights KRATOS (canto inferior esquerdo):</b> caixa datilografada com leitura em tempo real do cenário — manobras, rebocadores SAAM (inclusive quais estão na BASE BRASCO), maré (nível, tendência e próxima preia/baixa-mar), vento, concorrentes em geofence, simultaneidade e market share. Os insights ciclam automaticamente. O botão 🔊 narra os insights em voz.</li>
+          <li><b>Insights KRATOS (canto inferior esquerdo):</b> caixa datilografada com leitura em tempo real do cenário — manobras, rebocadores SAAM (inclusive quais estão na BASE BRASCO), maré (nível, tendência e próxima preia/baixa-mar), vento, concorrentes em geofence, simultaneidade e market share. Os insights ciclam automaticamente. O botão 🎧 abre a <b>conversa por voz ao vivo</b> com o KRATOS direto do mapa.</li>
         </ul>
 
         <h3>Integração Obsidian (Supabase)</h3>
@@ -1091,243 +1091,57 @@
       return { speak, stop, setEnabled, isEnabled, ttsSupported, sttSupported, listen };
     })();
 
-    // ===== KRATOS Voz ao vivo — xAI Realtime Voice API (voz Leo) =====
-    // Conversa falada em tempo real: mic (PCM 24 kHz via AudioWorklet) → WS
-    // wss://api.x.ai/v1/realtime → áudio do Grok reproduzido em fila gapless.
-    // A XAI_API_KEY nunca chega ao navegador: usamos token efêmero do backend.
-    const KratosLiveVoice = (() => {
-      let ws = null;
-      let audioCtx = null;
-      let micStream = null;
-      let workletNode = null;
-      let sourceNode = null;
-      let active = false;
-      let sessionReady = false;
-      let micBuffer = [];               // Int16Array[] até session.updated
-      let micBufferedSamples = 0;
-      const MIC_BUFFER_CAP = 240000;    // ~10 s @ 24 kHz
-      let nextPlayTime = 0;
-      const queuedSources = [];
-      let liveAssistantText = "";       // transcript em streaming do turno atual
-      let liveAssistantOpen = false;
-      let intentionalClose = false;
-      let onStateChange = null;
+    // ===== KRATOS Voz ao vivo — módulo compartilhado (kratos-voice.js), lazy =====
+    let liveAssistantOpen = false;
+    let liveStateHandler = null;
+    let _liveVoice = null;
+    let _voiceModulePromise = null;
 
-      function audioToBase64(int16Array) {
-        const bytes = new Uint8Array(int16Array.buffer, int16Array.byteOffset, int16Array.byteLength);
-        const CHUNK = 0x2000;
-        const parts = [];
-        for (let i = 0; i < bytes.length; i += CHUNK) {
-          parts.push(String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK)));
-        }
-        return btoa(parts.join(""));
-      }
+    // Carrega o kratos-voice.js sob demanda (path resolvido por apiUrl).
+    function ensureVoiceModule() {
+      if (window.createKratosLiveVoice) return Promise.resolve();
+      if (_voiceModulePromise) return _voiceModulePromise;
+      _voiceModulePromise = new Promise((resolve, reject) => {
+        const s = document.createElement("script");
+        s.src = apiUrl("/frontend/kratos-voice.js");
+        s.onload = () => resolve();
+        s.onerror = () => reject(new Error("falha ao carregar kratos-voice.js"));
+        document.head.appendChild(s);
+      });
+      return _voiceModulePromise;
+    }
 
-      function playPcmChunk(base64) {
-        if (!audioCtx) return;
-        const raw = atob(base64);
-        const bytes = new Uint8Array(raw.length);
-        for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
-        const int16 = new Int16Array(bytes.buffer);
-        const float32 = new Float32Array(int16.length);
-        for (let i = 0; i < int16.length; i++) float32[i] = int16[i] / 32768;
-        const buf = audioCtx.createBuffer(1, float32.length, 24000);
-        buf.getChannelData(0).set(float32);
-        const src = audioCtx.createBufferSource();
-        src.buffer = buf;
-        src.connect(audioCtx.destination);
-        const startAt = Math.max(audioCtx.currentTime, nextPlayTime);
-        src.start(startAt);
-        nextPlayTime = startAt + buf.duration;
-        queuedSources.push(src);
-        src.onended = () => {
-          const idx = queuedSources.indexOf(src);
-          if (idx !== -1) queuedSources.splice(idx, 1);
-        };
-      }
-
-      function interruptPlayback() {
-        for (const src of queuedSources) { try { src.stop(); } catch (_) {} }
-        queuedSources.length = 0;
-        nextPlayTime = 0;
-      }
-
-      function pushChat(role, content) {
-        kratosChatHistory.push({ role, content });
-        renderKratosChat();
-      }
-
-      function updateLiveAssistantBubble() {
-        // Mantém o último turno do assistente atualizado durante o streaming.
-        if (!liveAssistantOpen) {
-          kratosChatHistory.push({ role: "assistant", content: liveAssistantText });
-          liveAssistantOpen = true;
-        } else {
-          kratosChatHistory[kratosChatHistory.length - 1].content = liveAssistantText;
-        }
-        renderKratosChat();
-      }
-
-      function handleEvent(event) {
-        switch (event.type) {
-          case "session.updated":
-            if (!sessionReady) {
-              sessionReady = true;
-              // Flush do buffer do mic em ordem cronológica.
-              for (const chunk of micBuffer) {
-                ws.send(JSON.stringify({ type: "input_audio_buffer.append", audio: audioToBase64(chunk) }));
-              }
-              micBuffer = [];
-              micBufferedSamples = 0;
-            }
-            break;
-          case "input_audio_buffer.speech_started":
-            // Usuário falou por cima: corta o áudio e cancela a resposta.
-            interruptPlayback();
-            try { ws.send(JSON.stringify({ type: "response.cancel" })); } catch (_) {}
-            if (liveAssistantOpen && liveAssistantText) {
-              kratosChatHistory[kratosChatHistory.length - 1].content = liveAssistantText + " (interrompido)";
-              renderKratosChat();
-            }
-            liveAssistantOpen = false;
-            liveAssistantText = "";
-            break;
-          case "conversation.item.input_audio_transcription.completed":
-            if (event.transcript) pushChat("user", String(event.transcript));
-            break;
-          case "response.created":
-            liveAssistantText = "";
-            liveAssistantOpen = false;
-            break;
-          case "response.output_audio.delta":
-            if (event.delta) playPcmChunk(event.delta);
-            break;
-          case "response.output_audio_transcript.delta":
-            if (event.delta) {
-              liveAssistantText += event.delta;
-              updateLiveAssistantBubble();
-            }
-            break;
-          case "response.done":
-            liveAssistantOpen = false;
-            break;
-          case "error":
-            pushChat("assistant", `Voz ao vivo — erro: ${event.message || event.code || "desconhecido"}`);
-            break;
-        }
-      }
-
-      async function start() {
-        if (active) return;
-        intentionalClose = false;
-        // 1) Mic + AudioContext DENTRO do gesto do usuário (Safari) e em
-        //    paralelo com o handshake do WebSocket (latência percebida).
-        audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 24000 });
-        if (audioCtx.state === "suspended") await audioCtx.resume();
-        const tokenPromise = (async () => {
-          const paths = ["/api/kratos/voice-session", "/dashboard/api/kratos/voice-session"];
-          let body = null;
-          for (const p of paths) {
-            const res = await fetch(apiUrl(p), { method: "POST", headers: { Accept: "application/json" } });
-            body = await res.json().catch(() => ({}));
-            if (res.status !== 404) {
-              if (!res.ok || !body.ok) throw new Error(body.error || `HTTP ${res.status}`);
-              return body;
-            }
+    async function getLiveVoice() {
+      await ensureVoiceModule();
+      if (_liveVoice) return _liveVoice;
+      _liveVoice = window.createKratosLiveVoice({
+        apiUrl,
+        workletPath: "/frontend/pcm-processor-worklet.js",
+        onUserText: (t) => { liveAssistantOpen = false; kratosChatHistory.push({ role: "user", content: t }); renderKratosChat(); },
+        onAssistantText: (t) => {
+          if (!liveAssistantOpen) { kratosChatHistory.push({ role: "assistant", content: t }); liveAssistantOpen = true; }
+          else { kratosChatHistory[kratosChatHistory.length - 1].content = t; }
+          renderKratosChat();
+        },
+        onAssistantInterrupted: () => {
+          if (liveAssistantOpen && kratosChatHistory.length) {
+            kratosChatHistory[kratosChatHistory.length - 1].content += " (interrompido)";
+            renderKratosChat();
           }
-          throw new Error((body && body.error) || "endpoint indisponível");
-        })();
-
-        micStream = await navigator.mediaDevices.getUserMedia({
-          audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, sampleRate: 24000 },
-        });
-        await audioCtx.audioWorklet.addModule(apiUrl("/frontend/pcm-processor-worklet.js"));
-        sourceNode = audioCtx.createMediaStreamSource(micStream);
-        workletNode = new AudioWorkletNode(audioCtx, "pcm-processor");
-        sourceNode.connect(workletNode);
-        sessionReady = false;
-        micBuffer = [];
-        micBufferedSamples = 0;
-        workletNode.port.onmessage = (ev) => {
-          const int16 = ev.data;
-          if (sessionReady && ws && ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({ type: "input_audio_buffer.append", audio: audioToBase64(int16) }));
-          } else if (micBufferedSamples < MIC_BUFFER_CAP) {
-            micBuffer.push(int16);
-            micBufferedSamples += int16.length;
-          }
-        };
-
-        // 2) Token efêmero + WebSocket (em paralelo com a captura acima).
-        const session = await tokenPromise;
-        ws = new WebSocket(
-          `wss://api.x.ai/v1/realtime?model=${encodeURIComponent(session.model || "grok-voice-latest")}`,
-          [`xai-client-secret.${session.token}`]
-        );
-        const connectTimeout = setTimeout(() => {
-          if (ws && ws.readyState !== WebSocket.OPEN) { try { ws.close(); } catch (_) {} }
-        }, 10000);
-        ws.onopen = () => {
-          clearTimeout(connectTimeout);
-          ws.send(JSON.stringify({
-            type: "session.update",
-            session: {
-              voice: session.voice || "leo",
-              instructions: session.instructions || "",
-              turn_detection: { type: "server_vad" },
-              tools: [{ type: "web_search" }, { type: "x_search" }],
-              input_audio_transcription: { model: "grok-2-audio" },
-              audio: {
-                input: { format: { type: "audio/pcm", rate: 24000 } },
-                output: { format: { type: "audio/pcm", rate: 24000 } },
-              },
-            },
-          }));
-        };
-        ws.onmessage = (msg) => {
-          let event = null;
-          try { event = JSON.parse(msg.data); } catch (_) { return; }
-          handleEvent(event);
-        };
-        ws.onerror = () => {};
-        ws.onclose = () => {
-          if (active && !intentionalClose) {
-            pushChat("assistant", "Voz ao vivo desconectada.");
-          }
-          cleanup();
-        };
-        active = true;
-        KratosVoice.stop();           // evita TTS local em cima da voz Leo
-        onStateChange && onStateChange(true);
-        pushChat("assistant", "Voz ao vivo conectada (voz Leo). Pode falar — eu ouço e respondo.");
-      }
-
-      function cleanup() {
-        active = false;
-        sessionReady = false;
-        interruptPlayback();
-        try { workletNode && workletNode.disconnect(); } catch (_) {}
-        try { sourceNode && sourceNode.disconnect(); } catch (_) {}
-        try { micStream && micStream.getTracks().forEach((t) => t.stop()); } catch (_) {}
-        try { audioCtx && audioCtx.close(); } catch (_) {}
-        ws = null; audioCtx = null; micStream = null; workletNode = null; sourceNode = null;
-        micBuffer = []; micBufferedSamples = 0;
-        onStateChange && onStateChange(false);
-      }
-
-      function stop() {
-        intentionalClose = true;
-        try { ws && ws.close(); } catch (_) {}
-        cleanup();
-      }
-
-      return {
-        start,
-        stop,
-        isActive: () => active,
-        setOnStateChange: (fn) => { onStateChange = fn; },
-      };
-    })();
+          liveAssistantOpen = false;
+        },
+        onSystem: (msg) => { liveAssistantOpen = false; kratosChatHistory.push({ role: "assistant", content: msg }); renderKratosChat(); },
+        onStateChange: (on) => { if (on) KratosVoice.stop(); if (liveStateHandler) liveStateHandler(on); },
+      });
+      return _liveVoice;
+    }
+    // Compat: objeto fino com a mesma interface usada pelos botões.
+    const KratosLiveVoice = {
+      start: async () => { const v = await getLiveVoice(); return v.start(); },
+      stop: () => { if (_liveVoice) _liveVoice.stop(); },
+      isActive: () => !!(_liveVoice && _liveVoice.isActive()),
+      setOnStateChange: (fn) => { liveStateHandler = fn; },
+    };
 
     async function askStrategyAssistant(action) {
       const qEl = document.getElementById("strategyQuestion");

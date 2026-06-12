@@ -1677,7 +1677,7 @@
           <span class="kratos-insights__k">K</span>
           <span class="kratos-insights__title">KRATOS · Insights</span>
           <span class="kratos-insights__live">ao vivo</span>
-          <button type="button" id="kratosVoiceBtn" class="kratos-insights__btn" title="Narrar insights em voz" aria-pressed="false">🔊</button>
+          <button type="button" id="kratosVoiceBtn" class="kratos-insights__btn" title="Falar com o KRATOS (voz ao vivo)" aria-pressed="false">🎧</button>
         </div>
         <div class="kratos-insights__text"><span id="kratosInsightText"></span><span class="kratos-insights__cursor">▋</span></div>
       </div>
@@ -2622,9 +2622,10 @@
       const zoomScale = Math.max(0.5, Math.min(3.8, Math.pow(2, (z - 12) / 3)));
       const hullH = Math.max(9, Math.min(190, baseH * zoomScale));
 
-      // Largura conforme a proporção real boca/comprimento (navio fino, rebocador atarracado).
-      const ratio = Math.min(0.5, Math.max(0.16, beam / loa));
-      const hullW = Math.max(4, Math.min(hullH * 0.6, hullH * ratio));
+      // Seta esguia (dardo): largura ~55% da altura, com leve variação pela boca
+      // real do navio (mantém o visual fino e alongado da referência).
+      const ratio = Math.min(0.62, Math.max(0.42, 0.5 + (beam / loa - 0.16) * 0.6));
+      const hullW = Math.max(6, hullH * ratio);
 
       // Espaço para rotação do casco + vetor de proa + anel de concorrente.
       const radius = Math.hypot(hullH, hullW) / 2 + hullH * 0.7 + 12;
@@ -2635,12 +2636,14 @@
     const VESSEL_MOVING_SOG_KN = 0.5;
 
     /** Seta padrão AIS: proa pontuda no topo, popa com entalhe em V (0° = norte). */
+    // Seta/dardo padrão AIS (estilo MarineTraffic): ponta aguda à frente,
+    // corpo esguio e entalhe traseiro profundo (chevron) — direção evidente.
     function buildVesselArrowPath(w, h) {
       const p = (n) => n.toFixed(2);
-      return `M ${p(w * 0.5)} 0 `
-        + `L ${p(w)} ${p(h)} `
-        + `L ${p(w * 0.5)} ${p(h * 0.76)} `
-        + `L 0 ${p(h)} Z`;
+      return `M ${p(w * 0.5)} 0 `          // proa (ponta)
+        + `L ${p(w)} ${p(h)} `             // canto traseiro direito
+        + `L ${p(w * 0.5)} ${p(h * 0.62)} `// entalhe profundo (popa)
+        + `L 0 ${p(h)} Z`;                 // canto traseiro esquerdo
     }
 
     function createVesselIcon(category) {
@@ -2859,42 +2862,51 @@
     let kratosHoldTimer = null;
 
     // Voz dos insights (TTS via Web Speech). Desligada por padrão no mapa.
-    const KratosMapVoice = (() => {
-      const synth = window.speechSynthesis || null;
-      let enabled = false;
-      let voice = null;
-      function pick() {
-        if (!synth) return;
-        const vs = synth.getVoices() || [];
-        voice = vs.find((v) => /pt[-_]BR/i.test(v.lang)) || vs.find((v) => /^pt/i.test(v.lang)) || voice;
-      }
-      if (synth) { pick(); synth.onvoiceschanged = pick; }
-      function speak(text) {
-        if (!synth || !enabled) return;
-        const t = String(text || "").replace(/[*_`#>]/g, "").trim();
-        if (!t) return;
-        try {
-          synth.cancel();
-          const u = new SpeechSynthesisUtterance(t.slice(0, 280));
-          u.lang = "pt-BR"; u.rate = 1.02; u.pitch = 0.95;
-          if (voice) u.voice = voice;
-          synth.speak(u);
-        } catch (_) {}
-      }
-      return {
-        supported: () => !!synth,
-        isOn: () => enabled,
-        setOn: (v) => { enabled = !!v; if (!enabled && synth) synth.cancel(); },
-        speak,
-      };
-    })();
+    // Voz ao vivo no mapa (xAI Realtime, voz Leo) — módulo compartilhado, lazy.
+    let _mapLiveVoice = null;
+    let _mapVoiceModulePromise = null;
+    function ensureMapVoiceModule() {
+      if (window.createKratosLiveVoice) return Promise.resolve();
+      if (_mapVoiceModulePromise) return _mapVoiceModulePromise;
+      _mapVoiceModulePromise = new Promise((resolve, reject) => {
+        const s = document.createElement("script");
+        s.src = apiUrl("/frontend/kratos-voice.js");
+        s.onload = () => resolve();
+        s.onerror = () => reject(new Error("falha ao carregar kratos-voice.js"));
+        document.head.appendChild(s);
+      });
+      return _mapVoiceModulePromise;
+    }
+    function flashInsight(text) {
+      // Mostra uma mensagem de status na caixa de insights (sem datilografar).
+      const el = document.getElementById("kratosInsightText");
+      if (el) el.textContent = text;
+    }
+    async function getMapLiveVoice() {
+      await ensureMapVoiceModule();
+      if (_mapLiveVoice) return _mapLiveVoice;
+      _mapLiveVoice = window.createKratosLiveVoice({
+        apiUrl,
+        workletPath: "/frontend/pcm-processor-worklet.js",
+        onUserText: () => {},                       // no mapa não exibimos transcrição
+        onAssistantText: (t) => flashInsight("KRATOS: " + t.slice(-180)),
+        onAssistantInterrupted: () => {},
+        onSystem: (msg) => flashInsight(msg),
+        onStateChange: (on) => {
+          const vb = document.getElementById("kratosVoiceBtn");
+          if (vb) { vb.textContent = on ? "⏹" : "🎧"; vb.setAttribute("aria-pressed", String(on)); vb.title = on ? "Encerrar voz ao vivo" : "Falar com o KRATOS (voz ao vivo)"; }
+          if (on && kratosTypeTimer) { clearTimeout(kratosTypeTimer); clearTimeout(kratosHoldTimer); } // pausa datilografia
+          else if (!on) nextKratosInsight();        // retoma o ciclo de insights
+        },
+      });
+      return _mapLiveVoice;
+    }
 
     function typeKratosInsight(text) {
       const el = document.getElementById("kratosInsightText");
       if (!el) return;
       if (kratosTypeTimer) clearTimeout(kratosTypeTimer);
       if (kratosHoldTimer) clearTimeout(kratosHoldTimer);
-      KratosMapVoice.speak(text);  // narra o insight (se a voz estiver ligada)
       let i = 0;
       const step = () => {
         el.textContent = text.slice(0, i);
@@ -3841,17 +3853,28 @@
         // Insights do KRATOS na caixa datilografada (canto inferior esquerdo).
         refreshKratosInsights().catch(() => {});
         setInterval(() => { refreshKratosInsights().catch(() => {}); }, KRATOS_INSIGHTS_REFRESH_MS);
-        // Botão de voz dos insights no mapa.
+        // Botão de voz ao vivo do KRATOS na caixa de insights do mapa.
         (function () {
           const vb = document.getElementById("kratosVoiceBtn");
           if (!vb) return;
-          if (!KratosMapVoice.supported()) { vb.textContent = "🔇"; vb.disabled = true; vb.title = "Voz indisponível neste navegador"; return; }
-          vb.addEventListener("click", () => {
-            const on = !KratosMapVoice.isOn();
-            KratosMapVoice.setOn(on);
-            vb.setAttribute("aria-pressed", String(on));
-            vb.textContent = on ? "🔊" : "🔇";
-            vb.title = on ? "Narração de insights ligada" : "Narração de insights desligada";
+          if (!(window.AudioContext || window.webkitAudioContext) || !navigator.mediaDevices) {
+            vb.textContent = "🔇"; vb.disabled = true; vb.title = "Voz indisponível neste navegador";
+            return;
+          }
+          let busy = false;
+          vb.addEventListener("click", async () => {
+            if (busy) return;
+            busy = true;
+            try {
+              const v = await getMapLiveVoice();
+              if (v.isActive()) { v.stop(); }
+              else { vb.textContent = "…"; await v.start(); }
+            } catch (e) {
+              flashInsight("Voz ao vivo: " + String(e && e.message || e));
+              vb.textContent = "🎧";
+            } finally {
+              busy = false;
+            }
           });
         })();
         setInterval(() => {
