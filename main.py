@@ -378,7 +378,7 @@ async def access_gate_middleware(request: Request, call_next):
     ADMIN_TOKEN funciona como chave-mestra."""
     if not ACCESS_CONTROL_ON:
         return await call_next(request)
-    path = request.url.path
+    path, root = _app_relative_path(request)
     if _is_access_exempt(path):
         return await call_next(request)
     qtoken = (request.query_params.get("access") or "").strip()
@@ -406,7 +406,7 @@ async def access_gate_middleware(request: Request, call_next):
     accept = request.headers.get("accept", "")
     if path.startswith("/api/") or "application/json" in accept:
         return JSONResponse({"ok": False, "error": "acesso restrito — convite necessário"}, status_code=401)
-    return RedirectResponse(url="/entrar")
+    return RedirectResponse(url=f"{root}/entrar")
 
 current_area_key = DEFAULT_AREA if DEFAULT_AREA in AREAS else "rio"
 current_mode = "live"
@@ -992,6 +992,17 @@ ACCESS_EXEMPT_PREFIXES = (
 
 def _is_access_exempt(path: str) -> bool:
     return any(path == p or path.startswith(p) for p in ACCESS_EXEMPT_PREFIXES)
+
+
+def _app_relative_path(request: Request) -> tuple[str, str]:
+    """(caminho relativo ao app, prefixo de montagem). Sob Passenger o app vive em
+    /aisstream: request.url.path inclui o prefixo (root_path) e os redirects
+    precisam preservá-lo."""
+    path = request.url.path
+    root = (request.scope.get("root_path") or "").rstrip("/")
+    if root and path.startswith(root):
+        path = path[len(root):] or "/"
+    return path, root
 _kratos_events_lock = threading.Lock()
 KRATOS_EVENTS_MAX = 5000  # eventos mantidos em disco (rolling)
 

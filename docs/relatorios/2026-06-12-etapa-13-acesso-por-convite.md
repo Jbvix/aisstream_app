@@ -69,6 +69,24 @@ ao app** com **convite por WhatsApp / e-mail**. Decisões do usuário:
 - Sem SMTP: o envio parte do aparelho/cliente do admin (links prontos). Envio
   automático por e-mail exigiria configurar SMTP (decisão adiada).
 
+
+## Correção pós-implantação — subcaminho /aisstream (Passenger)
+
+Em produção o app é montado em `https://tuglife.live/aisstream/` (Passenger +
+a2wsgi com `SCRIPT_NAME=/aisstream`). Nesse cenário, `request.url.path` inclui o
+prefixo de montagem, o que causava dois defeitos (reproduzidos em simulação WSGI
+antes de ativar a trava):
+1. a isenção de `/entrar` não casava (`/aisstream/entrar` ≠ `/entrar`) → a própria
+   porta de entrada seria bloqueada (loop de redirect);
+2. o redirect usava `Location: /entrar` absoluto → cairia fora do app
+   (`tuglife.live/entrar`).
+
+Correção: helper `_app_relative_path()` remove o `root_path` do caminho antes da
+checagem de isenção, e o redirect preserva o prefixo (`{root}/entrar`). Validado
+por simulação Passenger (`SCRIPT_NAME=/aisstream`) e TestClient (montagem na
+raiz): redirect correto, `/entrar` e `/admin` acessíveis, APIs 401, link de
+convite e chave-mestra liberando com cookie.
+
 ## Arquivos alterados
 - `main.py` — núcleo de convites, middleware de gate, APIs de acesso e de admin.
 - `frontend/entrar.html` (novo) — porta de entrada.
