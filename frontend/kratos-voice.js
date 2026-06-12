@@ -132,9 +132,17 @@ function createKratosLiveVoice(cfg) {
 
     const tokenPromise = (async () => {
       const paths = ["/api/kratos/voice-session", "/dashboard/api/kratos/voice-session"];
+      // Corpo opcional (ex.: visão do mapa) fornecido pelo chamador.
+      let reqBody = null;
+      try { reqBody = cfg.getSessionBody ? cfg.getSessionBody() : null; } catch (_) {}
+      const fetchOpts = {
+        method: "POST",
+        headers: { Accept: "application/json", "Content-Type": "application/json" },
+        body: JSON.stringify(reqBody || {}),
+      };
       let body = null;
       for (const p of paths) {
-        const res = await fetch(apiUrl(p), { method: "POST", headers: { Accept: "application/json" } });
+        const res = await fetch(apiUrl(p), fetchOpts);
         body = await res.json().catch(() => ({}));
         if (res.status !== 404) {
           if (!res.ok || !body.ok) throw new Error(body.error || ("HTTP " + res.status));

@@ -78,6 +78,9 @@ COMPETITOR_TUGS = {
         {"mmsi": "710010250", "name": "C ARRAIAL / C SALVADOR"},
     ],
 }
+COMPETITOR_COMPANY_BY_MMSI = {
+    t["mmsi"]: company for company, tugs in COMPETITOR_TUGS.items() for t in tugs
+}
 GROK_API_KEY = (os.getenv("XAI_API_KEY") or "").strip()
 GROK_MODEL = (os.getenv("XAI_MODEL") or "grok-3-mini").strip()
 ASSISTANT_PROFILE = (os.getenv("ASSISTANT_PROFILE") or "hibrido").strip().lower()
@@ -2188,6 +2191,256 @@ def _is_simple_greeting(question: str) -> bool:
     return False
 
 
+# ===== Expansões de conhecimento do KRATOS =====
+
+def _bearing_compass(lat1, lon1, lat2, lon2):
+    """Direção cardeal aproximada de (lat1,lon1) para (lat2,lon2)."""
+    dlon = math.radians(lon2 - lon1)
+    y = math.sin(dlon) * math.cos(math.radians(lat2))
+    x = (
+        math.cos(math.radians(lat1)) * math.sin(math.radians(lat2))
+        - math.sin(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.cos(dlon)
+    )
+    brg = (math.degrees(math.atan2(y, x)) + 360) % 360
+    dirs = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE",
+            "S", "SSO", "SO", "OSO", "O", "ONO", "NO", "NNO"]
+    return dirs[int((brg + 11.25) // 22.5) % 16]
+
+
+def _compact_vessels_overview(limit: int = 150):
+    """TODAS as embarcações com posição (mercantes incluídos), em formato compacto.
+
+    Permite ao KRATOS responder "que navio está fundeado em tal ponto".
+    """
+    items = []
+    for v in list(latest_vessel_by_mmsi.values()):
+        lat, lon = v.get("latitude"), v.get("longitude")
+        if lat is None or lon is None:
+            continue
+        mmsi = str(v.get("mmsi") or "")
+        try:
+            sog = float(v.get("sog") or 0)
+        except (TypeError, ValueError):
+            sog = 0.0
+        entry = {
+            "name": (v.get("shipName") or "").strip() or f"MMSI {mmsi}",
+            "mmsi": mmsi,
+            "category": v.get("shipCategory") or "outros",
+            "lat": round(float(lat), 5),
+            "lon": round(float(lon), 5),
+            "sogKn": round(sog, 1),
+            "moving": sog >= 0.5,
+            "geofences": v.get("geofencesInside") or [],
+        }
+        if v.get("isSaamBgra"):
+            entry["fleet"] = "SAAM"
+        elif mmsi in COMPETITOR_COMPANY_BY_MMSI:
+            entry["fleet"] = COMPETITOR_COMPANY_BY_MMSI[mmsi]
+        items.append(entry)
+    # Prioridade: frota própria/concorrentes, depois quem está em geofence, depois demais.
+    items.sort(key=lambda x: (0 if x.get("fleet") else (1 if x["geofences"] else 2), x["name"]))
+    return items[:limit]
+
+
+def _geofences_summary():
+    """Demarcação das geofences: vértices, centro e dimensão aproximada.
+
+    Permite ao KRATOS orientar onde fica e como é demarcada cada área.
+    """
+    ensure_geofences_loaded()
+    with geofence_lock:
+        snap = list(geofences)
+    out = []
+    for g in snap:
+        if not g.get("isActive", True):
+            continue
+        geom = g.get("geometry") or {}
+        entry = {
+            "name": (g.get("name") or "").strip(),
+            "type": g.get("type"),
+            "fleetScope": g.get("fleetScope", "all"),
+        }
+        coords = geom.get("coordinates") or []
+        pts = [c for c in coords if isinstance(c, (list, tuple)) and len(c) == 2]
+        if pts:
+            lats = [p[0] for p in pts]
+            lons = [p[1] for p in pts]
+            entry["centerLat"] = round(sum(lats) / len(lats), 5)
+            entry["centerLon"] = round(sum(lons) / len(lons), 5)
+            entry["vertices"] = [[round(p[0], 5), round(p[1], 5)] for p in pts][:14]
+            entry["approxSpanNm"] = round(
+                _haversine_nm(min(lats), min(lons), max(lats), max(lons)), 2
+            )
+        center = geom.get("center") or []
+        if len(center) == 2:
+            entry["centerLat"] = round(center[0], 5)
+            entry["centerLon"] = round(center[1], 5)
+            entry["radiusMeters"] = geom.get("radiusMeters")
+        out.append(entry)
+    return out
+
+
+def _distances_and_eta_summary(enriched_maneuvers):
+    """Distância/ETA de cada rebocador (SAAM e concorrente) aos navios das próximas manobras."""
+    vessels_by_norm = {}
+    for v in latest_vessel_by_mmsi.values():
+        n = _normalize_text(v.get("shipName"))
+        if n and v.get("latitude") is not None:
+            vessels_by_norm[n] = v
+    tugs = []
+    for mmsi in SAAM_BGRA_MMSI_SET:
+        t = latest_vessel_by_mmsi.get(mmsi)
+        if t and t.get("latitude") is not None:
+            tugs.append((t, "SAAM"))
+    for mmsi, company in COMPETITOR_COMPANY_BY_MMSI.items():
+        t = latest_vessel_by_mmsi.get(mmsi)
+        if t and t.get("latitude") is not None:
+            tugs.append((t, company))
+    rows = []
+    for m in enriched_maneuvers[:10]:
+        v = vessels_by_norm.get(_normalize_text(m.get("vesselName")))
+        if not v:
+            continue
+        dists = []
+        for t, fleet in tugs:
+            d = _haversine_nm(t["latitude"], t["longitude"], v["latitude"], v["longitude"])
+            try:
+                sog = float(t.get("sog") or 0)
+            except (TypeError, ValueError):
+                sog = 0.0
+            eta = round(d / sog * 60) if sog >= 0.5 else None
+            dists.append({
+                "tug": (t.get("shipName") or "").strip() or t.get("mmsi"),
+                "fleet": fleet,
+                "distanceNm": round(d, 2),
+                "etaMinAtCurrentSpeed": eta,
+            })
+        dists.sort(key=lambda x: x["distanceNm"])
+        rows.append({
+            "vessel": m.get("vesselName"),
+            "pob": m.get("pob"),
+            "vesselLat": round(v["latitude"], 5),
+            "vesselLon": round(v["longitude"], 5),
+            "tugDistances": dists[:8],
+        })
+    return rows
+
+
+def _recent_tracks_summary():
+    """Tendência de deslocamento recente dos rebocadores (nossos e concorrentes),
+    derivada do buffer de posições (rastro/intenção de movimento)."""
+    tracked = set(SAAM_BGRA_MMSI_SET) | set(COMPETITOR_COMPANY_BY_MMSI.keys())
+    pts_by = {}
+    for item in list(recent_vessels):
+        m = str(item.get("mmsi") or "")
+        if m in tracked and item.get("latitude") is not None:
+            pts_by.setdefault(m, []).append(item)
+    out = []
+    for mmsi, pts in pts_by.items():
+        if len(pts) < 2:
+            continue
+        first, last = pts[0], pts[-1]
+        dist = _haversine_nm(first["latitude"], first["longitude"], last["latitude"], last["longitude"])
+        t0 = _parse_vessel_timestamp_unix(first)
+        t1 = _parse_vessel_timestamp_unix(last)
+        minutes = round((t1 - t0) / 60.0, 1) if (t0 and t1 and t1 > t0) else None
+        entry = {
+            "name": (last.get("shipName") or "").strip() or f"MMSI {mmsi}",
+            "fleet": "SAAM" if mmsi in SAAM_BGRA_MMSI_SET else COMPETITOR_COMPANY_BY_MMSI.get(mmsi),
+            "points": len(pts),
+            "distanceNm": round(dist, 2),
+            "windowMinutes": minutes,
+        }
+        if dist >= 0.05:
+            entry["trend"] = (
+                f"deslocando-se para {_bearing_compass(first['latitude'], first['longitude'], last['latitude'], last['longitude'])}"
+            )
+        else:
+            entry["trend"] = "praticamente parado"
+        out.append(entry)
+    return out
+
+
+# ===== Perfil do usuário (KRATOS conhece quem opera) =====
+
+def kratos_profile_file() -> Path:
+    return user_data_dir(DASHBOARD_USER_ID) / "kratos_user_profile.json"
+
+
+def load_kratos_profile() -> dict:
+    try:
+        p = kratos_profile_file()
+        if p.exists():
+            data = json.loads(p.read_text(encoding="utf-8"))
+            return data if isinstance(data, dict) else {}
+    except (OSError, json.JSONDecodeError):
+        pass
+    return {}
+
+
+def save_kratos_profile(profile: dict):
+    try:
+        kratos_profile_file().write_text(
+            json.dumps(profile, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+    except OSError:
+        pass
+
+
+def _extract_profile_tags(answer: str) -> str:
+    """Extrai tags [PERFIL: ...] da resposta, persiste no perfil e remove do texto."""
+    import re
+    tags = re.findall(r"\[PERFIL:\s*([^\]]+)\]", answer)
+    if not tags:
+        return answer
+    profile = load_kratos_profile()
+    for tag in tags:
+        for part in tag.split(";"):
+            if "=" not in part:
+                continue
+            key, val = part.split("=", 1)
+            key = _normalize_text(key)
+            val = val.strip()
+            if not val:
+                continue
+            if key in ("nome", "name"):
+                profile["name"] = val
+            elif key in ("funcao", "cargo", "role"):
+                profile["role"] = val
+            elif key in ("padrao", "padrão", "pattern", "preferencia"):
+                patterns = profile.setdefault("patterns", [])
+                if val not in patterns:
+                    patterns.append(val)
+                profile["patterns"] = patterns[-20:]
+    save_kratos_profile(profile)
+    return re.sub(r"\s*\[PERFIL:[^\]]+\]", "", answer).strip()
+
+
+def _profile_instruction_block() -> str:
+    """Bloco de instruções sobre o usuário (apresentação na 1ª conversa + memória)."""
+    profile = load_kratos_profile()
+    parts = []
+    if profile.get("name"):
+        linha = f"PERFIL DO USUARIO: nome {profile['name']}"
+        if profile.get("role"):
+            linha += f", funcao {profile['role']}"
+        parts.append(linha + ". Chame-o pelo nome com naturalidade.")
+        if profile.get("patterns"):
+            parts.append("Padroes de decisao ja observados: " + "; ".join(profile["patterns"][:10]) + ".")
+    else:
+        parts.append(
+            "PRIMEIRO CONTATO: voce ainda nao conhece este usuario. Na primeira resposta, "
+            "apresente-se brevemente como KRATOS e pergunte o nome e a funcao dele (sem insistir)."
+        )
+    parts.append(
+        "MEMORIA DE PERFIL: quando o usuario informar nome, funcao ou um padrao de decisao "
+        "relevante (ex.: 'prefiro 4 rebocadores em navio acima de 300m'), registre adicionando "
+        "ao FINAL da resposta a tag [PERFIL: nome=...; funcao=...; padrao=...] com apenas os "
+        "campos novos. A tag e removida antes de exibir ao usuario — nunca a mencione."
+    )
+    return "\n".join(parts)
+
+
 def _strategy_context_dict():
     ensure_geofences_loaded()
     ensure_saa_maneuvers_loaded()
@@ -2206,7 +2459,7 @@ def _strategy_context_dict():
                 "name": (v.get("shipName") or "").strip() or f"MMSI {mmsi}",
                 "latitude": v.get("latitude"),
                 "longitude": v.get("longitude"),
-                "speed": v.get("speed"),
+                "speed": v.get("sog") if v.get("sog") is not None else v.get("speed"),
                 "heading": v.get("heading"),
                 "insideGeofences": get_vessel_geofences(v),
             }
@@ -2240,6 +2493,12 @@ def _strategy_context_dict():
         "scheduleChanges": schedule_changes,
         "metocean": _fetch_metocean_context(),
         "userLearnedNotes": memory_items[:30],
+        # Expansões de conhecimento:
+        "vesselsOverview": _compact_vessels_overview(),
+        "geofencesMap": _geofences_summary(),
+        "maneuverDistances": _distances_and_eta_summary(enriched),
+        "recentTracks": _recent_tracks_summary(),
+        "userProfile": load_kratos_profile(),
     }
 
 
@@ -2318,7 +2577,22 @@ KRATOS_SYSTEM_PROMPT = (
     "- Considere as condicoes meteoceanicas: vento e mare (campo metocean) afetam a janela "
     "de manobra e o numero de rebocadores; sinalize risco e oportunidade.\n"
     "- Proteja a nossa programacao: recomende acoes que ganhem manobra ou melhorem o "
-    "posicionamento SEM comprometer os compromissos ja assumidos pela SAAM.\n\n"
+    "posicionamento SEM comprometer os compromissos ja assumidos pela SAAM.\n"
+    "- Enxergue TODO o espelho d'agua: vesselsOverview lista todas as embarcacoes visiveis "
+    "(mercantes incluidos) com posicao lat/lon, categoria, velocidade e geofences — use para "
+    "responder 'que navio esta fundeado em tal ponto'.\n"
+    "- Conheca a demarcacao das areas: geofencesMap traz vertices, centro e dimensao de cada "
+    "geofence (bercos, base de rebocadores, poligonos) — oriente sobre limites quando perguntado.\n"
+    "- Use distancias e ETA: maneuverDistances traz a distancia em milhas nauticas e o ETA de "
+    "cada rebocador (nosso e concorrente) ate os navios das proximas manobras.\n"
+    "- Leia a tendencia de deslocamento: recentTracks mostra o rastro recente dos rebocadores "
+    "(direcao, distancia percorrida, janela de tempo) — antecipe para onde cada um esta indo.\n\n"
+    "FOCO: mantenha a conversa exclusivamente em operacoes portuarias, navegacao, apoio "
+    "maritimo, meteorologia operacional, seguranca da navegacao e normas maritimas "
+    "(NORMAM/Marinha do Brasil, SOLAS, MARPOL, COLREG). Pode orientar sobre essas normas com "
+    "base no seu conhecimento, recomendando confirmar na publicacao oficial em temas criticos. "
+    "Se o usuario desviar para assunto fora desse escopo, redirecione com cortesia para o "
+    "contexto operacional.\n\n"
     "COMO VOCE FALA: portugues claro, direto e natural, como um parceiro operacional ao "
     "lado da equipe de manobra. Seja conversacional — faca perguntas de volta quando "
     "ajudar a decidir. Baseie-se no contexto e no historico; se faltar dado, diga com "
@@ -2333,7 +2607,11 @@ def _ask_grok_with_context(question: str, context: dict, history: list | None = 
     messages = [
         {
             "role": "system",
-            "content": KRATOS_SYSTEM_PROMPT + " " + _assistant_profile_instruction(),
+            "content": (
+                KRATOS_SYSTEM_PROMPT
+                + "\n\n" + _profile_instruction_block()
+                + " " + _assistant_profile_instruction()
+            ),
         }
     ]
     # Memoria de conversa: ate as ultimas 8 trocas (papel user/assistant).
@@ -2475,6 +2753,9 @@ async def strategy_assistant(request: Request):
     if not question:
         return JSONResponse({"ok": False, "error": "question obrigatoria"}, status_code=400)
     context = _strategy_context_dict()
+    map_view = payload.get("mapView")
+    if isinstance(map_view, dict):
+        context["userMapView"] = map_view
     if action == "report":
         question = (
             "Gere um relatorio executivo com: panorama operacional, market share (hoje/7d/30d), "
@@ -2487,6 +2768,7 @@ async def strategy_assistant(request: Request):
             + question
         )
     answer = await asyncio.to_thread(_ask_grok_with_context, question, context, history)
+    answer = _extract_profile_tags(answer)
     append_strategy_memory(f"Pergunta: {question}\nResposta: {answer[:1200]}", author="assistant")
     return {"ok": True, "answer": answer, "context": context}
 
@@ -2502,21 +2784,77 @@ KRATOS_VOICE_ID = (os.getenv("XAI_VOICE") or "leo").strip() or "leo"
 KRATOS_REALTIME_MODEL = (os.getenv("XAI_REALTIME_MODEL") or "grok-voice-latest").strip()
 
 
-def _kratos_voice_instructions() -> str:
-    """Instruções do agente de voz: persona KRATOS + contexto operacional fresco."""
+def _kratos_voice_instructions(map_view: dict | None = None) -> str:
+    """Instruções do agente de voz: persona + perfil do usuário + contexto operacional
+    completo (insights, embarcações, geofences, distâncias) e visão do mapa."""
     try:
         insights = _build_kratos_insights()
     except Exception:
         insights = []
     contexto = "\n".join(f"- {s}" for s in insights[:10])
+
+    # Embarcações em formato compacto (1 linha cada) para perguntas tipo
+    # "que navio está fundeado em tal ponto".
+    vessels_lines = []
+    try:
+        for v in _compact_vessels_overview(limit=120):
+            fleet = f"/{v['fleet']}" if v.get("fleet") else ""
+            geo = f" em {','.join(v['geofences'][:2])}" if v.get("geofences") else ""
+            estado = "movendo" if v.get("moving") else "parado"
+            vessels_lines.append(
+                f"{v['name']}{fleet} ({v['category']}, {v['lat']},{v['lon']}, {v['sogKn']}kn {estado}){geo}"
+            )
+    except Exception:
+        pass
+    vessels_block = "; ".join(vessels_lines)
+
+    geo_lines = []
+    try:
+        for g in _geofences_summary():
+            dims = f", raio {g['radiusMeters']}m" if g.get("radiusMeters") else (
+                f", ~{g.get('approxSpanNm')}nm" if g.get("approxSpanNm") is not None else ""
+            )
+            geo_lines.append(
+                f"{g['name']} ({g['type']}, centro {g.get('centerLat')},{g.get('centerLon')}{dims})"
+            )
+    except Exception:
+        pass
+
+    dist_lines = []
+    try:
+        ctx = _strategy_context_dict()
+        for r in (ctx.get("maneuverDistances") or [])[:6]:
+            tops = ", ".join(
+                f"{d['tug']}/{d['fleet']} {d['distanceNm']}nm" for d in r.get("tugDistances", [])[:4]
+            )
+            dist_lines.append(f"{r['vessel']} (POB {r['pob']}): {tops}")
+    except Exception:
+        pass
+
+    mapa = ""
+    if isinstance(map_view, dict):
+        c = map_view.get("center") or {}
+        mapa = (
+            "\n\nVISAO ATUAL DO MAPA DO USUARIO: centro "
+            f"{c.get('lat')},{c.get('lng')}, zoom {map_view.get('zoom')}"
+        )
+        b = map_view.get("bounds") or {}
+        if b:
+            mapa += f", area visivel de {b.get('south')},{b.get('west')} a {b.get('north')},{b.get('east')}"
+
     return (
         KRATOS_SYSTEM_PROMPT
+        + "\n\n" + _profile_instruction_block()
         + "\n\nVOZ: fale em portugues do Brasil, tom calmo, tecnico e com autoridade, "
         "como um estrategista ao lado do operador. Respostas CURTAS e objetivas "
         "(conversa falada): 1 a 3 frases por turno, sem listas longas. "
         "Se o usuario interromper, pare e ouca. Nunca invente dados; se faltar "
         "informacao, diga com transparencia.\n\n"
         "CONTEXTO OPERACIONAL AGORA (Baia de Guanabara):\n" + contexto
+        + ("\n\nGEOFENCES (demarcacao): " + "; ".join(geo_lines) if geo_lines else "")
+        + ("\n\nDISTANCIAS REBOCADOR->NAVIO (proximas manobras): " + " | ".join(dist_lines) if dist_lines else "")
+        + ("\n\nEMBARCACOES NO RADAR: " + vessels_block if vessels_block else "")
+        + mapa
     )
 
 
@@ -2541,8 +2879,20 @@ def _mint_realtime_client_secret() -> dict:
 
 
 @app.post("/api/kratos/voice-session")
-async def kratos_voice_session():
-    """Inicia uma sessão de voz ao vivo: token efêmero + configuração da sessão."""
+async def kratos_voice_session(request: Request = None):
+    """Inicia uma sessão de voz ao vivo: token efêmero + configuração da sessão.
+
+    Aceita corpo opcional {"mapView": {center:{lat,lng}, zoom, bounds:{...}}}
+    para o KRATOS saber o que o usuário está olhando no mapa.
+    """
+    map_view = None
+    if request is not None:
+        try:
+            body = await request.json()
+            if isinstance(body, dict) and isinstance(body.get("mapView"), dict):
+                map_view = body["mapView"]
+        except Exception:
+            map_view = None
     if not GROK_API_KEY:
         return JSONResponse(
             {"ok": False, "error": "XAI_API_KEY não configurada no servidor."},
@@ -2576,14 +2926,14 @@ async def kratos_voice_session():
         "expiresAt": secret.get("expires_at"),
         "model": KRATOS_REALTIME_MODEL,
         "voice": KRATOS_VOICE_ID,
-        "instructions": _kratos_voice_instructions(),
+        "instructions": _kratos_voice_instructions(map_view),
     }
 
 
 @app.post("/dashboard/api/kratos/voice-session")
-async def kratos_voice_session_under_dashboard_path():
+async def kratos_voice_session_under_dashboard_path(request: Request = None):
     """Mesmo comportamento para o subpath /dashboard."""
-    return await kratos_voice_session()
+    return await kratos_voice_session(request)
 
 
 def _wind_label(metocean: dict) -> str:

@@ -2888,6 +2888,25 @@
       _mapLiveVoice = window.createKratosLiveVoice({
         apiUrl,
         workletPath: "/frontend/pcm-processor-worklet.js",
+        // KRATOS recebe a visão atual do mapa (centro/zoom/área visível).
+        getSessionBody: () => {
+          try {
+            const c = map.getCenter();
+            const b = map.getBounds();
+            return {
+              mapView: {
+                center: { lat: +c.lat.toFixed(5), lng: +c.lng.toFixed(5) },
+                zoom: map.getZoom(),
+                bounds: {
+                  north: +b.getNorth().toFixed(5),
+                  south: +b.getSouth().toFixed(5),
+                  east: +b.getEast().toFixed(5),
+                  west: +b.getWest().toFixed(5),
+                },
+              },
+            };
+          } catch (_) { return {}; }
+        },
         onUserText: () => {},                       // no mapa não exibimos transcrição
         onAssistantText: (t) => flashInsight("KRATOS: " + t.slice(-180)),
         onAssistantInterrupted: () => {},
