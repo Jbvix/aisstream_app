@@ -814,6 +814,65 @@ def append_strategy_memory(note: str, author: str = "user"):
     path.write_text(json.dumps(items[:200], ensure_ascii=False, indent=2), encoding="utf-8")
 
 
+# ===== Telemetria / auditoria do KRATOS (página do administrador) =====
+ADMIN_TOKEN = (os.getenv("ADMIN_TOKEN") or "").strip()
+_kratos_events_lock = threading.Lock()
+KRATOS_EVENTS_MAX = 5000  # eventos mantidos em disco (rolling)
+
+
+def kratos_events_file() -> Path:
+    return user_data_dir(DASHBOARD_USER_ID) / "kratos_events.jsonl"
+
+
+def log_kratos_event(event_type: str, data: dict | None = None):
+    """Registra um evento de uso/auditoria do KRATOS em JSONL (append, rolling).
+
+    Tipos: chat, voice_session, feedback, error, no_data, report, insights, tour.
+    """
+    try:
+        rec = {"at": get_now_iso(), "ts": int(time.time()), "type": event_type}
+        if isinstance(data, dict):
+            rec.update(data)
+        path = kratos_events_file()
+        with _kratos_events_lock:
+            with path.open("a", encoding="utf-8") as fh:
+                fh.write(json.dumps(rec, ensure_ascii=False) + "\n")
+            # Compactação ocasional para não crescer sem limite.
+            if rec["ts"] % 50 == 0:
+                _trim_kratos_events(path)
+    except OSError:
+        pass
+
+
+def _trim_kratos_events(path: Path):
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+        if len(lines) > KRATOS_EVENTS_MAX:
+            path.write_text("\n".join(lines[-KRATOS_EVENTS_MAX:]) + "\n", encoding="utf-8")
+    except OSError:
+        pass
+
+
+def load_kratos_events(limit: int = 2000) -> list:
+    try:
+        path = kratos_events_file()
+        if not path.exists():
+            return []
+        lines = path.read_text(encoding="utf-8").splitlines()
+        out = []
+        for ln in lines[-limit:]:
+            ln = ln.strip()
+            if not ln:
+                continue
+            try:
+                out.append(json.loads(ln))
+            except json.JSONDecodeError:
+                continue
+        return out
+    except OSError:
+        return []
+
+
 def _saa_dim_defaults() -> dict:
     """Dimensões / programação; vazios na fila «Pedra» sem tabela."""
     return {"pob": "", "cal": "", "loa": "", "dwt": "", "m": "", "boca": "", "gt": ""}
@@ -2977,7 +3036,174 @@ async def strategy_assistant(request: Request):
     answer = await asyncio.to_thread(_ask_grok_with_context, question, context, history)
     answer = _extract_profile_tags(answer)
     append_strategy_memory(f"Pergunta: {question}\nResposta: {answer[:1200]}", author="assistant")
+    # Telemetria/auditoria: registra a interação (sem PII além do que o usuário digita).
+    low = answer.lower()
+    no_data = any(s in low for s in ["sem dado", "não há dado", "nao ha dado", "não tenho", "nao tenho", "sem grok", "erro grok"])
+    log_kratos_event("chat", {
+        "action": action,
+        "mode": "grok" if GROK_API_KEY else "local",
+        "question": question[:500],
+        "answerPreview": answer[:500],
+        "answerChars": len(answer),
+        "historyTurns": len(history),
+        "noData": no_data,
+        "viaVoice": bool(payload.get("viaVoice")),
+        "userName": (load_kratos_profile() or {}).get("name"),
+    })
     return {"ok": True, "answer": answer, "context": context}
+
+
+@app.post("/api/kratos/feedback")
+async def kratos_feedback(request: Request):
+    """Feedback leve do usuário sobre uma resposta do KRATOS ('isso foi útil?')."""
+    payload = await request.json()
+    useful = bool(payload.get("useful"))
+    log_kratos_event("feedback", {
+        "useful": useful,
+        "acted": bool(payload.get("acted")),
+        "question": str(payload.get("question") or "")[:300],
+        "answerPreview": str(payload.get("answerPreview") or "")[:300],
+        "userName": (load_kratos_profile() or {}).get("name"),
+    })
+    return {"ok": True}
+
+
+@app.post("/dashboard/api/kratos/feedback")
+async def kratos_feedback_dash(request: Request):
+    return await kratos_feedback(request)
+
+
+# ===== Página do administrador (métricas, eficácia, auditoria) =====
+
+def _admin_authorized(request: Request) -> bool:
+    if not ADMIN_TOKEN:
+        return False  # sem token configurado, admin fica indisponível (seguro por padrão)
+    given = (
+        request.headers.get("X-Admin-Token")
+        or request.query_params.get("token")
+        or ""
+    ).strip()
+    return given == ADMIN_TOKEN
+
+
+def _build_admin_metrics(events: list) -> dict:
+    from collections import Counter
+    now = time.time()
+    day = 86400
+    chats = [e for e in events if e.get("type") == "chat"]
+    fb = [e for e in events if e.get("type") == "feedback"]
+    voice = [e for e in events if e.get("type") == "voice_session"]
+    errors = [e for e in events if e.get("type") == "error"]
+
+    def since(items, secs):
+        return [e for e in items if (now - (e.get("ts") or 0)) <= secs]
+
+    chats_24h = since(chats, day)
+    chats_7d = since(chats, 7 * day)
+    no_data = [e for e in chats if e.get("noData")]
+    useful_yes = [e for e in fb if e.get("useful")]
+    useful_no = [e for e in fb if not e.get("useful")]
+    acted = [e for e in fb if e.get("acted")]
+
+    # Uso por dia (últimos 14 dias) para o gráfico de evolução.
+    by_day = Counter()
+    for e in chats:
+        ts = e.get("ts")
+        if ts:
+            d = datetime.fromtimestamp(ts).strftime("%Y-%m-%d")
+            by_day[d] += 1
+    daily = [{"day": d, "chats": by_day[d]} for d in sorted(by_day.keys())[-14:]]
+
+    # Temas mais perguntados (heurística por palavra-chave).
+    topics = Counter()
+    kw = {
+        "concorrente": ["concorrent", "wil", "cam"],
+        "manobra/programação": ["manobra", "pob", "programa"],
+        "frota SAAM": ["saam", "rebocador", "frota"],
+        "maré/vento": ["maré", "mare", "vento", "tempo"],
+        "geofence/corredor": ["geofence", "berço", "berco", "corredor"],
+        "market share": ["market", "share", "participa"],
+        "distância/ETA": ["distância", "distancia", "eta", "milha"],
+    }
+    for e in chats:
+        q = _normalize_text(e.get("question") or "")
+        for topic, terms in kw.items():
+            if any(_normalize_text(t) in q for t in terms):
+                topics[topic] += 1
+
+    total_fb = len(useful_yes) + len(useful_no)
+    return {
+        "totals": {
+            "chats": len(chats),
+            "chats24h": len(chats_24h),
+            "chats7d": len(chats_7d),
+            "voiceSessions": len(voice),
+            "feedbacks": len(fb),
+            "errors": len(errors),
+        },
+        "efficacy": {
+            "usefulYes": len(useful_yes),
+            "usefulNo": len(useful_no),
+            "usefulPct": round(100.0 * len(useful_yes) / total_fb, 1) if total_fb else None,
+            "actedCount": len(acted),
+            "feedbackRatePct": round(100.0 * len(fb) / len(chats), 1) if chats else None,
+        },
+        "quality": {
+            "noDataCount": len(no_data),
+            "noDataPct": round(100.0 * len(no_data) / len(chats), 1) if chats else None,
+            "errorCount": len(errors),
+            "lastErrors": errors[-10:][::-1],
+        },
+        "dailyChats": daily,
+        "topics": [{"topic": t, "count": c} for t, c in topics.most_common(8)],
+    }
+
+
+@app.get("/api/admin/overview")
+async def admin_overview(request: Request):
+    if not _admin_authorized(request):
+        return JSONResponse({"ok": False, "error": "não autorizado"}, status_code=401)
+    events = load_kratos_events(limit=KRATOS_EVENTS_MAX)
+    metrics = _build_admin_metrics(events)
+    # Correlação com resultado operacional (snapshot atual).
+    try:
+        ov = build_dashboard_overview_dict()
+        correlation = {
+            "marketShare": ov.get("marketShare"),
+            "tugChart": ov.get("tugChart"),
+            "scheduledManeuverTotal": len(ov.get("saaManeuvers") or []),
+        }
+    except Exception:
+        correlation = {}
+    profile = load_kratos_profile()
+    return {
+        "ok": True,
+        "generatedAt": get_now_iso(),
+        "metrics": metrics,
+        "correlation": correlation,
+        "userProfile": profile,
+        "voiceConfigured": bool(GROK_API_KEY),
+    }
+
+
+@app.get("/api/admin/conversations")
+async def admin_conversations(request: Request, limit: int = 200):
+    """Log de conversas (auditoria): perguntas/respostas e feedback recentes."""
+    if not _admin_authorized(request):
+        return JSONResponse({"ok": False, "error": "não autorizado"}, status_code=401)
+    events = load_kratos_events(limit=KRATOS_EVENTS_MAX)
+    convo = [e for e in events if e.get("type") in ("chat", "feedback", "voice_session", "error")]
+    return {"ok": True, "events": convo[-limit:][::-1]}
+
+
+@app.get("/admin")
+async def admin_page(request: Request):
+    return FileResponse(FRONTEND_DIR / "admin.html", media_type="text/html")
+
+
+@app.get("/admin/")
+async def admin_page_slash(request: Request):
+    return FileResponse(FRONTEND_DIR / "admin.html", media_type="text/html")
 
 
 @app.post("/dashboard/api/strategy-assistant")
@@ -3179,6 +3405,7 @@ async def kratos_voice_session(request: Request = None):
             detail = exc.read().decode("utf-8")[:300]
         except Exception:
             pass
+        log_kratos_event("error", {"where": "voice_session", "code": exc.code, "detail": detail[:200]})
         return JSONResponse(
             {
                 "ok": False,
@@ -3189,10 +3416,12 @@ async def kratos_voice_session(request: Request = None):
             status_code=502,
         )
     except Exception as exc:
+        log_kratos_event("error", {"where": "voice_session", "detail": str(exc)[:200]})
         return JSONResponse({"ok": False, "error": f"Falha ao cunhar token: {exc}"}, status_code=502)
     token = secret.get("value") or ""
     if not token:
         return JSONResponse({"ok": False, "error": "Resposta do xAI sem token."}, status_code=502)
+    log_kratos_event("voice_session", {"voice": KRATOS_VOICE_ID, "hasMapView": bool(map_view)})
     return {
         "ok": True,
         "token": token,

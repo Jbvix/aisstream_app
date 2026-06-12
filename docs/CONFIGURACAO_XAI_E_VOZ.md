@@ -58,6 +58,7 @@ Em **Setup Python App → Environment variables**:
 | `XAI_MODEL` | `grok-3-mini` | modelo do chat de texto (opcional) |
 | `XAI_REALTIME_MODEL` | `grok-voice-latest` | modelo da voz ao vivo (opcional, é o padrão) |
 | `XAI_VOICE` | `leo` | voz do KRATOS (opcional, é o padrão; alternativas: ara, eve, rex, sal) |
+| `ADMIN_TOKEN` | *(segredo forte)* | habilita a página do administrador (`/admin`) — eficácia e auditoria do KRATOS |
 
 Depois **reinicie** o app (`touch tmp/restart.txt`).
 

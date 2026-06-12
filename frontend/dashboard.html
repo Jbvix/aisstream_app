@@ -342,6 +342,9 @@
       border-bottom-left-radius: 4px;
     }
     .chat-msg--kratos b.who { color: var(--accent); }
+    .chat-feedback { margin-top: 6px; font-size: 0.72rem; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+    .chat-feedback button { background: transparent; border: 1px solid var(--line); border-radius: 6px; cursor: pointer; font-size: 0.85rem; padding: 1px 6px; }
+    .chat-feedback button:hover { background: rgba(53,200,255,.14); }
     .chat-msg--placeholder {
       align-self: center;
       color: var(--muted);
@@ -1003,7 +1006,8 @@
         return;
       }
       out.innerHTML = "";
-      for (const turn of kratosChatHistory) {
+      const lastIdx = kratosChatHistory.length - 1;
+      kratosChatHistory.forEach((turn, idx) => {
         const div = document.createElement("div");
         const isUser = turn.role === "user";
         div.className = "chat-msg " + (isUser ? "chat-msg--user" : "chat-msg--kratos");
@@ -1011,10 +1015,34 @@
           div.textContent = turn.content;
         } else {
           div.innerHTML = '<b class="who">KRATOS:</b> ' + escapeHtmlChat(turn.content);
+          // Botão "isso foi útil?" só na última resposta do KRATOS, se ainda não avaliada.
+          if (idx === lastIdx && !turn.rated && !/^Voz ao vivo|^Não consegui|^Falha no KRATOS/.test(turn.content)) {
+            const fb = document.createElement("div");
+            fb.className = "chat-feedback";
+            fb.innerHTML = '<span>Isso foi útil?</span> <button type="button" data-fb="yes">👍</button> <button type="button" data-fb="no">👎</button>';
+            fb.querySelectorAll("button").forEach((b) => b.addEventListener("click", () => {
+              const useful = b.getAttribute("data-fb") === "yes";
+              turn.rated = true;
+              const prevUser = kratosChatHistory[idx - 1];
+              sendKratosFeedback(useful, prevUser ? prevUser.content : "", turn.content);
+              fb.innerHTML = `<span class="muted">Obrigado pelo retorno ${useful ? "👍" : "👎"}</span>`;
+            }));
+            div.appendChild(fb);
+          }
         }
         out.appendChild(div);
-      }
+      });
       out.scrollTop = out.scrollHeight;
+    }
+
+    async function sendKratosFeedback(useful, question, answerPreview) {
+      try {
+        await fetch(apiUrl("/api/kratos/feedback"), {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Accept: "application/json" },
+          body: JSON.stringify({ useful, acted: useful, question: String(question || "").slice(0, 300), answerPreview: String(answerPreview || "").slice(0, 300) }),
+        });
+      } catch (_) {}
     }
 
     function escapeHtmlChat(s) {

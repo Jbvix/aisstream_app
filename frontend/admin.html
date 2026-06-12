@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>KRATOS — Administração & Auditoria</title>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+    :root { --bg:#071424; --panel:#10253d; --line:#2f4f6d; --text:#eaf4ff; --muted:#9ab6d4; --accent:#35c8ff; --good:#37d989; --warn:#ffd400; --bad:#ff5b52; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family:"IBM Plex Sans",sans-serif; background:var(--bg); color:var(--text); font-size:14px; padding:16px 18px 40px; }
+    header { display:flex; flex-wrap:wrap; align-items:baseline; justify-content:space-between; gap:12px; margin-bottom:16px; padding-bottom:12px; border-bottom:1px solid var(--line); }
+    h1 { margin:0; font-family:"Space Grotesk",sans-serif; font-size:1.3rem; }
+    .meta { color:var(--muted); font-size:0.78rem; }
+    a.nav { color:var(--accent); text-decoration:none; font-weight:600; font-size:0.9rem; }
+    .gate { max-width:420px; margin:60px auto; background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:24px; text-align:center; }
+    .gate input { width:100%; padding:10px; border-radius:8px; border:1px solid var(--line); background:rgba(9,22,37,.85); color:var(--text); margin:12px 0; font:inherit; }
+    .gate button, .btn { padding:9px 16px; border-radius:10px; border:1px solid var(--line); background:rgba(53,200,255,.14); color:var(--accent); font-weight:600; cursor:pointer; }
+    .gate button:hover, .btn:hover { background:rgba(53,200,255,.24); }
+    .tabs { display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap; }
+    .tab { padding:8px 14px; border-radius:10px; border:1px solid var(--line); background:transparent; color:var(--muted); cursor:pointer; font-weight:600; }
+    .tab.active { background:rgba(53,200,255,.16); color:var(--accent); border-color:var(--accent); }
+    .view { display:none; } .view.active { display:block; }
+    .cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:12px; margin-bottom:16px; }
+    .card { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px; }
+    .card .k { color:var(--muted); font-size:0.72rem; text-transform:uppercase; letter-spacing:0.05em; }
+    .card .v { font-family:"Space Grotesk",sans-serif; font-size:1.7rem; margin-top:4px; }
+    .card .v.good { color:var(--good); } .card .v.warn { color:var(--warn); } .card .v.bad { color:var(--bad); } .card .v.accent { color:var(--accent); }
+    .card .sub { color:var(--muted); font-size:0.72rem; margin-top:2px; }
+    section.block { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 16px; margin-bottom:16px; }
+    section.block h2 { font-size:0.95rem; color:var(--accent); margin:0 0 10px; }
+    .chart-wrap { position:relative; height:min(300px,46vh); }
+    table { width:100%; border-collapse:collapse; font-size:0.8rem; }
+    th,td { text-align:left; padding:7px 9px; border-bottom:1px solid rgba(47,79,109,.5); vertical-align:top; }
+    th { color:var(--muted); text-transform:uppercase; font-size:0.64rem; letter-spacing:0.05em; }
+    .pill { display:inline-block; padding:1px 8px; border-radius:999px; font-size:0.68rem; font-weight:700; }
+    .pill.chat { background:rgba(53,200,255,.18); color:var(--accent); }
+    .pill.feedback { background:rgba(55,217,137,.18); color:var(--good); }
+    .pill.voice_session { background:rgba(255,212,0,.16); color:var(--warn); }
+    .pill.error { background:rgba(255,91,82,.18); color:var(--bad); }
+    .muted { color:var(--muted); }
+    .q { color:var(--text); } .a { color:var(--muted); }
+    .err { color:#ffb4b4; font-size:0.82rem; }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>KRATOS — Administração & Auditoria</h1>
+      <div class="meta">Acompanhamento de eficácia, uso e saúde do assistente</div>
+    </div>
+    <div>
+      <a class="nav" href="./">← Mapa</a>
+      <button type="button" class="btn" id="refreshBtn" style="display:none;">Atualizar</button>
+    </div>
+  </header>
+
+  <div id="gate" class="gate">
+    <div style="font-size:2rem;">🔒</div>
+    <p>Área restrita ao administrador. Informe o token de acesso.</p>
+    <input id="tokenInput" type="password" placeholder="ADMIN_TOKEN" />
+    <button type="button" id="enterBtn">Entrar</button>
+    <div id="gateErr" class="err" style="margin-top:8px;"></div>
+  </div>
+
+  <main id="app" style="display:none;">
+    <div class="tabs">
+      <button class="tab active" data-view="efficacy">Eficácia & Uso</button>
+      <button class="tab" data-view="audit">Auditoria (conversas)</button>
+      <button class="tab" data-view="health">Saúde & Resultado</button>
+    </div>
+
+    <section id="view-efficacy" class="view active">
+      <div class="cards" id="cardsEfficacy"></div>
+      <section class="block">
+        <h2>Evolução do uso (chats/dia)</h2>
+        <div class="chart-wrap"><canvas id="chartDaily"></canvas></div>
+      </section>
+      <section class="block">
+        <h2>Temas mais consultados</h2>
+        <div class="chart-wrap"><canvas id="chartTopics"></canvas></div>
+      </section>
+    </section>
+
+    <section id="view-audit" class="view">
+      <section class="block">
+        <h2>Log de conversas e eventos</h2>
+        <p class="muted" style="font-size:0.75rem;margin:0 0 8px;">Auditoria de como o KRATOS está sendo usado. Mostra perguntas, prévia das respostas, feedback e erros.</p>
+        <table>
+          <thead><tr><th>Quando</th><th>Tipo</th><th>Pergunta / Evento</th><th>Resposta (prévia)</th><th>Flags</th></tr></thead>
+          <tbody id="auditRows"></tbody>
+        </table>
+      </section>
+    </section>
+
+    <section id="view-health" class="view">
+      <div class="cards" id="cardsHealth"></div>
+      <section class="block">
+        <h2>Últimos erros</h2>
+        <table><thead><tr><th>Quando</th><th>Onde</th><th>Detalhe</th></tr></thead><tbody id="errorRows"></tbody></table>
+      </section>
+      <section class="block">
+        <h2>Correlação com resultado operacional</h2>
+        <p class="muted" style="font-size:0.75rem;margin:0 0 8px;">Snapshot atual para correlacionar o uso do KRATOS com o desempenho (market share e frota).</p>
+        <div class="chart-wrap"><canvas id="chartShare"></canvas></div>
+      </section>
+    </section>
+  </main>
+
+<script>
+  const API_BASE = (() => { const p = location.pathname; const i = p.indexOf("/admin"); return i >= 0 ? p.slice(0, i) : ""; })();
+  let token = sessionStorage.getItem("kratosAdminToken") || "";
+  let charts = {};
+
+  function apiUrl(path) { return `${API_BASE}${path}`; }
+  async function api(path) {
+    const res = await fetch(apiUrl(path), { headers: { "X-Admin-Token": token, Accept: "application/json" } });
+    if (res.status === 401) throw new Error("unauthorized");
+    return res.json();
+  }
+  const esc = (s) => String(s ?? "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;");
+  const fmtTime = (iso) => { try { return new Date(iso).toLocaleString("pt-BR", { hour12:false }); } catch (_) { return iso || "-"; } };
+
+  function card(k, v, cls, sub) {
+    return `<div class="card"><div class="k">${esc(k)}</div><div class="v ${cls||""}">${esc(v)}</div>${sub?`<div class="sub">${esc(sub)}</div>`:""}</div>`;
+  }
+
+  function renderEfficacy(d) {
+    const t = d.metrics.totals, e = d.metrics.efficacy, q = d.metrics.quality;
+    document.getElementById("cardsEfficacy").innerHTML =
+      card("Chats (total)", t.chats, "accent") +
+      card("Chats 24h", t.chats24h) +
+      card("Chats 7 dias", t.chats7d) +
+      card("Sessões de voz", t.voiceSessions, "warn") +
+      card("Útil (👍)", e.usefulPct != null ? e.usefulPct + "%" : "—", "good", `${e.usefulYes} sim / ${e.usefulNo} não`) +
+      card("Marcaram que agiram", e.actedCount, "good") +
+      card("Taxa de feedback", e.feedbackRatePct != null ? e.feedbackRatePct + "%" : "—", "", "respostas avaliadas") +
+      card("Sem dado", q.noDataPct != null ? q.noDataPct + "%" : "—", q.noDataPct > 20 ? "bad" : "", `${q.noDataCount} respostas`);
+
+    const daily = d.metrics.dailyChats || [];
+    drawChart("chartDaily", "bar", {
+      labels: daily.map(x => x.day),
+      datasets: [{ label:"Chats/dia", data: daily.map(x => x.chats), backgroundColor:"rgba(53,200,255,.6)" }],
+    });
+    const topics = d.metrics.topics || [];
+    drawChart("chartTopics", "bar", {
+      labels: topics.map(x => x.topic),
+      datasets: [{ label:"Consultas", data: topics.map(x => x.count), backgroundColor:"rgba(55,217,137,.6)" }],
+    }, { indexAxis: "y" });
+  }
+
+  function renderHealth(d) {
+    const t = d.metrics.totals, q = d.metrics.quality;
+    document.getElementById("cardsHealth").innerHTML =
+      card("Erros (total)", t.errors, t.errors > 0 ? "bad" : "good") +
+      card("Sem dado", q.noDataCount, q.noDataCount > 0 ? "warn" : "good") +
+      card("Voz configurada", d.voiceConfigured ? "Sim" : "Não", d.voiceConfigured ? "good" : "bad") +
+      card("Usuário", (d.userProfile && d.userProfile.name) || "—", "", (d.userProfile && d.userProfile.role) || "");
+    const errs = q.lastErrors || [];
+    document.getElementById("errorRows").innerHTML = errs.length
+      ? errs.map(e => `<tr><td>${esc(fmtTime(e.at))}</td><td>${esc(e.where||"-")}</td><td class="muted">${esc(e.detail||e.code||"-")}</td></tr>`).join("")
+      : `<tr><td colspan="3" class="muted">Nenhum erro registrado. 👍</td></tr>`;
+    const share = (d.correlation && d.correlation.marketShare && d.correlation.marketShare.rows) || [];
+    drawChart("chartShare", "doughnut", {
+      labels: share.map(r => r.empRb),
+      datasets: [{ data: share.map(r => r.count), backgroundColor: share.map(r => String(r.empRb).toUpperCase()==="SAA" ? "rgba(255,212,0,.9)" : "rgba(120,160,200,.6)") }],
+    });
+  }
+
+  function renderAudit(events) {
+    const rows = events.map(e => {
+      const flags = [];
+      if (e.noData) flags.push("sem-dado");
+      if (e.viaVoice) flags.push("voz");
+      if (e.type === "feedback") flags.push(e.useful ? "útil 👍" : "não 👎");
+      if (e.mode) flags.push(e.mode);
+      const pergunta = e.type === "chat" ? esc(e.question||"")
+        : e.type === "feedback" ? `feedback: ${esc(e.question||"")}`
+        : e.type === "voice_session" ? "sessão de voz iniciada"
+        : e.type === "error" ? `erro em ${esc(e.where||"")}` : "-";
+      return `<tr>
+        <td class="muted">${esc(fmtTime(e.at))}</td>
+        <td><span class="pill ${esc(e.type)}">${esc(e.type)}</span></td>
+        <td class="q">${pergunta}</td>
+        <td class="a">${esc((e.answerPreview||"").slice(0,160))}</td>
+        <td class="muted">${esc(flags.join(", "))}</td>
+      </tr>`;
+    }).join("");
+    document.getElementById("auditRows").innerHTML = rows || `<tr><td colspan="5" class="muted">Sem eventos ainda.</td></tr>`;
+  }
+
+  function drawChart(id, type, data, extra) {
+    const ctx = document.getElementById(id);
+    if (!ctx) return;
+    if (charts[id]) charts[id].destroy();
+    charts[id] = new Chart(ctx, {
+      type, data,
+      options: Object.assign({ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ labels:{ color:"#eaf4ff" } } },
+        scales: type==="doughnut" ? {} : { x:{ ticks:{ color:"#9ab6d4" } }, y:{ ticks:{ color:"#9ab6d4" } } } }, extra||{}),
+    });
+  }
+
+  async function loadAll() {
+    try {
+      const ov = await api("/api/admin/overview");
+      if (!ov.ok) throw new Error("fail");
+      document.getElementById("app").querySelector(".meta");
+      renderEfficacy(ov);
+      renderHealth(ov);
+      const co = await api("/api/admin/conversations?limit=300");
+      renderAudit(co.events || []);
+    } catch (e) {
+      if (String(e.message) === "unauthorized") { showGate("Token inválido ou ADMIN_TOKEN não configurado no servidor."); }
+    }
+  }
+
+  function showApp() {
+    document.getElementById("gate").style.display = "none";
+    document.getElementById("app").style.display = "block";
+    document.getElementById("refreshBtn").style.display = "inline-block";
+    loadAll();
+  }
+  function showGate(msg) {
+    document.getElementById("gate").style.display = "block";
+    document.getElementById("app").style.display = "none";
+    if (msg) document.getElementById("gateErr").textContent = msg;
+  }
+
+  document.querySelectorAll(".tab").forEach(tab => tab.addEventListener("click", () => {
+    document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+    document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
+    tab.classList.add("active");
+    document.getElementById("view-" + tab.dataset.view).classList.add("active");
+  }));
+  document.getElementById("enterBtn").addEventListener("click", () => {
+    token = document.getElementById("tokenInput").value.trim();
+    sessionStorage.setItem("kratosAdminToken", token);
+    showApp();
+  });
+  document.getElementById("tokenInput").addEventListener("keydown", (e) => { if (e.key === "Enter") document.getElementById("enterBtn").click(); });
+  document.getElementById("refreshBtn").addEventListener("click", loadAll);
+
+  if (token) showApp(); else showGate();
+</script>
+</body>
+</html>
