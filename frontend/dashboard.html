@@ -443,6 +443,14 @@
           <li>O som só toca após a primeira interação com a página (regra dos navegadores) — abrir a central e/ou clicar em “Testar” já habilita.</li>
         </ul>
 
+        <h3>Controle de horas de operação (fadiga)</h3>
+        <ul>
+          <li>Cada rebocador da frota SAAM tem um <b>horímetro de operação</b>: conta o tempo em que está <b>em movimento</b> (manobra <b>ou</b> deslocamento de um ponto a outro). <b>Repouso</b> = atracado/parado (não conta).</li>
+          <li>No painel <b>SAAM-BGRA</b> (dock do mapa), cada rebocador mostra uma <b>barra de operação</b> — <b>verde</b> abaixo de 6 h, <b>âmbar</b> de 7 a 8 h, <b>vermelho</b> ao atingir o <b>limite de 8 h</b> — com as horas do dia e a marca “operando/recuperado”.</li>
+          <li>Por segurança, o limite é <b>8 h de operação</b>; ao atingir <b>7 h</b> (atenção) e <b>8 h</b> (limite) o KRATOS dispara um <b>alerta de fadiga</b> (na Central de Alertas). Após <b>8 h de repouso contínuo</b> a fadiga é zerada (revezamento).</li>
+          <li>O KRATOS considera as horas de operação ao <b>recomendar alocação</b> — evita rebocadores em atenção/limite e prefere os de menor carga.</li>
+        </ul>
+
         <h3>Acesso por convite (token)</h3>
         <ul>
           <li>O app pode operar em modo <b>acesso só por convite</b>: cada convidado recebe um <b>link de acesso</b> por <b>WhatsApp</b> ou <b>e-mail</b> e entra com um clique (a página <code>/entrar</code> grava um cookie de sessão). Também é possível colar o token manualmente em <code>/entrar</code>.</li>

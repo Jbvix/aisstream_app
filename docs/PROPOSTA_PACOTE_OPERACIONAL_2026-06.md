@@ -233,3 +233,12 @@ A proposta foi **aprovada com os seguintes ajustes** sobre os defaults:
 
 Execução iniciada pelas **Etapas 14 (Central de Alertas) + 16 (Radar de
 oportunidade)**, por compartilharem a região de código (barra/geofences/eventos).
+
+
+## Progresso da execução
+
+- ✅ Etapa 14 — Central de Alertas (09aa…/main)
+- ✅ Etapa 16 — Radar de oportunidade
+- ✅ Etapa 18 — Upload de conhecimento no chat
+- ✅ Etapa 15 — Horímetro de operação (fadiga)
+- ⏳ Etapa 17 — Corredores por GPX + XTE (aguardando arquivos GPX)

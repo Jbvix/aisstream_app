@@ -1285,6 +1285,10 @@
     .alert-opp-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 5px 0; border-bottom: 1px solid rgba(47,79,109,.4); }
     .alert-opp-item button { background: rgba(255,176,32,.14); color: #ffb020; border: 1px solid rgba(255,176,32,.5);
       border-radius: 8px; padding: 2px 8px; font: inherit; font-size: 0.72rem; cursor: pointer; }
+    .fatigue-wrap { margin-top: 6px; }
+    .fatigue-bar { height: 6px; border-radius: 4px; background: rgba(47,79,109,.5); overflow: hidden; }
+    .fatigue-bar span { display: block; height: 100%; border-radius: 4px; transition: width .4s, background .4s; }
+    .fatigue-txt { font-size: 0.68rem; color: #9ab6d4; margin-top: 2px; }
     .dock-btn.has-alerts { position: relative; }
     .dock-btn.has-alerts::after { content: ""; position: absolute; top: 6px; right: 6px; width: 8px; height: 8px;
       border-radius: 50%; background: #ff5b52; box-shadow: 0 0 6px #ff5b52; }
@@ -1975,6 +1979,7 @@
       oportunidade: { label: "Oportunidade — navio na barra SEM contrato", sev: "warn", def: true },
       concorrente:  { label: "Concorrente (WIL/CAM) entrando na BG",     sev: "warn", def: true },
       fleetOffline: { label: "Rebocador da frota sem sinal (barra fora)", sev: "high", def: false },
+      fadiga:       { label: "Rebocador em fadiga (horas de operação)",   sev: "high", def: true },
     };
     const ALERT_PREFS_KEY = "kratos.alertPrefs.v2";
     const ALERT_COOLDOWN_MS = 10 * 60 * 1000;   // não repetir o mesmo (tipo+navio) por 10 min
@@ -2088,11 +2093,11 @@
       if (btn) btn.classList.add("has-alerts");
     }
 
-    function fireAlert(type, v, msg) {
+    function fireAlert(type, v, msg, keyExtra) {
       const meta = ALERT_TYPES[type];
       if (!meta || !alertPrefs.enabled[type] || !_alertsArmed) return;
       const mmsi = String(v?.mmsi || "");
-      const key = `${type}:${mmsi}`;
+      const key = `${type}:${mmsi}${keyExtra != null ? ":" + keyExtra : ""}`;
       const now = Date.now();
       const last = _alertCooldown.get(key) || 0;
       if (now - last < ALERT_COOLDOWN_MS) return;
@@ -2187,6 +2192,48 @@
         // Reavalia oportunidades já no mapa com a nova programação.
         markers.forEach((entry) => { if (entry?.vessel) processVesselAlerts(entry.vessel); });
       } catch (_) {}
+    }
+
+    // ---- Horas de operação / fadiga (Etapa 15) ----
+    let tugOperatingHours = {};   // mmsi -> {operatingHours, restingHours, status, recovered, moving}
+    let tugOpConfig = { limitHours: 8, warnHours: 7, recoveryHours: 8 };
+    const _fatigueFired = new Map();   // mmsi -> nível já alertado (1=atenção, 2=limite)
+    let _fatigueDay = "";
+
+    async function refreshOperatingHours() {
+      try {
+        const res = await fetch(apiUrl("/api/saam-operating-hours"), { headers: { Accept: "application/json" } });
+        if (!res.ok) return;
+        const data = await res.json();
+        tugOpConfig = { limitHours: data.limitHours || 8, warnHours: data.warnHours || 7, recoveryHours: data.recoveryHours || 8 };
+        const map = {};
+        (data.tugs || []).forEach((t) => { map[String(t.mmsi)] = t; });
+        tugOperatingHours = map;
+        renderSaamBgraFleetPanel();
+        checkFatigueAlerts(data.tugs || []);
+      } catch (_) {}
+    }
+
+    function checkFatigueAlerts(tugs) {
+      const today = new Date().toDateString();
+      if (_fatigueDay !== today) { _fatigueFired.clear(); _fatigueDay = today; }
+      tugs.forEach((t) => {
+        const mmsi = String(t.mmsi);
+        const fired = _fatigueFired.get(mmsi) || 0;
+        let level = 0;
+        if (t.operatingHours >= tugOpConfig.limitHours) level = 2;
+        else if (t.operatingHours >= tugOpConfig.warnHours) level = 1;
+        if (level > fired) {
+          _fatigueFired.set(mmsi, level);
+          const h = Number(t.operatingHours).toFixed(1);
+          const msg = level === 2
+            ? `${t.name} atingiu ${h} h de operação (limite ${tugOpConfig.limitHours} h) — encaminhar para recuperação / revezamento.`
+            : `${t.name} em ${h} h de operação (atenção: limite ${tugOpConfig.limitHours} h).`;
+          fireAlert("fadiga", { mmsi, shipName: t.name }, msg, level);
+        }
+        // Se recuperou (zerou), permite novo ciclo de alertas.
+        if (t.recovered || t.operatingHours < tugOpConfig.warnHours) _fatigueFired.set(mmsi, 0);
+      });
     }
 
     // Varredura periódica: rebocador da frota SAAM sem sinal (possível barra fora).
@@ -3011,6 +3058,19 @@
       requestAnimationFrame(() => syncHeaderHeightVar());
     }
 
+    function fatigueBarHtml(mmsi) {
+      const t = tugOperatingHours[String(mmsi)];
+      const limit = tugOpConfig.limitHours || 8;
+      const warn = tugOpConfig.warnHours || 7;
+      const opH = t ? Number(t.operatingHours) || 0 : 0;
+      const pct = Math.max(0, Math.min(100, Math.round((opH / limit) * 100)));
+      const color = opH >= limit ? "#ff5b52" : (opH >= warn ? "#ffb020" : "#37d989");
+      const extra = t && t.recovered ? " · recuperado" : (t && t.moving ? " · operando" : "");
+      return `<div class="fatigue-wrap" title="Horas de operação (fadiga). Limite ${limit} h.">`
+        + `<div class="fatigue-bar"><span style="width:${pct}%;background:${color};"></span></div>`
+        + `<div class="fatigue-txt">Operação: ${opH.toFixed(1)} h / ${limit} h${extra}</div></div>`;
+    }
+
     function renderSaamBgraFleetPanel() {
       if (!saamFleetListEl) {
         renderSaamHeaderLamps();
@@ -3048,6 +3108,7 @@
               Geofences: ${escapeHtml(gfs)}<br>
               Última AIS: ${escapeHtml(age)}
             </div>
+            ${fatigueBarHtml(ship.mmsi)}
             <button type="button" class="btn-locate-saam tiny-btn" data-mmsi="${escapeHtml(ship.mmsi)}" ${online ? "" : "disabled"}>
               Localizar no mapa
             </button>
@@ -4663,6 +4724,8 @@
         refreshProgrammedNames().catch(() => {});
         setInterval(() => { refreshProgrammedNames().catch(() => {}); }, 120000);
         setInterval(scanFleetOffline, 60000);
+        refreshOperatingHours().catch(() => {});
+        setInterval(() => { refreshOperatingHours().catch(() => {}); }, 60000);
         // Aquecimento: só dispara alertas após ~8 s (evita rajada falsa de "entrou" no F5).
         setTimeout(() => { _alertsArmed = true; }, 8000);
         // Insights do KRATOS na caixa datilografada (canto inferior esquerdo).

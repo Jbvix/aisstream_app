@@ -88,6 +88,18 @@ ASSISTANT_PROFILE = (os.getenv("ASSISTANT_PROFILE") or "hibrido").strip().lower(
 # Estatísticas persistidas (tug_geofence_stats.json): só berço e polígono contam manobra + tempo.
 # Saída da base rebocador não soma manobra nem horas nesse ficheiro.
 SAAM_MANEUVER_STATS_GEOFENCE_TYPES = frozenset({"berco", "polygon"})
+
+# Controle de horas de operação do rebocador (prevenção de fadiga — reunião 12/06).
+# Operação = qualquer movimento (manobra OU deslocamento); repouso = atracado/parado.
+# Após TUG_OP_LIMIT_HOURS de operação, o rebocador deve entrar em recuperação;
+# TUG_RECOVERY_HOURS de repouso contínuo zeram a fadiga (revezamento).
+TUG_OP_LIMIT_HOURS = float(os.getenv("TUG_OP_LIMIT_HOURS") or 8.0)
+TUG_OP_WARN_HOURS = float(os.getenv("TUG_OP_WARN_HOURS") or 7.0)
+TUG_RECOVERY_HOURS = float(os.getenv("TUG_RECOVERY_HOURS") or 8.0)
+TUG_OP_MOVING_SOG = 0.5          # nós: acima disso o rebocador está em movimento (operação)
+TUG_OP_MAX_GAP_SEC = 600         # lacuna > 10 min = sinal perdido; não contabiliza
+_last_op_save_ts = 0.0
+
 # Navio comercial (não SAAM-BGRA) → indicador «manobra SAA» no dashboard (berço/polígono/base)
 SAA_MANEUVER_SHIP_CATEGORIES = frozenset(
     {"carga", "petroleiro", "passageiros", "lazer", "pesca", "outros"}
@@ -1255,6 +1267,66 @@ def update_saam_fleet_geofence_stats(vessel):
         save_tug_stats()
 
 
+def update_saam_operating_hours(vessel):
+    """Acumula horas de OPERAÇÃO (movimento) do rebocador SAAM para controle de
+    fadiga. Usa o delta de relógio global por MMSI (robusto a múltiplos streams).
+    Repouso (parado) >= TUG_RECOVERY_HOURS zera a fadiga (revezamento)."""
+    if not vessel.get("isSaamBgra"):
+        return
+    global _last_op_save_ts
+    mmsi = str(vessel.get("mmsi"))
+    try:
+        sog = float(vessel.get("sog") or 0)
+    except (TypeError, ValueError):
+        sog = 0.0
+    now = time.time()
+    with saam_geofence_stats_lock:
+        op = tug_stats_state.setdefault("operating", {})
+        ent = op.get(mmsi)
+        if not ent:
+            op[mmsi] = {
+                "lastTs": now, "operatingSec": 0.0, "restingSec": 0.0,
+                "recovered": False, "moving": sog >= TUG_OP_MOVING_SOG,
+                "name": vessel.get("shipName") or mmsi, "byDay": {},
+            }
+            return
+        dt = now - float(ent.get("lastTs") or now)
+        ent["lastTs"] = now
+        if dt < 0:
+            dt = 0.0
+        if dt > TUG_OP_MAX_GAP_SEC:
+            dt = 0.0  # sinal perdido: não contabiliza a lacuna
+        moving = sog >= TUG_OP_MOVING_SOG
+        ent["moving"] = moving
+        crossed = None
+        if moving:
+            prev_h = float(ent.get("operatingSec", 0)) / 3600.0
+            ent["operatingSec"] = float(ent.get("operatingSec", 0)) + dt
+            ent["restingSec"] = 0.0
+            ent["recovered"] = False
+            new_h = ent["operatingSec"] / 3600.0
+            if prev_h < TUG_OP_WARN_HOURS <= new_h:
+                crossed = "warn"
+            if prev_h < TUG_OP_LIMIT_HOURS <= new_h:
+                crossed = "limit"
+            day = datetime.fromtimestamp(now).strftime("%Y-%m-%d")
+            bd = ent.setdefault("byDay", {})
+            bd[day] = float(bd.get(day, 0)) + dt
+            if len(bd) > 40:
+                for k in sorted(bd)[:-30]:
+                    bd.pop(k, None)
+        else:
+            ent["restingSec"] = float(ent.get("restingSec", 0)) + dt
+            if ent["restingSec"] >= TUG_RECOVERY_HOURS * 3600 and float(ent.get("operatingSec", 0)) > 0:
+                ent["operatingSec"] = 0.0
+                ent["recovered"] = True
+        ent["name"] = vessel.get("shipName") or ent.get("name") or mmsi
+    # Persiste ao cruzar marco ou a cada ~2 min.
+    if crossed or (now - _last_op_save_ts > 120):
+        _last_op_save_ts = now
+        save_tug_stats()
+
+
 def point_in_polygon(latitude, longitude, polygon):
     # polygon: [[lat, lon], [lat, lon], ...]
     if not polygon or len(polygon) < 3:
@@ -1888,6 +1960,45 @@ def get_vessels(since: int = 0, limit: int = 300, snapshot: bool = False):
         "vessels": items,
         "lastSeq": current_seq,
         "count": len(items)
+    }
+
+
+def _saam_operating_hours_rows():
+    op = (tug_stats_state or {}).get("operating", {}) or {}
+    rows = []
+    for mmsi, ent in op.items():
+        op_h = float(ent.get("operatingSec", 0)) / 3600.0
+        rest_h = float(ent.get("restingSec", 0)) / 3600.0
+        if op_h >= TUG_OP_LIMIT_HOURS:
+            status = "limite"
+        elif op_h >= TUG_OP_WARN_HOURS:
+            status = "atencao"
+        elif ent.get("recovered"):
+            status = "recuperado"
+        else:
+            status = "ok"
+        rows.append({
+            "mmsi": mmsi,
+            "name": ent.get("name") or mmsi,
+            "operatingHours": round(op_h, 2),
+            "restingHours": round(rest_h, 2),
+            "moving": bool(ent.get("moving")),
+            "recovered": bool(ent.get("recovered")),
+            "status": status,
+        })
+    rows.sort(key=lambda r: r["operatingHours"], reverse=True)
+    return rows
+
+
+@app.get("/api/saam-operating-hours")
+def get_saam_operating_hours():
+    """Horas de operação (fadiga) por rebocador SAAM, para o painel e os alertas."""
+    return {
+        "ok": True,
+        "limitHours": TUG_OP_LIMIT_HOURS,
+        "warnHours": TUG_OP_WARN_HOURS,
+        "recoveryHours": TUG_RECOVERY_HOURS,
+        "tugs": _saam_operating_hours_rows(),
     }
 
 
@@ -2920,6 +3031,7 @@ def _strategy_context_dict():
         "userLearnedNotes": memory_items[:30],
         # Expansões de conhecimento:
         "vesselsOverview": _compact_vessels_overview(),
+        "tugOperatingHours": _saam_operating_hours_rows(),
         "fleetAisStatus": _fleet_ais_status(),
         "geofencesMap": _geofences_summary(),
         "maneuverDistances": _distances_and_eta_summary(enriched),
@@ -3020,6 +3132,11 @@ KRATOS_SYSTEM_PROMPT = (
     "recente (recentTracks), use-o para refinar o trajeto.\n"
     "- Leia a tendencia de deslocamento: recentTracks mostra o rastro recente dos rebocadores "
     "(direcao, distancia percorrida, janela de tempo) — antecipe para onde cada um esta indo.\n"
+    "- Controle de fadiga: tugOperatingHours traz as HORAS DE OPERACAO do dia de cada rebocador "
+    "SAAM (operatingHours), o estado (operando/parado), se esta recuperado e o status (ok/atencao "
+    ">=7h/limite >=8h). Por seguranca, o limite e 8h de operacao por rebocador; ao recomendar "
+    "alocacao, EVITE rebocadores em 'atencao' ou 'limite' e prefira os de menor carga (revezamento). "
+    "Operacao = qualquer movimento (manobra ou deslocamento); repouso = atracado/parado.\n"
     "- Verificacao de frota: fleetAisStatus traz o status AIS de cada rebocador cadastrado "
     "(nosso e concorrente). Se um rebocador esta 'sem sinal' ou sem atualizacao ha muito tempo, "
     "informe que ele possivelmente saiu BARRA FORA / esta fora da area de cobertura do Rio de "
@@ -4590,6 +4707,7 @@ def extract_normalized_vessel(data):
         latest_vessel_by_mmsi[mmsi] = vessel_data
         update_saam_nautical_miles(vessel_data)
         update_saam_fleet_geofence_stats(vessel_data)
+        update_saam_operating_hours(vessel_data)
         save_vessels_snapshot()
 
         return {
