@@ -2481,16 +2481,27 @@ def _build_schedule_changes(saa_snapshot):
     return summary
 
 
-def _fetch_tide_context(lat: float, lon: float) -> dict:
-    """Maré real via Open-Meteo Marine (sea_level_height_msl).
+def _compass_from_deg(deg):
+    """Direção cardeal (16 setores) a partir de um ângulo em graus."""
+    try:
+        d = float(deg)
+    except (TypeError, ValueError):
+        return None
+    dirs = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE",
+            "S", "SSO", "SO", "OSO", "O", "ONO", "NO", "NNO"]
+    return dirs[int((d % 360 + 11.25) // 22.5) % 16]
 
-    Retorna nível atual (m), tendência (subindo/descendo/estável) e a próxima
-    virada de maré (preia-mar/baixa-mar) com horário.
+
+def _fetch_tide_context(lat: float, lon: float) -> dict:
+    """Maré e corrente reais via Open-Meteo Marine.
+
+    Maré: nível atual (m), tendência e próxima virada (preia/baixa-mar).
+    Corrente: velocidade (nós) e direção (de onde/para onde flui) na hora atual.
     """
     url = (
         "https://marine-api.open-meteo.com/v1/marine"
         f"?latitude={lat}&longitude={lon}"
-        "&hourly=sea_level_height_msl"
+        "&hourly=sea_level_height_msl,ocean_current_velocity,ocean_current_direction"
         "&timezone=America%2FSao_Paulo"
     )
     try:
@@ -2550,6 +2561,26 @@ def _fetch_tide_context(lat: float, lon: float) -> dict:
             hhmm = (_parse(t_iso) or now).strftime("%H:%M")
             text += f" · próxima {kind} ~{hhmm} ({t_lvl:.2f} m)"
 
+        # Corrente marítima (mesma hora de referência da maré).
+        cur_speed_kn = None
+        cur_dir_deg = None
+        cur_dir_label = None
+        cur_text = "Sem dados de corrente online."
+        try:
+            vel = hourly.get("ocean_current_velocity") or []
+            dirs = hourly.get("ocean_current_direction") or []
+            if idx < len(vel) and isinstance(vel[idx], (int, float)):
+                cur_speed_kn = round(float(vel[idx]) / 1.852, 2)  # km/h -> nós
+            if idx < len(dirs) and isinstance(dirs[idx], (int, float)):
+                cur_dir_deg = round(float(dirs[idx]))
+                cur_dir_label = _compass_from_deg(cur_dir_deg)
+            if cur_speed_kn is not None:
+                cur_text = f"{cur_speed_kn:.2f} nós"
+                if cur_dir_label:
+                    cur_text += f" para {cur_dir_label}"
+        except Exception:
+            pass
+
         return {
             "tide": text,
             "tideLevelM": round(level, 2),
@@ -2559,6 +2590,10 @@ def _fetch_tide_context(lat: float, lon: float) -> dict:
                 if next_turn else None
             ),
             "tideSource": "open-meteo-marine",
+            "current": cur_text,
+            "currentSpeedKn": cur_speed_kn,
+            "currentDirectionDeg": cur_dir_deg,
+            "currentDirection": cur_dir_label,
         }
     except Exception as exc:
         return {"tide": "Sem dados de maré online.", "tideError": str(exc)}
@@ -2570,7 +2605,7 @@ def _fetch_metocean_context():
     url = (
         "https://api.open-meteo.com/v1/forecast"
         f"?latitude={lat}&longitude={lon}"
-        "&current=wind_speed_10m,wind_direction_10m"
+        "&current=temperature_2m,wind_speed_10m,wind_direction_10m"
         "&hourly=wind_speed_10m"
         "&timezone=America%2FSao_Paulo"
     )
@@ -2580,18 +2615,26 @@ def _fetch_metocean_context():
         with urllib.request.urlopen(req, timeout=10) as resp:
             body = json.loads(resp.read().decode("utf-8"))
         cur = body.get("current") or {}
+        wind_kmh = cur.get("wind_speed_10m")
+        wind_kn = round(float(wind_kmh) / 1.852, 1) if isinstance(wind_kmh, (int, float)) else None
         result = {
             "source": "open-meteo",
-            "windSpeedKmh": cur.get("wind_speed_10m"),
+            "temperatureC": cur.get("temperature_2m"),
+            "windSpeedKmh": wind_kmh,
+            "windSpeedKn": wind_kn,
             "windDirectionDeg": cur.get("wind_direction_10m"),
+            "windDirection": _compass_from_deg(cur.get("wind_direction_10m")),
         }
         result.update(tide_ctx)
         return result
     except Exception as exc:
         result = {
             "source": "fallback",
+            "temperatureC": None,
             "windSpeedKmh": None,
+            "windSpeedKn": None,
             "windDirectionDeg": None,
+            "windDirection": None,
             "error": str(exc),
         }
         result.update(tide_ctx)
@@ -3112,8 +3155,11 @@ KRATOS_SYSTEM_PROMPT = (
     "programacao, avalie para qual manobra eles podem estar se posicionando e o impacto.\n"
     "- Reconheca padroes: use as notas em userLearnedNotes e o historico da conversa para "
     "entender o modo de operar de cada concorrente.\n"
-    "- Considere as condicoes meteoceanicas: vento e mare (campo metocean) afetam a janela "
-    "de manobra e o numero de rebocadores; sinalize risco e oportunidade.\n"
+    "- Considere as condicoes meteoceanicas (campo metocean): vento (windSpeedKn/windDirection), "
+    "mare (tide/tideTrend), CORRENTE (currentSpeedKn/currentDirection) e temperatura (temperatureC). "
+    "Vento, mare e CORRENTE afetam a janela de manobra e o numero de rebocadores — varias regras da "
+    "NPCP-RJ limitam manobra por corrente (ex.: <=0,5 no, <=0,8 no). Cruze a corrente atual com o "
+    "limite do terminal e sinalize risco/oportunidade.\n"
     "- Proteja a nossa programacao: recomende acoes que ganhem manobra ou melhorem o "
     "posicionamento SEM comprometer os compromissos ja assumidos pela SAAM.\n"
     "- Enxergue TODO o espelho d'agua: vesselsOverview lista todas as embarcacoes visiveis "
@@ -3180,8 +3226,9 @@ KRATOS_APP_GUIDE = (
     "Topo esquerda: logo KRATOS. "
     "Topo centro: lampadas da frota SAAM por sigla (ex.: PX, PA, CH, HL, LT, AT) — azul = na base, "
     "verde = fora da base (operando), cinza = offline; legenda logo abaixo. "
-    "Topo direita: chips de mare (nivel do mar com seta de tendencia), vento (kn e direcao) e "
-    "temperatura; botoes DB (abre o Painel Estrategico), GR (abre o Grafo Estrategico) e N "
+    "Topo direita: chips de mare (nivel do mar com seta de tendencia), vento (kn e direcao), "
+    "corrente maritima (kn e direcao) e temperatura; botoes DB (abre o Painel Estrategico), "
+    "GR (abre o Grafo Estrategico) e N "
     "(mostra/oculta os nomes das embarcacoes — navios programados para manobra da SAAM aparecem "
     "com etiqueta dourada). "
     "Barra lateral esquerda (dock), de cima para baixo: Status (conexao AIS e mensagens), "
@@ -4289,6 +4336,13 @@ def _build_kratos_insights() -> list[str]:
     tide = metocean.get("tide")
     if isinstance(tide, str) and tide.strip():
         insights.append(f"Maré: {tide}")
+    cur_kn = metocean.get("currentSpeedKn")
+    if isinstance(cur_kn, (int, float)):
+        cdir = metocean.get("currentDirection")
+        ctxt = f"Corrente: {cur_kn:.2f} nós" + (f" para {cdir}" if cdir else "")
+        if cur_kn >= 0.8:
+            ctxt += " — atenção: acima de limites de manobra de vários terminais."
+        insights.append(ctxt)
 
     # Market share (SAA = nós)
     if market:

@@ -1478,6 +1478,9 @@
           <span class="header-weather-item" title="Vento">
             <span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 8h11a3 3 0 1 0-2.83-4H9.9A4.5 4.5 0 1 1 14 11H3V8zm0 5h15a2.5 2.5 0 1 1-2.35 3.3h-1.43A4 4 0 1 0 18 10H3v3zm0 5h9a2 2 0 1 1-1.86 2.75H8.7A3.5 3.5 0 1 0 12 16H3v2z"></path></svg></span><span id="topWindText">-- kn</span>
           </span>
+          <span class="header-weather-item" title="Corrente marítima">
+            <span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 7c2.5 0 2.5 2 5 2s2.5-2 5-2 2.5 2 5 2v2c-2.5 0-2.5-2-5-2s-2.5 2-5 2-2.5-2-5-2v-2zm14 6l4 3-4 3v-2H4v-2h13v-2z"></path></svg></span><span id="topCurrentText">-- kn</span>
+          </span>
           <span class="header-weather-item" title="Temperatura">
             <span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M14 14.76V5a2 2 0 1 0-4 0v9.76a4 4 0 1 0 4 0zM12 3a2 2 0 0 1 2 2v10.35a3 3 0 1 1-4 0V5a2 2 0 0 1 2-2z"></path></svg></span><span id="topTempText">-- °C</span>
           </span>
@@ -1516,7 +1519,7 @@
       <button type="button" class="dock-btn" data-panel="bgflow" title="Entrada/Saída BG" aria-label="Entrada e Saída da Baía">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h10l-2.5-2.5L14 3l5 5-5 5-1.5-1.5L15 9H5V7zm14 10H9l2.5 2.5L10 21l-5-5 5-5 1.5 1.5L9 15h10v2z"/></svg>
       </button>
-      <button type="button" class="dock-btn" data-panel="weather" title="Tempo, maré e vento" aria-label="Tempo, maré e vento">
+      <button type="button" class="dock-btn" data-panel="weather" title="Tempo, maré, vento e corrente" aria-label="Tempo, maré, vento e corrente">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 19h11a4 4 0 0 0 .7-7.94A6 6 0 0 0 6.2 9.9 4.2 4.2 0 0 0 6 19zm2-9a3 3 0 0 1 5.65-1.41l.32.64.72.06A2.5 2.5 0 0 1 17 11.8l-.08.67.64.22A2 2 0 0 1 17 16H8a2 2 0 0 1 0-4z"/></svg>
       </button>
       <button type="button" class="dock-btn" data-panel="frota" title="Frota (MMSI dos rebocadores)" aria-label="Gestão de frota">
@@ -1612,7 +1615,7 @@
 
       <section id="panel-weather" class="float-panel" data-panel="weather" role="dialog" aria-label="Previsão ambiental">
         <div class="float-panel__header" data-drag-handle="true">
-          <div class="float-panel__title">Tempo, maré e vento</div>
+          <div class="float-panel__title">Tempo, maré, vento e corrente</div>
           <div class="float-panel__actions">
             <button type="button" class="float-panel__icon-btn" data-panel-close="weather" aria-label="Fechar painel previsão ambiental">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg>
@@ -1633,6 +1636,10 @@
               <div class="weather-item">
                 <div class="k">Maré (nível do mar)</div>
                 <div class="v" id="weatherTideValue">-- m</div>
+              </div>
+              <div class="weather-item">
+                <div class="k">Corrente</div>
+                <div class="v" id="weatherCurrentValue">-- kn</div>
               </div>
             </div>
             <div class="weather-meta" id="weatherUpdatedAt">Atualização: --</div>
@@ -2440,10 +2447,12 @@
     const geofenceEditorHintEl = document.getElementById("geofenceEditorHint");
     const topTideTextEl = document.getElementById("topTideText");
     const topWindTextEl = document.getElementById("topWindText");
+    const topCurrentTextEl = document.getElementById("topCurrentText");
     const topTempTextEl = document.getElementById("topTempText");
     const weatherTempValueEl = document.getElementById("weatherTempValue");
     const weatherWindValueEl = document.getElementById("weatherWindValue");
     const weatherTideValueEl = document.getElementById("weatherTideValue");
+    const weatherCurrentValueEl = document.getElementById("weatherCurrentValue");
     const weatherUpdatedAtEl = document.getElementById("weatherUpdatedAt");
     const refreshWeatherBtn = document.getElementById("refreshWeatherBtn");
     const appConfig = window.APP_CONFIG || {};
@@ -2576,12 +2585,16 @@
         : `-- kn ${windDirChip}`;
       const tideText = Number.isFinite(data?.tideM) ? `${data.tideM.toFixed(2)} m` : "-- m";
       const tideArrow = tideTrendArrow(Number(data?.tideM), Number(data?.prevTideM));
+      const curText = Number.isFinite(data?.currentKn) ? `${data.currentKn.toFixed(2)} kn` : "-- kn";
+      const curDir = data?.currentDir && data.currentDir !== "--" ? `<span class="wind-dir">${escapeHtml(data.currentDir)}</span>` : "";
       if (topTempTextEl) topTempTextEl.textContent = tempText;
       if (topWindTextEl) topWindTextEl.innerHTML = `${windText}${windDirChip}`;
       if (topTideTextEl) topTideTextEl.innerHTML = `${tideText}${tideArrow}`;
+      if (topCurrentTextEl) topCurrentTextEl.innerHTML = `${curText}${curDir}`;
       if (weatherTempValueEl) weatherTempValueEl.textContent = tempText;
       if (weatherWindValueEl) weatherWindValueEl.innerHTML = windLongText;
       if (weatherTideValueEl) weatherTideValueEl.innerHTML = `${tideText}${tideArrow}`;
+      if (weatherCurrentValueEl) weatherCurrentValueEl.innerHTML = `${curText}${curDir ? " " + curDir : ""}`;
       if (weatherUpdatedAtEl) {
         weatherUpdatedAtEl.textContent = `Atualização: ${new Date().toLocaleTimeString("pt-BR", { hour12: false })}`;
       }
@@ -2594,10 +2607,10 @@
       try {
         const weatherUrl =
           `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
-          `&current=temperature_2m,wind_speed_10m,wind_direction_10m&timezone=auto`;
+          `&current=temperature_2m,wind_speed_10m,wind_direction_10m&wind_speed_unit=kn&timezone=auto`;
         const marineUrl =
           `https://marine-api.open-meteo.com/v1/marine?latitude=${lat}&longitude=${lon}` +
-          `&hourly=sea_level_height_msl&timezone=auto`;
+          `&hourly=sea_level_height_msl,ocean_current_velocity,ocean_current_direction&timezone=auto`;
         const [weatherRes, marineRes] = await Promise.all([fetch(weatherUrl), fetch(marineUrl)]);
         if (!weatherRes.ok || !marineRes.ok) throw new Error("Falha ao consultar previsão externa");
         const weather = await weatherRes.json();
@@ -2610,15 +2623,23 @@
         const tide = Number.isFinite(Number(tideVals[idx0])) ? Number(tideVals[idx0]) : null;
         const idx = Math.max(1, idx0);
         const prevTide = Number.isFinite(Number(tideVals[idx - 1])) ? Number(tideVals[idx - 1]) : null;
+        // Corrente marítima (km/h -> nós) na mesma hora de referência.
+        const curVals = marine?.hourly?.ocean_current_velocity || [];
+        const curDirs = marine?.hourly?.ocean_current_direction || [];
+        const curKmh = idx0 >= 0 && Number.isFinite(Number(curVals[idx0])) ? Number(curVals[idx0]) : null;
+        const currentKn = curKmh != null ? curKmh / 1.852 : null;
+        const currentDir = idx0 >= 0 && Number.isFinite(Number(curDirs[idx0])) ? windDirectionLabel(curDirs[idx0]) : "--";
         applyWeatherUI({
           tempC: Number(current?.temperature_2m),
-          windKn: toKnots(current?.wind_speed_10m),
+          windKn: Number(current?.wind_speed_10m),
           windDir: windDirectionLabel(current?.wind_direction_10m),
           tideM: tide,
           prevTideM: prevTide,
+          currentKn: currentKn,
+          currentDir: currentDir,
         });
       } catch (_) {
-        applyWeatherUI({ tempC: null, windKn: null, windDir: "--", tideM: null });
+        applyWeatherUI({ tempC: null, windKn: null, windDir: "--", tideM: null, currentKn: null, currentDir: "--" });
       }
     }
 
