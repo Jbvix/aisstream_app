@@ -2470,6 +2470,18 @@
       return `${BASE_PATH}${path}`;
     }
 
+    // Sessão de acesso perdida/expirada (ACCESS_CONTROL): em vez de mostrar o
+    // mapa vazio, manda para a tela de login (que regrava o cookie de convite).
+    let _redirectingToGate = false;
+    function handleAuthRequired(res) {
+      if (res && res.status === 401 && !_redirectingToGate) {
+        _redirectingToGate = true;
+        try { window.location.href = `${BASE_PATH}/entrar`; } catch (_) {}
+        return true;
+      }
+      return false;
+    }
+
     function saveBgHistoryState() {
       try {
         localStorage.setItem(BARRA_HISTORY_STORAGE_KEY, JSON.stringify(barraEventHistory));
@@ -3954,6 +3966,7 @@
     async function hydrateVesselsFromApi() {
       try {
         const res = await fetch(apiUrl("/api/vessels?snapshot=1"));
+        if (handleAuthRequired(res)) return;
         if (!res.ok) return;
         const data = await res.json();
         const vessels = data.vessels || [];
@@ -3996,11 +4009,13 @@
     async function pollOnce() {
       try {
         const statusResponse = await fetch(apiUrl("/api/status"));
+        if (handleAuthRequired(statusResponse)) return;
         if (statusResponse.ok) {
           const statusData = await statusResponse.json();
           setConnectionStatus(statusData);
         }
         const vesselsResponse = await fetch(apiUrl(`/api/vessels?since=${lastSeq}&limit=400`));
+        if (handleAuthRequired(vesselsResponse)) return;
         if (vesselsResponse.ok) {
           const vesselData = await vesselsResponse.json();
           (vesselData.vessels || []).forEach((v) => upsertMarker(v));
