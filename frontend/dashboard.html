@@ -352,6 +352,13 @@
       border: none;
     }
     .chat-typing { color: var(--muted); font-style: italic; }
+    .knowledge-box { margin-top: 10px; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: rgba(9,22,37,.5); }
+    .knowledge-box__title { font-size: 0.8rem; font-weight: 700; color: var(--accent); margin-bottom: 6px; }
+    .knowledge-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 0; border-bottom: 1px solid rgba(47,79,109,.4); font-size: 0.8rem; }
+    .knowledge-item:last-child { border-bottom: none; }
+    .knowledge-item .meta { color: var(--muted); font-size: 0.72rem; }
+    .knowledge-item button { background: rgba(255,91,82,.12); color: #ff8a8a; border: 1px solid rgba(255,91,82,.4); border-radius: 6px; cursor: pointer; font-size: 0.72rem; padding: 1px 7px; }
+    .knowledge-item button:hover { background: rgba(255,91,82,.22); }
     .strategy-actions {
       display: flex;
       gap: 8px;
@@ -393,6 +400,7 @@
           <li><b>Ele conhece você:</b> na primeira conversa o KRATOS se apresenta e pergunta seu nome e função; depois passa a te chamar pelo nome e memoriza seus padrões de decisão. O foco é mantido em operações portuárias, navegação e normas marítimas (NORMAM, SOLAS, MARPOL, COLREG) — assuntos fora da área são redirecionados.</li>
           <li><b>Conhece as normas locais (NPCP-RJ), com foco na Baía de Guanabara:</b> o KRATOS incorpora a NPCP-RJ (3ª Revisão) e as Portarias CPRJ nº 11/2026 e nº 110/2026 como <b>informação estratégica, terminal a terminal da BG</b> — quantos rebocadores e qual TTE mínimo cada manobra exige (Gamboa, São Cristóvão, TECON-RJ até 349 m, Terminal de Óleo, Almirante Tamandaré, GLP TAIC/TAIR, GNL, Manguinhos, Neolubes, estaleiros, ferro-gusa), onde o Posicionamento Dinâmico (DP) dispensa reboque (Brasco, Subsea7, RBT), janelas diurno/maré e regras de carga perigosa. Pergunte, por exemplo, <i>"quantos rebocadores um navio de 280 m no TECON exige?"</i> ou <i>"qual a exigência do píer PP-I da Ilha d'Água?"</i>. Em decisão crítica, ele recomenda confirmar na publicação oficial.</li>
           <li><b>Tour guiado:</b> o KRATOS conhece todas as telas do app (mapa, painel, grafo). Peça <i>"me faça um tour"</i> — por texto ou voz — e ele explica as áreas e funcionalidades por partes, perguntando se você quer continuar.</li>
+          <li><b>📎 Anexar conhecimento:</b> carregue um arquivo <b>PDF, TXT ou MD</b> (até 15 MB) direto no chat. O KRATOS extrai o texto, <b>retém</b> o documento e passa a <b>aplicar esse conteúdo nas respostas</b> (no chat de texto entram os trechos relevantes à pergunta; na voz, o índice e o resumo). Os documentos carregados aparecem em <b>“📚 Conhecimento carregado”</b>, com botão <b>Remover</b>. Útil para tarifas, normas específicas, procedimentos do terminal etc.</li>
           <li><b>Gerar relatório:</b> resumo executivo consolidado do cenário atual.</li>
           <li><b>Gerar insights:</b> hipóteses e oportunidades acionáveis.</li>
           <li><b>Limpar conversa:</b> recomeça o fio do zero.</li>
@@ -481,12 +489,18 @@
       <textarea id="strategyLearnNote" placeholder="Aprendizado opcional para memória do KRATOS (ex.: Em navio >300m, priorizar 4 rebocadores)."></textarea>
       <div class="strategy-actions">
         <button type="button" id="btnStrategyAsk">Conversar com KRATOS</button>
+        <button type="button" id="btnStrategyAttach" title="Carregar arquivo (PDF, TXT ou MD) para o KRATOS reter e aplicar">📎 Anexar conhecimento</button>
         <button type="button" id="btnStrategyLive" title="Conversa falada em tempo real com a voz Leo (xAI Realtime)">🎧 Voz ao vivo</button>
         <button type="button" id="btnStrategyMic" title="Falar com o KRATOS (microfone)">🎙️ Falar</button>
         <button type="button" id="btnStrategyVoice" title="KRATOS responde em voz" aria-pressed="false">🔊 Voz: ligada</button>
         <button type="button" id="btnStrategyReport">Gerar relatório</button>
         <button type="button" id="btnStrategyInsights">Gerar insights</button>
         <button type="button" id="btnStrategyClear">Limpar conversa</button>
+        <input type="file" id="strategyFileInput" accept=".pdf,.txt,.md,.markdown,application/pdf,text/plain,text/markdown" style="display:none;" />
+      </div>
+      <div id="knowledgeBox" class="knowledge-box" style="display:none;">
+        <div class="knowledge-box__title">📚 Conhecimento carregado <span class="hint" id="knowledgeHint"></span></div>
+        <div id="knowledgeList"></div>
       </div>
     </div>
   </section>
@@ -1423,6 +1437,92 @@
       kratosChatHistory.length = 0;
       renderKratosChat();
     });
+
+    // ===== Conhecimento por arquivo (Etapa 18) =====
+    const KNOWLEDGE_MAX_BYTES = 15 * 1024 * 1024;
+    function fileToBase64(file) {
+      return new Promise((resolve, reject) => {
+        const r = new FileReader();
+        r.onload = () => resolve(String(r.result).split(",").pop());
+        r.onerror = () => reject(new Error("falha ao ler o arquivo"));
+        r.readAsDataURL(file);
+      });
+    }
+    function renderKnowledgeList(docs) {
+      const box = document.getElementById("knowledgeBox");
+      const list = document.getElementById("knowledgeList");
+      const hint = document.getElementById("knowledgeHint");
+      if (!box || !list) return;
+      if (!docs || !docs.length) { box.style.display = "none"; list.innerHTML = ""; if (hint) hint.textContent = ""; return; }
+      box.style.display = "block";
+      if (hint) hint.textContent = `(${docs.length} — o KRATOS considera no chat e na voz)`;
+      list.innerHTML = docs.map((d) => {
+        const kb = Math.max(1, Math.round((d.chars || 0) / 1024));
+        return `<div class="knowledge-item"><span>${esc(d.name)} <span class="meta">(${esc(String(d.ext || "").toUpperCase())}, ~${kb} mil car.)</span></span>`
+          + `<button type="button" data-kn-del="${esc(d.id)}">Remover</button></div>`;
+      }).join("");
+      list.querySelectorAll("[data-kn-del]").forEach((b) => b.addEventListener("click", async () => {
+        if (!window.confirm("Remover este documento do conhecimento do KRATOS?")) return;
+        try {
+          await fetch(apiUrl("/api/kratos/knowledge/delete"), {
+            method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" },
+            body: JSON.stringify({ id: b.dataset.knDel }),
+          });
+          loadKnowledge();
+        } catch (_) {}
+      }));
+    }
+    async function loadKnowledge() {
+      try {
+        const res = await fetch(apiUrl("/api/kratos/knowledge"), { headers: { Accept: "application/json" } });
+        if (!res.ok) return;
+        const data = await res.json();
+        renderKnowledgeList(data.docs || []);
+      } catch (_) {}
+    }
+    async function uploadKnowledgeFile(file) {
+      if (!file) return;
+      const ext = (file.name.split(".").pop() || "").toLowerCase();
+      if (!["pdf", "txt", "md", "markdown"].includes(ext)) {
+        kratosChatHistory.push({ role: "assistant", content: "Formato não suportado. Envie PDF, TXT ou MD." });
+        renderKratosChat(); return;
+      }
+      if (file.size > KNOWLEDGE_MAX_BYTES) {
+        kratosChatHistory.push({ role: "assistant", content: "Arquivo acima de 15 MB. Reduza ou divida o documento." });
+        renderKratosChat(); return;
+      }
+      kratosChatHistory.push({ role: "user", content: `📎 Enviando documento: ${file.name}…` });
+      renderKratosChat();
+      try {
+        const contentBase64 = await fileToBase64(file);
+        const res = await fetch(apiUrl("/api/kratos/knowledge"), {
+          method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" },
+          body: JSON.stringify({ name: file.name, ext, contentBase64 }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.ok) throw new Error(data.error || `HTTP ${res.status}`);
+        const d = data.doc || {};
+        kratosChatHistory.push({ role: "assistant", content: `Recebi o documento “${d.name}” (${(d.chars || 0).toLocaleString("pt-BR")} caracteres). Já estou considerando esse conteúdo nas respostas. Resumo: ${d.summary || "—"}` });
+        renderKratosChat();
+        loadKnowledge();
+      } catch (e) {
+        kratosChatHistory.push({ role: "assistant", content: "Não consegui processar o arquivo: " + String(e.message || e) });
+        renderKratosChat();
+      }
+    }
+    (function setupKnowledgeUpload() {
+      const btn = document.getElementById("btnStrategyAttach");
+      const input = document.getElementById("strategyFileInput");
+      if (!btn || !input) return;
+      btn.addEventListener("click", () => input.click());
+      input.addEventListener("change", () => {
+        const f = input.files && input.files[0];
+        input.value = "";
+        if (f) uploadKnowledgeFile(f);
+      });
+      loadKnowledge();
+    })();
+
     // Enter envia (Shift+Enter quebra linha).
     document.getElementById("strategyQuestion").addEventListener("keydown", (e) => {
       if (e.key === "Enter" && !e.shiftKey) {

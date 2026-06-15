@@ -3167,9 +3167,188 @@ USO: cruze o porte do navio (LOA/boca/calado/DWT) e o terminal da manobra progra
 )
 
 
+# ===== Conhecimento carregado pelo usuario (upload no chat do KRATOS) =====
+KNOWLEDGE_MAX_BYTES = 15 * 1024 * 1024          # 15 MB por arquivo
+KNOWLEDGE_INJECT_BUDGET = 12000                 # teto de chars de trechos injetados por resposta
+KNOWLEDGE_WHOLE_DOC_MAX = 8000                  # docs menores entram inteiros no contexto
+_knowledge_lock = threading.Lock()
+
+
+def knowledge_dir() -> Path:
+    p = user_data_dir(DASHBOARD_USER_ID) / "knowledge"
+    p.mkdir(parents=True, exist_ok=True)
+    return p
+
+
+def _knowledge_index_file() -> Path:
+    return knowledge_dir() / "index.json"
+
+
+def _knowledge_text_path(doc_id: str) -> Path:
+    return knowledge_dir() / f"{doc_id}.txt"
+
+
+def _load_knowledge_index() -> list:
+    try:
+        p = _knowledge_index_file()
+        if p.exists():
+            data = json.loads(p.read_text(encoding="utf-8"))
+            if isinstance(data, dict):
+                return list(data.get("docs") or [])
+            if isinstance(data, list):
+                return data
+    except (OSError, json.JSONDecodeError):
+        pass
+    return []
+
+
+def _save_knowledge_index(docs: list):
+    _knowledge_index_file().write_text(
+        json.dumps({"docs": docs}, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+
+
+def _extract_pdf_text(raw: bytes) -> str:
+    import fitz  # PyMuPDF — import tardio; PDF é opcional
+    parts = []
+    with fitz.open(stream=raw, filetype="pdf") as d:
+        for page in d:
+            parts.append(page.get_text())
+    return "\n".join(parts)
+
+
+def _summarize_text(text: str, max_len: int = 240) -> str:
+    s = " ".join(text.split())
+    return s[:max_len] + ("…" if len(s) > max_len else "")
+
+
+def add_knowledge_document(name: str, ext: str, raw: bytes) -> dict:
+    ext = (ext or "").lower().lstrip(".")
+    if ext in ("txt", "md", "markdown", "text"):
+        try:
+            text = raw.decode("utf-8")
+        except UnicodeDecodeError:
+            text = raw.decode("latin-1", "ignore")
+    elif ext == "pdf":
+        text = _extract_pdf_text(raw)
+    else:
+        raise ValueError("formato nao suportado (use PDF, TXT ou MD)")
+    text = (text or "").strip()
+    if not text:
+        raise ValueError("nao foi possivel extrair texto do arquivo")
+    doc_id = uuid.uuid4().hex[:12]
+    doc = {
+        "id": doc_id,
+        "name": (str(name or "documento").strip() or "documento")[:120],
+        "ext": ext,
+        "chars": len(text),
+        "summary": _summarize_text(text),
+        "addedAt": get_now_iso(),
+    }
+    with _knowledge_lock:
+        _knowledge_text_path(doc_id).write_text(text, encoding="utf-8")
+        docs = _load_knowledge_index()
+        docs.append(doc)
+        _save_knowledge_index(docs)
+    return doc
+
+
+def delete_knowledge_document(doc_id: str) -> bool:
+    with _knowledge_lock:
+        docs = _load_knowledge_index()
+        keep = [d for d in docs if d.get("id") != doc_id]
+        if len(keep) == len(docs):
+            return False
+        _save_knowledge_index(keep)
+    try:
+        _knowledge_text_path(doc_id).unlink()
+    except OSError:
+        pass
+    return True
+
+
+def _read_knowledge_text(doc_id: str) -> str:
+    try:
+        return _knowledge_text_path(doc_id).read_text(encoding="utf-8")
+    except OSError:
+        return ""
+
+
+def _extract_relevant_excerpt(text: str, norm: str, q_tokens: list, max_len: int = 3000, window: int = 400) -> str:
+    positions = []
+    for t in q_tokens:
+        i = norm.find(t)
+        if i >= 0:
+            positions.append(i)
+    if not positions:
+        return text[:max_len]
+    positions.sort()
+    parts = []
+    used = 0
+    last_end = 0
+    for p in positions:
+        start = max(last_end, p - window)
+        end = min(len(text), p + window)
+        if start >= end:
+            continue
+        seg = text[start:end]
+        if used + len(seg) > max_len:
+            seg = seg[: max(0, max_len - used)]
+        if seg:
+            parts.append(seg)
+            used += len(seg)
+            last_end = end
+        if used >= max_len:
+            break
+    return " […] ".join(parts)
+
+
+def _build_user_knowledge_block(question: str, with_excerpts: bool = True) -> str:
+    """Bloco de conhecimento dos documentos carregados pelo usuario: indice (sempre)
+    + trechos relevantes a pergunta (somente no chat de texto)."""
+    docs = _load_knowledge_index()
+    if not docs:
+        return ""
+    lines = ["CONHECIMENTO CARREGADO PELO USUARIO (documentos que voce deve considerar e citar quando usar):"]
+    for d in docs:
+        lines.append(f"- {d.get('name')} ({str(d.get('ext','')).upper()}, {d.get('chars',0)} caracteres): {d.get('summary','')}")
+    if not with_excerpts:
+        return "\n".join(lines)
+    q_tokens = [t for t in _normalize_text(question).split() if len(t) > 3]
+    budget = KNOWLEDGE_INJECT_BUDGET
+    scored = []
+    for d in docs:
+        text = _read_knowledge_text(d.get("id", ""))
+        if not text:
+            continue
+        norm = _normalize_text(text)
+        score = sum(norm.count(t) for t in q_tokens) if q_tokens else 0
+        scored.append((score, d, text, norm))
+    # docs pequenos entram inteiros; demais por relevancia (score) decrescente
+    scored.sort(key=lambda x: (x[1].get("chars", 0) <= KNOWLEDGE_WHOLE_DOC_MAX, x[0]), reverse=True)
+    excerpts = []
+    for score, d, text, norm in scored:
+        if budget <= 0:
+            break
+        if d.get("chars", 0) <= KNOWLEDGE_WHOLE_DOC_MAX:
+            chunk = text[:budget]
+            excerpts.append(f"\n=== {d.get('name')} (integra) ===\n{chunk}")
+            budget -= len(chunk)
+        elif score > 0 and q_tokens:
+            chunk = _extract_relevant_excerpt(text, norm, q_tokens, max_len=min(budget, 3000))
+            if chunk:
+                excerpts.append(f"\n=== {d.get('name')} (trechos) ===\n{chunk}")
+                budget -= len(chunk)
+    if excerpts:
+        lines.append("\nTRECHOS RELEVANTES PARA A PERGUNTA:")
+        lines.extend(excerpts)
+    return "\n".join(lines)
+
+
 def _ask_grok_with_context(question: str, context: dict, history: list | None = None) -> str:
     if not GROK_API_KEY:
         return _strategy_fallback_answer(question, context)
+    user_knowledge = _build_user_knowledge_block(question, with_excerpts=True)
     messages = [
         {
             "role": "system",
@@ -3177,6 +3356,7 @@ def _ask_grok_with_context(question: str, context: dict, history: list | None = 
                 KRATOS_SYSTEM_PROMPT
                 + "\n\n" + KRATOS_APP_GUIDE
                 + "\n\n" + KRATOS_NPCP_KNOWLEDGE
+                + (("\n\n" + user_knowledge) if user_knowledge else "")
                 + "\n\n" + _profile_instruction_block()
                 + " " + _assistant_profile_instruction()
             ),
@@ -3373,6 +3553,62 @@ async def kratos_feedback(request: Request):
 @app.post("/dashboard/api/kratos/feedback")
 async def kratos_feedback_dash(request: Request):
     return await kratos_feedback(request)
+
+
+# ----- Conhecimento carregado no chat (upload via JSON+base64, sem multipart) -----
+@app.post("/api/kratos/knowledge")
+async def kratos_knowledge_upload(request: Request):
+    import base64
+    data = await _read_json_body(request)
+    name = str(data.get("name") or "documento")
+    ext = str(data.get("ext") or "").lower().lstrip(".")
+    b64 = data.get("contentBase64")
+    if not b64:
+        return JSONResponse({"ok": False, "error": "arquivo vazio"}, status_code=400)
+    try:
+        raw = base64.b64decode(str(b64).split(",")[-1])
+    except (ValueError, TypeError):
+        return JSONResponse({"ok": False, "error": "conteudo invalido"}, status_code=400)
+    if len(raw) > KNOWLEDGE_MAX_BYTES:
+        return JSONResponse({"ok": False, "error": "arquivo acima de 15 MB"}, status_code=400)
+    try:
+        doc = await asyncio.to_thread(add_knowledge_document, name, ext, raw)
+    except ImportError:
+        return JSONResponse(
+            {"ok": False, "error": "Leitura de PDF indisponivel no servidor (PyMuPDF nao instalado). Envie TXT ou MD."},
+            status_code=400,
+        )
+    except ValueError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+    log_kratos_event("knowledge", {"name": doc["name"], "ext": doc["ext"], "chars": doc["chars"]})
+    return {"ok": True, "doc": doc}
+
+
+@app.get("/api/kratos/knowledge")
+async def kratos_knowledge_list():
+    return {"ok": True, "docs": _load_knowledge_index()}
+
+
+@app.post("/api/kratos/knowledge/delete")
+async def kratos_knowledge_delete(request: Request):
+    data = await _read_json_body(request)
+    ok = delete_knowledge_document(str(data.get("id") or "").strip())
+    return {"ok": bool(ok)}
+
+
+@app.post("/dashboard/api/kratos/knowledge")
+async def kratos_knowledge_upload_dash(request: Request):
+    return await kratos_knowledge_upload(request)
+
+
+@app.get("/dashboard/api/kratos/knowledge")
+async def kratos_knowledge_list_dash():
+    return await kratos_knowledge_list()
+
+
+@app.post("/dashboard/api/kratos/knowledge/delete")
+async def kratos_knowledge_delete_dash(request: Request):
+    return await kratos_knowledge_delete(request)
 
 
 # ===== Página do administrador (métricas, eficácia, auditoria) =====
@@ -3721,10 +3957,12 @@ def _kratos_voice_instructions(map_view: dict | None = None) -> str:
         if b:
             mapa += f", area visivel de {b.get('south')},{b.get('west')} a {b.get('north')},{b.get('east')}"
 
+    voice_knowledge = _build_user_knowledge_block("", with_excerpts=False)
     return (
         KRATOS_SYSTEM_PROMPT
         + "\n\n" + KRATOS_APP_GUIDE
         + "\n\n" + KRATOS_NPCP_KNOWLEDGE
+        + (("\n\n" + voice_knowledge) if voice_knowledge else "")
         + "\n\n" + _profile_instruction_block()
         + "\n\nVOZ: fale em portugues do Brasil, tom calmo, tecnico e com autoridade, "
         "como um parceiro operacional ao lado da equipe. Respostas CURTAS (1 a 2 frases por "
