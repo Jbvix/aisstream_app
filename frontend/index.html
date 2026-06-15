@@ -1235,7 +1235,8 @@
       100% { opacity: 0; }
     }
 
-    /* Oportunidade (navio na barra sem contrato): anel âmbar pulsante. */
+    /* Oportunidade (navio na barra sem contrato): anel âmbar FIXO (sem pulsar,
+       para não dar sensação de "piscar"); o alvo também entra na lista da central. */
     .opportunity-ring {
       position: absolute;
       left: 50%;
@@ -1245,15 +1246,9 @@
       transform: translate(-50%, -50%);
       border-radius: 999px;
       border: 2px solid #ffb020;
-      box-shadow: 0 0 9px rgba(255, 176, 32, 0.6);
+      box-shadow: 0 0 9px rgba(255, 176, 32, 0.55);
       pointer-events: none;
       z-index: 0;
-      animation: opportunityPulse 2.2s ease-in-out infinite;
-    }
-    @keyframes opportunityPulse {
-      0% { transform: translate(-50%, -50%) scale(0.95); opacity: 0.9; }
-      50% { transform: translate(-50%, -50%) scale(1.18); opacity: 0.35; }
-      100% { transform: translate(-50%, -50%) scale(0.95); opacity: 0.9; }
     }
 
     /* ===== Central de Alertas: toasts e painel ===== */
@@ -2136,7 +2131,9 @@
       const loa = Number(v?.lengthMeters) || 0;
       const isMerchant = OPP_CATEGORIES.has(v?.shipCategory) && !isOffshoreVessel(v);
       const norm = normalizeVesselName(v?.shipName);
-      const noContract = Boolean(norm) && !programmedNames.has(norm);
+      // Só marca "sem contrato" se realmente temos a programação para comparar.
+      // Sem isso, todos os navios virariam "oportunidade" (anéis pulsando = "piscando").
+      const noContract = programmedNames.size > 0 && Boolean(norm) && !programmedNames.has(norm);
       const isOpportunity = inside && isMerchant && !isSaam && !isComp && loa >= OPP_MIN_LOA && noContract;
 
       // Mantém o conjunto de oportunidades e re-renderiza o anel se mudou.
