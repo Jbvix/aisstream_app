@@ -1917,6 +1917,33 @@ def get_saa_maneuver_names():
     return {"ok": True, "company": OWN_COMPANY_EMP_RB, "count": len(names), "names": names}
 
 
+@app.get("/api/programmed-names")
+def get_programmed_vessel_names():
+    """Nomes (normalizados) de TODOS os navios com manobra programada na
+    Praticagem-RJ, de QUALQUER empresa (SAA/WIL/CAM/etc.).
+
+    Usado pelo 'radar de oportunidade': um navio que entra na barra e NÃO
+    consta aqui provavelmente nao tem contrato de reboque (alvo comercial).
+    """
+    ensure_saa_maneuvers_loaded()
+    with saa_maneuvers_lock:
+        snapshot = _dedupe_saa_maneuvers(list(saa_maneuvers_list))
+    names = []
+    seen = set()
+    for item in snapshot:
+        raw_name = str(item.get("vesselName") or "").strip()
+        norm = _normalize_text(raw_name)
+        if not norm or norm in {"—", "-"} or norm in seen:
+            continue
+        seen.add(norm)
+        names.append({
+            "normalized": norm,
+            "empRb": str(item.get("empRb") or "").strip().upper(),
+            "pob": item.get("pob") or "",
+        })
+    return {"ok": True, "count": len(names), "names": names}
+
+
 def _dashboard_geofence_status_rows():
     ensure_geofences_loaded()
     occ = {o.get("geofenceId"): o for o in build_geofence_occupancy()}

@@ -1235,6 +1235,60 @@
       100% { opacity: 0; }
     }
 
+    /* Oportunidade (navio na barra sem contrato): anel âmbar pulsante. */
+    .opportunity-ring {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: calc(100% + 18px);
+      height: calc(100% + 18px);
+      transform: translate(-50%, -50%);
+      border-radius: 999px;
+      border: 2px solid #ffb020;
+      box-shadow: 0 0 9px rgba(255, 176, 32, 0.6);
+      pointer-events: none;
+      z-index: 0;
+      animation: opportunityPulse 2.2s ease-in-out infinite;
+    }
+    @keyframes opportunityPulse {
+      0% { transform: translate(-50%, -50%) scale(0.95); opacity: 0.9; }
+      50% { transform: translate(-50%, -50%) scale(1.18); opacity: 0.35; }
+      100% { transform: translate(-50%, -50%) scale(0.95); opacity: 0.9; }
+    }
+
+    /* ===== Central de Alertas: toasts e painel ===== */
+    .alert-toasts {
+      position: fixed; top: 64px; right: 14px; z-index: 1200;
+      display: flex; flex-direction: column; gap: 8px; max-width: min(360px, 92vw);
+      pointer-events: none;
+    }
+    .alert-toast {
+      pointer-events: auto; background: rgba(11, 29, 49, 0.97); color: var(--text, #eaf4ff);
+      border: 1px solid #2f4f6d; border-left-width: 4px; border-radius: 10px;
+      padding: 9px 11px; box-shadow: 0 10px 28px rgba(0,0,0,.5);
+      animation: alertIn .22s ease-out; font-size: 0.84rem;
+    }
+    .alert-toast.sev-info { border-left-color: #35c8ff; }
+    .alert-toast.sev-warn { border-left-color: #ffb020; }
+    .alert-toast.sev-high { border-left-color: #ff5b52; }
+    .alert-toast__title { font-weight: 700; display: flex; align-items: center; gap: 6px; }
+    .alert-toast__msg { color: #b9cde0; margin: 3px 0 6px; line-height: 1.35; }
+    .alert-toast__row { display: flex; gap: 8px; align-items: center; justify-content: space-between; }
+    .alert-toast__btn { background: rgba(53,200,255,.16); color: #35c8ff; border: 1px solid #2f4f6d;
+      border-radius: 8px; padding: 3px 9px; font: inherit; font-size: 0.76rem; font-weight: 600; cursor: pointer; }
+    .alert-toast__btn:hover { background: rgba(53,200,255,.28); }
+    .alert-toast__close { background: none; border: none; color: #9ab6d4; cursor: pointer; font-size: 1rem; line-height: 1; padding: 0 2px; }
+    .alert-toast__time { color: #7e98b3; font-size: 0.7rem; font-weight: 400; margin-left: auto; }
+    @keyframes alertIn { from { transform: translateX(20px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+    .alert-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; border-bottom: 1px solid rgba(47,79,109,.4); }
+    .alert-row label { display: flex; align-items: center; gap: 7px; cursor: pointer; flex: 1; }
+    .alert-opp-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 5px 0; border-bottom: 1px solid rgba(47,79,109,.4); }
+    .alert-opp-item button { background: rgba(255,176,32,.14); color: #ffb020; border: 1px solid rgba(255,176,32,.5);
+      border-radius: 8px; padding: 2px 8px; font: inherit; font-size: 0.72rem; cursor: pointer; }
+    .dock-btn.has-alerts { position: relative; }
+    .dock-btn.has-alerts::after { content: ""; position: absolute; top: 6px; right: 6px; width: 8px; height: 8px;
+      border-radius: 50%; background: #ff5b52; box-shadow: 0 0 6px #ff5b52; }
+
     .vessel-carga { background: #15a04a; color: #15a04a; }            /* carga / contêiner / ro-ro */
     .vessel-petroleiro { background: #d6322a; color: #d6322a; }        /* petroleiro */
     .vessel-rebocador_servico { background: #14b5b5; color: #14b5b5; } /* rebocador / serviço */
@@ -1464,8 +1518,13 @@
       <button type="button" class="dock-btn" data-panel="frota" title="Frota (MMSI dos rebocadores)" aria-label="Gestão de frota">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l2.5 5H19l-3.5 3 1.5 5-5-3-5 3 1.5-5L5 7h4.5L12 2z" opacity=".35"/><path d="M4 17h16l-1.5 3h-13L4 17zm2.2-2L5 9h3V7h3V5h2v2h3v2h3l-1.2 6H6.2z"/></svg>
       </button>
+      <button type="button" class="dock-btn" id="alertsDockBtn" data-panel="alerts" title="Central de Alertas" aria-label="Central de Alertas">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+      </button>
       <div class="dock-spacer"></div>
     </aside>
+
+    <div id="alertToasts" class="alert-toasts" aria-live="assertive"></div>
 
     <div class="float-layer">
       <section id="panel-status" class="float-panel" data-panel="status" role="dialog" aria-label="Status">
@@ -1594,6 +1653,42 @@
               <select id="areaSelect"></select>
             </div>
             <button id="applyAreaBtn">Aplicar área</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="panel-alerts" class="float-panel" data-panel="alerts" role="dialog" aria-label="Central de Alertas">
+        <div class="float-panel__header" data-drag-handle="true">
+          <div class="float-panel__title">🔔 Central de Alertas</div>
+          <div class="float-panel__actions">
+            <button type="button" class="float-panel__icon-btn" data-panel-close="alerts" aria-label="Fechar painel Alertas">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="float-panel__body">
+          <div class="menu-card">
+            <p class="hint" style="margin:0 0 8px;">Escolha o que quer ser avisado. Os alertas tocam som e mostram um aviso na tela em tempo real.</p>
+            <div id="alertPrefsList"></div>
+            <div class="alert-row" style="border-bottom:none;">
+              <label for="alertSoundChk"><input type="checkbox" id="alertSoundChk" /> Som dos alertas</label>
+              <input type="range" id="alertVolume" min="0" max="100" value="70" title="Volume" style="width:90px;" />
+              <button type="button" id="alertTestBtn" class="alert-toast__btn">Testar</button>
+            </div>
+            <div class="alert-row" style="border-bottom:none;">
+              <label for="alertDesktopChk"><input type="checkbox" id="alertDesktopChk" /> Notificação do navegador (mesmo com a aba em 2º plano)</label>
+            </div>
+          </div>
+          <div class="menu-card">
+            <div style="font-weight:700;color:var(--accent,#35c8ff);font-size:0.82rem;margin-bottom:4px;">Oportunidades agora (navios sem contrato)</div>
+            <div id="alertOppList"><span class="hint">Nenhuma no momento.</span></div>
+          </div>
+          <div class="menu-card">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+              <span style="font-weight:700;color:var(--accent,#35c8ff);font-size:0.82rem;">Histórico recente</span>
+              <button type="button" id="alertClearBtn" class="alert-toast__btn">Limpar</button>
+            </div>
+            <div id="alertHistoryList"><span class="hint">Sem alertas ainda.</span></div>
           </div>
         </div>
       </section>
@@ -1870,6 +1965,278 @@
         Object.entries(fleet.competitors || {}).forEach(([c, tugs]) => (tugs || []).forEach((t) => opts.push(`<option value="${esc(t.mmsi)}">${esc(c)} · ${esc(t.name)} (${esc(t.mmsi)})</option>`)));
         replaceSel.innerHTML = opts.join("");
       }
+    }
+
+    // ===================================================================
+    // Central de Alertas (Etapa 14) + Radar de oportunidade (Etapa 16)
+    // ===================================================================
+    const ALERT_TYPES = {
+      barra:        { label: "Entrada de navio na barra (BG)",          sev: "info", def: true },
+      oportunidade: { label: "Oportunidade — navio na barra SEM contrato", sev: "warn", def: true },
+      concorrente:  { label: "Concorrente (WIL/CAM) entrando na BG",     sev: "warn", def: true },
+      fleetOffline: { label: "Rebocador da frota sem sinal (barra fora)", sev: "high", def: false },
+    };
+    const ALERT_PREFS_KEY = "kratos.alertPrefs.v2";
+    const ALERT_COOLDOWN_MS = 10 * 60 * 1000;   // não repetir o mesmo (tipo+navio) por 10 min
+    const OPP_MIN_LOA = 120;                     // navio mercante a partir de 120 m (decisão de reunião)
+    const OPP_CATEGORIES = new Set(["carga", "petroleiro", "passageiros"]); // só navios; offshore/rebocador excluídos
+    const BARRA_GEOFENCE_NORMS = new Set(["baia de guanabara interno", "baia de guanabara", "barra"]);
+    // Palavras que denunciam embarcação offshore/apoio (exclusão extra, além da categoria).
+    const OFFSHORE_NAME_RE = /\b(PSV|AHTS|OSRV|OSV|RSV|SUPPLY|OFFSHORE|PLATFORM|PLATAFORMA|FPSO|FSO|SEISMIC|SISMIC|DLB|PLSB)\b/i;
+
+    const opportunityMmsis = new Set();
+    const _vesselInsideBarra = new Map();   // mmsi -> bool (estado anterior, p/ detectar cruzamento)
+    const _alertCooldown = new Map();       // "tipo:mmsi" -> ts
+    let programmedNames = new Set();        // nomes normalizados com manobra programada (qualquer empresa)
+    let _alertHistory = [];
+    let _audioCtx = null;
+    let _alertsArmed = false;   // só dispara após o aquecimento (evita rajada falsa no F5)
+
+    function loadAlertPrefs() {
+      const def = { enabled: {}, sound: true, volume: 0.7, desktop: false };
+      Object.keys(ALERT_TYPES).forEach((k) => { def.enabled[k] = ALERT_TYPES[k].def; });
+      try {
+        const raw = JSON.parse(localStorage.getItem(ALERT_PREFS_KEY) || "{}");
+        if (raw && typeof raw === "object") {
+          if (raw.enabled) Object.keys(ALERT_TYPES).forEach((k) => {
+            if (typeof raw.enabled[k] === "boolean") def.enabled[k] = raw.enabled[k];
+          });
+          if (typeof raw.sound === "boolean") def.sound = raw.sound;
+          if (typeof raw.volume === "number") def.volume = Math.max(0, Math.min(1, raw.volume));
+          if (typeof raw.desktop === "boolean") def.desktop = raw.desktop;
+        }
+      } catch (_) {}
+      return def;
+    }
+    let alertPrefs = loadAlertPrefs();
+    function saveAlertPrefs() { try { localStorage.setItem(ALERT_PREFS_KEY, JSON.stringify(alertPrefs)); } catch (_) {} }
+
+    function isOffshoreVessel(v) {
+      if (v?.shipCategory === "rebocador_servico") return true;
+      return OFFSHORE_NAME_RE.test(String(v?.shipName || ""));
+    }
+    function isInsideBarra(v) {
+      const gs = Array.isArray(v?.geofencesInside) ? v.geofencesInside : [];
+      return gs.some((g) => BARRA_GEOFENCE_NORMS.has(normalizeVesselName(g)));
+    }
+
+    function ensureAudioCtx() {
+      if (!_audioCtx) {
+        try { _audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch (_) { _audioCtx = null; }
+      }
+      if (_audioCtx && _audioCtx.state === "suspended") { try { _audioCtx.resume(); } catch (_) {} }
+      return _audioCtx;
+    }
+    function playAlertSound(sev) {
+      const ctx = ensureAudioCtx();
+      if (!ctx) return;
+      // Tom por severidade: info (1 bip agudo), warn (2 bips), high (3 bips graves/altos).
+      const plans = {
+        info: [[880, 0.0, 0.16]],
+        warn: [[760, 0.0, 0.14], [760, 0.20, 0.14]],
+        high: [[600, 0.0, 0.16], [820, 0.22, 0.16], [600, 0.44, 0.20]],
+      };
+      const plan = plans[sev] || plans.info;
+      const vol = Math.max(0, Math.min(1, alertPrefs.volume));
+      plan.forEach(([freq, at, dur]) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "sine"; osc.frequency.value = freq;
+        const t0 = ctx.currentTime + at;
+        gain.gain.setValueAtTime(0.0001, t0);
+        gain.gain.exponentialRampToValueAtTime(Math.max(0.0002, vol * 0.5), t0 + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.start(t0); osc.stop(t0 + dur + 0.02);
+      });
+    }
+
+    function showDesktopNotification(title, body) {
+      try {
+        if (!("Notification" in window) || Notification.permission !== "granted") return;
+        new Notification(title, { body, tag: "kratos-alert-" + Date.now(), icon: "" });
+      } catch (_) {}
+    }
+
+    function alertToastContainer() { return document.getElementById("alertToasts"); }
+    function showAlertToast(type, sev, title, msg, mmsi) {
+      const box = alertToastContainer();
+      if (!box) return;
+      const el = document.createElement("div");
+      el.className = `alert-toast sev-${sev}`;
+      const t = new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+      el.innerHTML =
+        `<div class="alert-toast__title">${escapeHtml(title)}<span class="alert-toast__time">${t}</span>`
+        + `<button type="button" class="alert-toast__close" aria-label="Fechar">×</button></div>`
+        + `<div class="alert-toast__msg">${escapeHtml(msg)}</div>`
+        + `<div class="alert-toast__row">`
+        + (mmsi ? `<button type="button" class="alert-toast__btn" data-locate="${escapeHtml(mmsi)}">Ver no mapa</button>` : "<span></span>")
+        + `</div>`;
+      el.querySelector(".alert-toast__close").addEventListener("click", () => el.remove());
+      const loc = el.querySelector("[data-locate]");
+      if (loc) loc.addEventListener("click", () => { locateSaamVessel(mmsi); el.remove(); });
+      box.appendChild(el);
+      setTimeout(() => { el.style.transition = "opacity .4s"; el.style.opacity = "0"; setTimeout(() => el.remove(), 400); }, 14000);
+      while (box.children.length > 5) box.removeChild(box.firstChild);
+    }
+
+    function pushAlertHistory(type, title, msg, mmsi) {
+      _alertHistory.unshift({ type, title, msg, mmsi, at: Date.now() });
+      _alertHistory = _alertHistory.slice(0, 40);
+      renderAlertHistory();
+      const btn = document.getElementById("alertsDockBtn");
+      if (btn) btn.classList.add("has-alerts");
+    }
+
+    function fireAlert(type, v, msg) {
+      const meta = ALERT_TYPES[type];
+      if (!meta || !alertPrefs.enabled[type] || !_alertsArmed) return;
+      const mmsi = String(v?.mmsi || "");
+      const key = `${type}:${mmsi}`;
+      const now = Date.now();
+      const last = _alertCooldown.get(key) || 0;
+      if (now - last < ALERT_COOLDOWN_MS) return;
+      _alertCooldown.set(key, now);
+      const title = meta.label;
+      showAlertToast(type, meta.sev, title, msg, mmsi);
+      if (alertPrefs.sound) playAlertSound(meta.sev);
+      if (alertPrefs.desktop) showDesktopNotification(title, msg);
+      pushAlertHistory(type, title, msg, mmsi);
+    }
+
+    function refreshOneMarkerIcon(mmsi) {
+      const entry = markers.get(String(mmsi));
+      if (!entry) return;
+      entry.marker.setIcon(createVesselIcon(getShipCategory(entry.vessel))(entry.vessel));
+      entry.iconSig = vesselIconSignature(entry.vessel);
+    }
+
+    // Chamado a cada atualização AIS de embarcação.
+    function processVesselAlerts(v) {
+      const mmsi = String(v?.mmsi || "");
+      if (!mmsi) return;
+      const inside = isInsideBarra(v);
+      const was = _vesselInsideBarra.get(mmsi) || false;
+      _vesselInsideBarra.set(mmsi, inside);
+
+      const isSaam = Boolean(v?.isSaamBgra || v?.fleet === "SAAM-BGRA");
+      const isComp = !isSaam && Boolean(getCompetitorInfo(v));
+      const loa = Number(v?.lengthMeters) || 0;
+      const isMerchant = OPP_CATEGORIES.has(v?.shipCategory) && !isOffshoreVessel(v);
+      const norm = normalizeVesselName(v?.shipName);
+      const noContract = Boolean(norm) && !programmedNames.has(norm);
+      const isOpportunity = inside && isMerchant && !isSaam && !isComp && loa >= OPP_MIN_LOA && noContract;
+
+      // Mantém o conjunto de oportunidades e re-renderiza o anel se mudou.
+      const had = opportunityMmsis.has(mmsi);
+      if (isOpportunity) opportunityMmsis.add(mmsi); else opportunityMmsis.delete(mmsi);
+      if (had !== isOpportunity) { refreshOneMarkerIcon(mmsi); renderOpportunityList(); }
+
+      // Alertas no momento do cruzamento (entrou agora na barra).
+      if (inside && !was) {
+        const nome = (v?.shipName || `MMSI ${mmsi}`).trim();
+        const loaTxt = loa ? `, ${Math.round(loa)} m` : "";
+        if (isComp) {
+          const comp = getCompetitorInfo(v);
+          fireAlert("concorrente", v, `${nome} (${comp?.company || "concorrente"}) entrando na Baía de Guanabara.`);
+        } else if (isOpportunity) {
+          fireAlert("oportunidade", v, `${nome} (${v.shipCategory}${loaTxt}) entrou na barra SEM manobra programada — possível oportunidade comercial.`);
+        } else if (isMerchant && loa >= OPP_MIN_LOA) {
+          fireAlert("barra", v, `${nome} (${v.shipCategory}${loaTxt}) entrando na barra da Baía de Guanabara.`);
+        }
+      }
+    }
+
+    function renderOpportunityList() {
+      const el = document.getElementById("alertOppList");
+      if (!el) return;
+      const items = [];
+      opportunityMmsis.forEach((mmsi) => {
+        const entry = markers.get(String(mmsi));
+        if (entry?.vessel) items.push(entry.vessel);
+      });
+      if (!items.length) { el.innerHTML = `<span class="hint">Nenhuma no momento.</span>`; return; }
+      el.innerHTML = items.map((v) => {
+        const nome = escapeHtml((v.shipName || `MMSI ${v.mmsi}`).trim());
+        const loa = Number(v.lengthMeters) ? `${Math.round(Number(v.lengthMeters))} m` : "—";
+        return `<div class="alert-opp-item"><span>${nome} <span class="hint">(${escapeHtml(v.shipCategory || "")}, ${loa})</span></span>`
+          + `<button type="button" data-locate="${escapeHtml(String(v.mmsi))}">Ver</button></div>`;
+      }).join("");
+      el.querySelectorAll("[data-locate]").forEach((b) =>
+        b.addEventListener("click", () => locateSaamVessel(b.dataset.locate)));
+    }
+
+    function renderAlertHistory() {
+      const el = document.getElementById("alertHistoryList");
+      if (!el) return;
+      if (!_alertHistory.length) { el.innerHTML = `<span class="hint">Sem alertas ainda.</span>`; return; }
+      el.innerHTML = _alertHistory.slice(0, 12).map((a) => {
+        const t = new Date(a.at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+        return `<div class="alert-row" style="font-size:0.8rem;"><span>${t} · ${escapeHtml(a.title)}<br><span class="hint">${escapeHtml(a.msg)}</span></span></div>`;
+      }).join("");
+    }
+
+    async function refreshProgrammedNames() {
+      try {
+        const res = await fetch(apiUrl("/api/programmed-names"));
+        if (!res.ok) return;
+        const data = await res.json();
+        const next = new Set();
+        (data.names || []).forEach((n) => { if (n && n.normalized) next.add(n.normalized); });
+        programmedNames = next;
+        // Reavalia oportunidades já no mapa com a nova programação.
+        markers.forEach((entry) => { if (entry?.vessel) processVesselAlerts(entry.vessel); });
+      } catch (_) {}
+    }
+
+    // Varredura periódica: rebocador da frota SAAM sem sinal (possível barra fora).
+    function scanFleetOffline() {
+      if (!alertPrefs.enabled.fleetOffline) return;
+      try {
+        (typeof SAAM_BGRA_ROSTER !== "undefined" ? SAAM_BGRA_ROSTER : []).forEach((t) => {
+          const mmsi = String(t.mmsi);
+          const state = (typeof getSaamHeaderLampState === "function") ? getSaamHeaderLampState(mmsi) : null;
+          if (state === "offline") {
+            fireAlert("fleetOffline", { mmsi, shipName: t.name || `MMSI ${mmsi}` },
+              `${t.name || ("MMSI " + mmsi)} sem sinal AIS — possivelmente saiu barra fora / fora da cobertura do Rio.`);
+          }
+        });
+      } catch (_) {}
+    }
+
+    function setupAlertsPanel() {
+      const list = document.getElementById("alertPrefsList");
+      if (list) {
+        list.innerHTML = Object.keys(ALERT_TYPES).map((k) =>
+          `<div class="alert-row"><label for="alertchk-${k}"><input type="checkbox" id="alertchk-${k}" data-alert-type="${k}" ${alertPrefs.enabled[k] ? "checked" : ""}/> ${escapeHtml(ALERT_TYPES[k].label)}</label></div>`
+        ).join("");
+        list.querySelectorAll("[data-alert-type]").forEach((cb) => cb.addEventListener("change", () => {
+          alertPrefs.enabled[cb.dataset.alertType] = cb.checked; saveAlertPrefs(); ensureAudioCtx();
+        }));
+      }
+      const soundChk = document.getElementById("alertSoundChk");
+      const vol = document.getElementById("alertVolume");
+      const deskChk = document.getElementById("alertDesktopChk");
+      const testBtn = document.getElementById("alertTestBtn");
+      const clearBtn = document.getElementById("alertClearBtn");
+      if (soundChk) { soundChk.checked = alertPrefs.sound; soundChk.addEventListener("change", () => { alertPrefs.sound = soundChk.checked; saveAlertPrefs(); ensureAudioCtx(); }); }
+      if (vol) { vol.value = String(Math.round(alertPrefs.volume * 100)); vol.addEventListener("input", () => { alertPrefs.volume = (Number(vol.value) || 0) / 100; saveAlertPrefs(); }); }
+      if (deskChk) {
+        deskChk.checked = alertPrefs.desktop;
+        deskChk.addEventListener("change", async () => {
+          if (deskChk.checked && "Notification" in window && Notification.permission !== "granted") {
+            try { const p = await Notification.requestPermission(); if (p !== "granted") deskChk.checked = false; } catch (_) { deskChk.checked = false; }
+          }
+          alertPrefs.desktop = deskChk.checked; saveAlertPrefs();
+        });
+      }
+      if (testBtn) testBtn.addEventListener("click", () => { ensureAudioCtx(); playAlertSound("warn"); showAlertToast("barra", "info", "Teste de alerta", "Som e aviso funcionando.", null); });
+      if (clearBtn) clearBtn.addEventListener("click", () => { _alertHistory = []; renderAlertHistory(); const b = document.getElementById("alertsDockBtn"); if (b) b.classList.remove("has-alerts"); });
+      // Some o badge ao abrir o painel.
+      const dockBtn = document.getElementById("alertsDockBtn");
+      if (dockBtn) dockBtn.addEventListener("click", () => dockBtn.classList.remove("has-alerts"));
+      renderAlertHistory();
+      renderOpportunityList();
     }
 
     function refreshFleetDependentUi() {
@@ -2967,10 +3334,12 @@
       const classes = ["ship-shape", vesselColorClass, "ship-true"];
       if (isSaam) classes.push("ship-saam");
       if (isCompetitor) classes.push("ship-competitor");
+      const isOpp = !isSaam && !isCompetitor && opportunityMmsis.has(String(vessel?.mmsi || ""));
 
       const path = buildVesselHullPath(hullW, hullH);
       const html = `
         <div class="ship-wrap ship-wrap--true" style="width:${wrap}px;height:${wrap}px;transform:rotate(${rotation}deg);">
+          ${isOpp ? '<span class="opportunity-ring"></span>' : ''}
           <div class="${classes.join(" ")}" style="position:absolute;left:${left.toFixed(1)}px;top:${top.toFixed(1)}px;width:${hullW.toFixed(1)}px;height:${hullH.toFixed(1)}px;">
             <svg class="ship-poly" viewBox="0 0 ${hullW.toFixed(2)} ${hullH.toFixed(2)}" preserveAspectRatio="none" aria-hidden="true"><path d="${path}"></path></svg>
           </div>
@@ -3021,9 +3390,10 @@
         if (isCompetitor) classes.push("ship-competitor");
         if (!moving) classes.push("is-stopped");
 
+        const isOpp = !isSaam && !isCompetitor && opportunityMmsis.has(String(vessel?.mmsi || ""));
         const ringHtml = isCompetitor
           ? `<span class="threat-ring"></span><span class="threat-core"></span>`
-          : "";
+          : (isOpp ? `<span class="opportunity-ring"></span>` : "");
 
         const half = Math.round(wrap / 2);
         let shapeW;
@@ -3362,7 +3732,8 @@
       const ref = `${Math.round(Number(v?.refToBow) || 0)},${Math.round(Number(v?.refToStern) || 0)},${Math.round(Number(v?.refToPort) || 0)},${Math.round(Number(v?.refToStarboard) || 0)}`;
       // Em movimento, o vetor de proa cresce com o SOG: arredondar para inteiro.
       const sogStep = moving ? Math.round(Math.min(sog, 18)) : 0;
-      return `${cat}|${rotStep}|${moving}|${sogStep}|${isSaam}|${comp}|${z}|${loa}|${beam}|${ref}`;
+      const opp = opportunityMmsis.has(String(v?.mmsi || "")) ? 1 : 0;
+      return `${cat}|${rotStep}|${moving}|${sogStep}|${isSaam}|${comp}|${z}|${loa}|${beam}|${ref}|${opp}`;
     }
 
     function refreshMarkerIconsForZoom() {
@@ -3451,6 +3822,7 @@
       ensureTrailLayerForMmsi(key);
       renderSaamBgraFleetPanel();
       renderBarraGeofencePanel();
+      try { processVesselAlerts(vesselData); } catch (_) {}
     }
 
     async function loadAreas() {
@@ -4286,6 +4658,13 @@
         // Gestão de frota: sincroniza rosters com o backend e arma o painel.
         setupFleetPanel();
         loadFleet().catch(() => {});
+        // Central de Alertas + Radar de oportunidade.
+        setupAlertsPanel();
+        refreshProgrammedNames().catch(() => {});
+        setInterval(() => { refreshProgrammedNames().catch(() => {}); }, 120000);
+        setInterval(scanFleetOffline, 60000);
+        // Aquecimento: só dispara alertas após ~8 s (evita rajada falsa de "entrou" no F5).
+        setTimeout(() => { _alertsArmed = true; }, 8000);
         // Insights do KRATOS na caixa datilografada (canto inferior esquerdo).
         refreshKratosInsights().catch(() => {});
         setInterval(() => { refreshKratosInsights().catch(() => {}); }, KRATOS_INSIGHTS_REFRESH_MS);
