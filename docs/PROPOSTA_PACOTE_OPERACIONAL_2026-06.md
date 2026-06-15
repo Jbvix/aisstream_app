@@ -2,7 +2,7 @@
 
 Autor: Jossian Brito
 
-Status: **AGUARDANDO APROVAÇÃO** · Data: 12/06/2026
+Status: **APROVADO (com ajustes)** · Data: 12/06/2026 · Aprovação: 15/06/2026
 
 Proposta de implementação dos cinco pontos definidos em reunião, organizados em
 etapas independentes (cada uma entra em produção sozinha). A ordem sugerida cria
@@ -220,4 +220,16 @@ Etapa 18 (conhecimento) — independente, pode ser paralela
 | 6 | XTE padrão dos corredores GPX | 0,05 NM por bordo (ajustável) |
 | 7 | Formatos de upload | PDF, TXT, MD (15 MB) |
 
-**Aprovando esta proposta (no todo ou indicando ajustes), inicio pela Etapa 14.**
+## Decisões finais (aprovação de 15/06/2026)
+
+A proposta foi **aprovada com os seguintes ajustes** sobre os defaults:
+
+| # | Decisão | Valor aprovado |
+|---|---------|----------------|
+| 2 | Repouso (Etapa 15) | **8 h** (semântica exata do ciclo a confirmar na Etapa 15) |
+| 4 | LOA mínima p/ "sem contrato" (Etapa 16) | **120 m** |
+| — | Escopo do radar (Etapa 16) | **Apenas navios mercantes** — **excluir embarcações offshore** (PSV/AHTS/supply) |
+| 1, 3, 5, 6, 7 | Demais defaults | Mantidos como propostos |
+
+Execução iniciada pelas **Etapas 14 (Central de Alertas) + 16 (Radar de
+oportunidade)**, por compartilharem a região de código (barra/geofences/eventos).
