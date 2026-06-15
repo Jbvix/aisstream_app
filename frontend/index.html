@@ -3812,9 +3812,14 @@
     // passos de 3° para não recriar o ícone a cada micro-oscilação do heading.
     function vesselIconSignature(v) {
       const z = Number(map?.getZoom?.() ?? 11);
-      const rotStep = Math.round(getIconRotationDegrees(v) / 3);
       const sog = Number(v?.sog);
       const moving = isVesselMoving(v) ? 1 : 0;
+      const trueScale = z >= TRUE_SCALE_MIN_ZOOM ? 1 : 0;
+      // A rotação só afeta o desenho quando há seta (em movimento) ou casco em
+      // escala real. Parado em zoom normal é um círculo: ignorar o rumo evita
+      // recriar o ícone (piscar) por ruído de heading. Passos de 6° reduzem a
+      // recriação de quem está em movimento.
+      const rotStep = (moving || trueScale) ? Math.round(getIconRotationDegrees(v) / 6) : 0;
       const cat = getShipCategory(v);
       const isSaam = (v?.isSaamBgra || v?.fleet === "SAAM-BGRA") ? 1 : 0;
       const comp = isSaam ? 0 : (getCompetitorInfo(v) ? 1 : 0);

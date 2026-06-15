@@ -34,3 +34,17 @@ tick para alvos parados; o efeito era a animação do anel em massa.)
 ## Arquivos alterados
 - `frontend/index.html` — guarda `programmedNames.size > 0`; anel de oportunidade
   sem animação.
+
+## Segunda rodada — recriação de ícone por ruído de heading (parados)
+
+Persistindo o "piscar", a causa principal era a **assinatura do ícone**
+(`vesselIconSignature`) incluir o `rotStep` (rumo) **mesmo para alvos parados**.
+Parado em zoom normal é renderizado como **círculo** (rotação irrelevante), mas o
+heading "treme" alguns graus a cada report AIS → a assinatura mudava a cada tick →
+`setIcon` recriava o DOM do marcador (pisca), sem mudança visual. Com a frota
+majoritariamente atracada, isso fazia "todos piscarem".
+
+Correção: o `rotStep` só entra na assinatura quando há **seta** (em movimento) ou
+**casco em escala real** (zoom ≥ 14); parado em zoom normal usa `rotStep = 0`
+(estável). Passos de **6°** (antes 3°) reduzem a recriação de quem está em
+movimento. Resultado: alvos parados não recriam ícone por ruído de rumo.
