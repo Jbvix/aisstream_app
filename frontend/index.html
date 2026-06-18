@@ -1447,6 +1447,28 @@
       .bgmar-display { bottom: 104px !important; right: 8px !important; transform: scale(.9); transform-origin: bottom right; }
       #mobileShell { display: block; }
 
+      /* ---- Mapa em tela cheia (sem dock, sem margens, sem cantos) ---- */
+      .map-wrap { left: 0 !important; right: 0 !important; padding: 0 !important; }
+      #map { border-radius: 0 !important; border: none !important; box-shadow: none !important; }
+
+      /* ---- Header compacto e centralizado ---- */
+      header { padding: 6px 8px 4px !important; }
+      .header-row { flex-wrap: wrap !important; justify-content: center !important; row-gap: 4px; column-gap: 8px; }
+      .header-left { flex: 0 0 auto; }
+      .header-left h1 { font-size: 1.05rem; line-height: 1; }
+      .header-left .subtitle { display: none; }   /* economiza altura */
+      .header-actions { width: 100%; justify-content: center !important; flex-wrap: wrap; gap: 6px; }
+      .header-weather { justify-content: center !important; flex-wrap: wrap; gap: 6px; }
+      .header-lamps-wrap { order: 3; width: 100%; }
+      .header-lamps { justify-content: center !important; }
+      .header-weather-item { font-size: .72rem; padding: 2px 7px; gap: 4px; }
+      .header-weather-item .ico, .header-weather-item .ico svg { width: 13px; height: 13px; }
+      .icon-link { width: 30px; height: 30px; }
+
+      /* ---- Alertas centralizados no topo ---- */
+      .alert-toasts { left: 8px; right: 8px; top: 8px; max-width: none; align-items: center; }
+      .alert-toast { width: 100%; max-width: 420px; }
+
       /* Conversa do KRATOS acima da barra */
       .m-convo {
         position: fixed; left: 8px; right: 8px; bottom: 96px; z-index: 1100;
@@ -3096,7 +3118,9 @@
       const el = document.querySelector("header");
       if (!el) return;
       const h = Math.ceil(el.getBoundingClientRect().height);
-      document.documentElement.style.setProperty("--header-h", `${Math.min(140, Math.max(72, h))}px`);
+      document.documentElement.style.setProperty("--header-h", `${Math.min(160, Math.max(72, h))}px`);
+      // O contêiner do mapa mudou de tamanho: avisa o Leaflet para reposicionar.
+      try { if (typeof map !== "undefined" && map) setTimeout(() => map.invalidateSize(), 60); } catch (_) {}
     }
 
     window.addEventListener("resize", () => {
