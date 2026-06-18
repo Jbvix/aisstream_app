@@ -1436,6 +1436,64 @@
     .kratos-splash__step { color: var(--muted); font-size: 0.82rem; margin-top: 10px; min-height: 1.2em; }
     @keyframes kratosSpin { to { transform: rotate(360deg); } }
     @keyframes kratosPulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.06); opacity: 0.82; } }
+
+    /* ====================== UI MOBILE (≤ 768px) ====================== */
+    /* Camada mobile: oculta no desktop, ativada por media query. */
+    #mobileShell { display: none; }
+    @media (max-width: 768px) {
+      .dock { display: none !important; }
+      .kratos-insights { display: none !important; }
+      .header-saam-legend { display: none !important; }
+      .bgmar-display { bottom: 104px !important; right: 8px !important; transform: scale(.9); transform-origin: bottom right; }
+      #mobileShell { display: block; }
+
+      /* Conversa do KRATOS acima da barra */
+      .m-convo {
+        position: fixed; left: 8px; right: 8px; bottom: 96px; z-index: 1100;
+        background: rgba(7,18,32,.92); border: 1px solid var(--line); border-radius: 12px;
+        padding: 8px 12px; box-shadow: 0 8px 24px rgba(0,0,0,.45); backdrop-filter: blur(4px);
+        max-height: 34vh; overflow: hidden;
+      }
+      .m-convo__head { display: flex; align-items: center; gap: 6px; font-size: .72rem; color: var(--muted); margin-bottom: 4px; }
+      .m-convo__head b { color: var(--accent); }
+      .m-convo__state { margin-left: auto; font-size: .68rem; }
+      .m-convo__body { font-size: .86rem; color: var(--text); line-height: 1.35; }
+      .m-convo__body .u { color: var(--muted); }
+      .m-convo--hidden { display: none; }
+
+      /* Barra inferior */
+      .m-bottombar {
+        position: fixed; left: 0; right: 0; bottom: 0; z-index: 1101; height: 84px;
+        background: rgba(9,22,37,.97); border-top: 1px solid var(--line);
+        display: flex; align-items: flex-end; justify-content: space-around;
+        padding: 6px 8px calc(8px + env(safe-area-inset-bottom, 0px));
+      }
+      .m-btn {
+        flex: 1; max-width: 80px; background: none; border: none; color: var(--muted);
+        display: flex; flex-direction: column; align-items: center; gap: 3px;
+        font: inherit; font-size: .66rem; cursor: pointer; padding: 6px 0;
+      }
+      .m-btn svg { width: 24px; height: 24px; fill: currentColor; }
+      .m-btn.active, .m-btn:active { color: var(--accent); }
+      .m-btn .m-badge { position: absolute; top: 2px; margin-left: 16px; width: 8px; height: 8px; border-radius: 50%; background: var(--bad); display: none; }
+      .m-btn.has-alerts .m-badge { display: block; }
+
+      /* Orbe central elevado */
+      .m-orb-wrap {
+        flex: 0 0 auto; display: flex; flex-direction: column; align-items: center;
+        transform: translateY(-22px); width: 84px;
+      }
+      .m-orb {
+        width: 72px; height: 72px; border-radius: 50%; border: none; padding: 0; cursor: pointer;
+        background: radial-gradient(circle at 50% 38%, #0b2a44, #071424);
+        box-shadow: 0 6px 20px rgba(0,0,0,.5), 0 0 0 4px rgba(9,22,37,.97);
+        position: relative; overflow: hidden;
+      }
+      .m-orb canvas { width: 100%; height: 100%; display: block; }
+      .m-orb-label { font-size: .66rem; color: var(--text); margin-top: 2px; font-weight: 600; }
+    }
+    /* Acima de 768px o mobileShell nunca aparece (garante desktop intacto) */
+    @media (min-width: 769px) { #mobileShell { display: none !important; } }
   </style>
 </head>
 <body>
@@ -1861,6 +1919,35 @@
         <div class="kratos-insights__text"><span id="kratosInsightText"></span><span class="kratos-insights__cursor">▋</span></div>
       </div>
     </main>
+
+    <!-- ====================== UI MOBILE (Dynamic Voice Orb) ====================== -->
+    <div id="mobileShell" aria-hidden="true">
+      <div id="mConvo" class="m-convo m-convo--hidden">
+        <div class="m-convo__head"><b>KRATOS</b><span class="m-convo__state" id="mConvoState">toque no orbe para falar</span></div>
+        <div class="m-convo__body" id="mConvoBody"></div>
+      </div>
+      <nav class="m-bottombar" aria-label="Ações principais">
+        <button type="button" class="m-btn" id="mBtnMapa">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 18h4v-2h-4v2zM3 6v2h18V6H3zm3 7h12v-2H6v2z"/></svg>Mapa
+        </button>
+        <button type="button" class="m-btn" id="mBtnAlertas">
+          <span class="m-badge"></span>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5S10.5 3.17 10.5 4v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>Alertas
+        </button>
+        <div class="m-orb-wrap">
+          <button type="button" class="m-orb" id="mOrb" aria-label="Falar com o KRATOS (voz ao vivo)" aria-pressed="false">
+            <canvas id="mOrbCanvas" width="144" height="144"></canvas>
+          </button>
+          <span class="m-orb-label">Voz</span>
+        </div>
+        <button type="button" class="m-btn" id="mBtnRelatorio">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>Relatório
+        </button>
+        <button type="button" class="m-btn" id="mBtnPaineis">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3h8v8H3V3zm10 0h8v8h-8V3zM3 13h8v8H3v-8zm10 0h8v8h-8v-8z"/></svg>Painéis
+        </button>
+      </nav>
+    </div>
   </div>
 
   <script
@@ -2093,6 +2180,8 @@
       renderAlertHistory();
       const btn = document.getElementById("alertsDockBtn");
       if (btn) btn.classList.add("has-alerts");
+      const mbtn = document.getElementById("mBtnAlertas");
+      if (mbtn) mbtn.classList.add("has-alerts");
     }
 
     function fireAlert(type, v, msg, keyExtra) {
@@ -3700,6 +3789,190 @@
       const el = document.getElementById("kratosInsightText");
       if (el) el.textContent = text;
     }
+    // ===================================================================
+    // UI MOBILE — Dynamic Voice Orb + barra inferior + conversa
+    // ===================================================================
+    const VoiceOrb = (() => {
+      let canvas = null, ctx = null, raf = null, t = 0, state = "idle";
+      const P = {
+        idle:       { core: [53, 200, 255], ring: [53, 200, 255], speed: 0.6, rings: 2 },
+        listening:  { core: [120, 230, 255], ring: [53, 200, 255], speed: 1.7, rings: 4 },
+        processing: { core: [255, 176, 32], ring: [53, 200, 255], speed: 1.3, rings: 3 },
+        speaking:   { core: [255, 212, 0], ring: [255, 176, 32], speed: 2.3, rings: 4 },
+      };
+      function init() {
+        canvas = document.getElementById("mOrbCanvas");
+        if (!canvas) return;
+        ctx = canvas.getContext("2d");
+        if (raf) cancelAnimationFrame(raf);
+        loop();
+      }
+      function setState(s) { if (P[s]) state = s; }
+      function getState() { return state; }
+      function loop() {
+        raf = requestAnimationFrame(loop);
+        if (!ctx || !canvas.offsetParent) return;   // oculto (desktop): não desenha
+        const W = canvas.width, H = canvas.height, cx = W / 2, cy = H / 2;
+        const p = P[state] || P.idle;
+        t += 0.016 * p.speed;
+        ctx.clearRect(0, 0, W, H);
+        // Anéis expandindo (ondas)
+        for (let i = 0; i < p.rings; i++) {
+          const phase = (t + i / p.rings) % 1;
+          const r = 30 + phase * 38;
+          const a = (1 - phase) * 0.5;
+          ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
+          ctx.strokeStyle = `rgba(${p.ring[0]},${p.ring[1]},${p.ring[2]},${a})`;
+          ctx.lineWidth = 3; ctx.stroke();
+        }
+        // Processando: arco girando
+        if (state === "processing") {
+          const a0 = (t * 3) % (Math.PI * 2);
+          ctx.beginPath(); ctx.arc(cx, cy, 34, a0, a0 + Math.PI * 0.6);
+          ctx.strokeStyle = `rgba(${p.core[0]},${p.core[1]},${p.core[2]},0.9)`;
+          ctx.lineWidth = 4; ctx.lineCap = "round"; ctx.stroke();
+        }
+        // Núcleo (respiração) + brilho
+        const amp = state === "idle" ? 0.04 : (state === "speaking" ? 0.14 : 0.10);
+        const rad = 26 * (1 + Math.sin(t * 2.2) * amp);
+        const g = ctx.createRadialGradient(cx - 7, cy - 9, 4, cx, cy, rad);
+        g.addColorStop(0, "rgba(255,255,255,0.92)");
+        g.addColorStop(0.28, `rgba(${p.core[0]},${p.core[1]},${p.core[2]},0.96)`);
+        g.addColorStop(1, `rgba(${(p.core[0] * 0.35) | 0},${(p.core[1] * 0.35) | 0},${(p.core[2] * 0.35) | 0},0.96)`);
+        ctx.beginPath(); ctx.arc(cx, cy, rad, 0, Math.PI * 2); ctx.fillStyle = g; ctx.fill();
+        // Falando: ondas de áudio no centro
+        if (state === "speaking") {
+          ctx.strokeStyle = "rgba(8,20,36,0.85)"; ctx.lineWidth = 2.4; ctx.lineCap = "round";
+          for (let k = -2; k <= 2; k++) {
+            const bx = cx + k * 7;
+            const bh = 5 + Math.abs(Math.sin(t * 6 + k)) * 12;
+            ctx.beginPath(); ctx.moveTo(bx, cy - bh / 2); ctx.lineTo(bx, cy + bh / 2); ctx.stroke();
+          }
+        } else {
+          // ícone microfone simples
+          ctx.fillStyle = "rgba(8,20,36,0.85)";
+          ctx.beginPath(); ctx.arc(cx, cy - 2, 5, 0, Math.PI * 2); ctx.fill();
+          ctx.fillRect(cx - 5, cy - 2, 10, 8);
+        }
+      }
+      return { init, setState, getState };
+    })();
+
+    // ---- Estado do Orbe a partir dos callbacks de voz ----
+    let _orbActive = false;
+    let _orbProcTimer = null;
+    function mOrbOnActive(on) {
+      _orbActive = on;
+      const orbBtn = document.getElementById("mOrb");
+      if (orbBtn) orbBtn.setAttribute("aria-pressed", String(on));
+      if (on) { VoiceOrb.setState("listening"); mConvoShow(true); mConvoSetState("ouvindo…"); }
+      else { VoiceOrb.setState("idle"); mConvoSetState("toque no orbe para falar"); }
+    }
+    function mOrbOnUserText(t) {
+      if (!_orbActive) return;
+      VoiceOrb.setState("listening");
+      mConvoSetState("ouvindo…");
+      if (t && String(t).trim()) mConvoPush("user", String(t));
+      // Se a fala do usuário parar e não vier resposta, mostra "processando…".
+      clearTimeout(_orbProcTimer);
+      _orbProcTimer = setTimeout(() => {
+        if (_orbActive && VoiceOrb.getState() === "listening") { VoiceOrb.setState("processing"); mConvoSetState("processando…"); }
+      }, 900);
+    }
+    function mOrbOnAssistantText(t) {
+      if (!_orbActive) return;
+      clearTimeout(_orbProcTimer);
+      VoiceOrb.setState("speaking");
+      mConvoSetState("falando");
+      if (t && String(t).trim()) mConvoPush("kratos", String(t), true);
+      // Após um silêncio, volta a ouvir.
+      clearTimeout(_orbProcTimer);
+      _orbProcTimer = setTimeout(() => {
+        if (_orbActive) { VoiceOrb.setState("listening"); mConvoSetState("ouvindo…"); }
+      }, 1600);
+    }
+
+    // ---- Conversa mobile (faixa acima da barra) ----
+    const _mConvo = [];
+    function mConvoShow(show) {
+      const el = document.getElementById("mConvo");
+      if (el) el.classList.toggle("m-convo--hidden", !show);
+    }
+    function mConvoSetState(s) {
+      const el = document.getElementById("mConvoState");
+      if (el) el.textContent = s;
+    }
+    function mConvoPush(role, text, replaceLastKratos) {
+      if (replaceLastKratos && _mConvo.length && _mConvo[_mConvo.length - 1].role === "kratos") {
+        _mConvo[_mConvo.length - 1].text = text;   // streaming: atualiza a última fala
+      } else {
+        _mConvo.push({ role, text });
+      }
+      while (_mConvo.length > 4) _mConvo.shift();
+      const body = document.getElementById("mConvoBody");
+      if (!body) return;
+      body.innerHTML = _mConvo.slice(-3).map((m) =>
+        m.role === "user"
+          ? `<div class="u">${escapeHtml(m.text.slice(0, 160))}</div>`
+          : `<div>${escapeHtml(m.text.slice(0, 220))}</div>`
+      ).join("");
+    }
+
+    // ---- Painéis (bottom-sheet) e ações da barra ----
+    function mTogglePaineisSheet() {
+      let sheet = document.getElementById("mSheet");
+      if (sheet) { sheet.remove(); return; }
+      sheet = document.createElement("div");
+      sheet.id = "mSheet";
+      sheet.style.cssText = "position:fixed;left:8px;right:8px;bottom:96px;z-index:1102;background:rgba(11,29,49,.98);border:1px solid var(--line);border-radius:14px;padding:10px;box-shadow:0 12px 32px rgba(0,0,0,.5);display:grid;grid-template-columns:repeat(3,1fr);gap:8px;";
+      const items = [
+        ["frota", "Frota"], ["geofence", "Geofences"], ["weather", "Tempo"],
+        ["saam", "SAAM"], ["bgflow", "Entrada/Saída"], ["area", "Área"],
+        ["filters", "Filtros"], ["status", "Status"],
+      ];
+      items.forEach(([id, label]) => {
+        const b = document.createElement("button");
+        b.type = "button"; b.textContent = label;
+        b.style.cssText = "background:rgba(16,37,61,1);border:1px solid var(--line);color:var(--text);border-radius:10px;padding:12px 6px;font:inherit;font-size:.8rem;cursor:pointer;";
+        b.addEventListener("click", () => { try { FloatPanels.open(id); } catch (_) {} sheet.remove(); });
+        sheet.appendChild(b);
+      });
+      document.getElementById("mobileShell").appendChild(sheet);
+    }
+
+    async function mQuickReportShare() {
+      // Fase A: compartilha um resumo (insights) por texto. Relatório DOCX/PDF na Fase B.
+      let text = "KRATOS — leitura do cenário:\n";
+      try {
+        const list = (kratosInsightList && kratosInsightList.length) ? kratosInsightList : [];
+        text += list.slice(0, 6).map((s) => "• " + s).join("\n") || "Sem insights no momento.";
+      } catch (_) { text += "Sem insights no momento."; }
+      const shareData = { title: "KRATOS — Inteligência Naval", text, url: location.href };
+      try {
+        if (navigator.share) { await navigator.share(shareData); return; }
+      } catch (_) { /* usuário cancelou */ return; }
+      try { await navigator.clipboard.writeText(text + "\n" + location.href); flashInsight("Resumo copiado para a área de transferência."); }
+      catch (_) { alert(text); }
+    }
+
+    function setupMobileUI() {
+      if (!document.getElementById("mobileShell")) return;
+      VoiceOrb.init();
+      const orb = document.getElementById("mOrb");
+      if (orb) orb.addEventListener("click", async () => {
+        try {
+          const v = await getMapLiveVoice();
+          if (v.isActive()) { v.stop(); }
+          else { VoiceOrb.setState("processing"); mConvoShow(true); mConvoSetState("conectando…"); await v.start(); }
+        } catch (e) { mConvoSetState("voz indisponível"); flashInsight("Voz ao vivo: " + String(e && e.message || e)); VoiceOrb.setState("idle"); }
+      });
+      const wire = (id, fn) => { const b = document.getElementById(id); if (b) b.addEventListener("click", fn); };
+      wire("mBtnMapa", () => { try { FloatPanels.open("filters"); } catch (_) {} });
+      wire("mBtnAlertas", () => { try { FloatPanels.open("alerts"); } catch (_) {} const b = document.getElementById("mBtnAlertas"); if (b) b.classList.remove("has-alerts"); });
+      wire("mBtnRelatorio", mQuickReportShare);
+      wire("mBtnPaineis", mTogglePaineisSheet);
+    }
+
     async function getMapLiveVoice() {
       await ensureMapVoiceModule();
       if (_mapLiveVoice) return _mapLiveVoice;
@@ -3725,15 +3998,16 @@
             };
           } catch (_) { return {}; }
         },
-        onUserText: () => {},                       // no mapa não exibimos transcrição
-        onAssistantText: (t) => flashInsight("KRATOS: " + t.slice(-180)),
-        onAssistantInterrupted: () => {},
-        onSystem: (msg) => flashInsight(msg),
+        onUserText: (t) => { mOrbOnUserText(t); },  // alimenta o Orbe + conversa mobile
+        onAssistantText: (t) => { flashInsight("KRATOS: " + t.slice(-180)); mOrbOnAssistantText(t); },
+        onAssistantInterrupted: () => { mOrbSetState("listening"); },
+        onSystem: (msg) => { flashInsight(msg); mConvoSetState(msg); },
         onStateChange: (on) => {
           const vb = document.getElementById("kratosVoiceBtn");
           if (vb) { vb.textContent = on ? "⏹" : "🎧"; vb.setAttribute("aria-pressed", String(on)); vb.title = on ? "Encerrar voz ao vivo" : "Falar com o KRATOS (voz ao vivo)"; }
           if (on && kratosTypeTimer) { clearTimeout(kratosTypeTimer); clearTimeout(kratosHoldTimer); } // pausa datilografia
           else if (!on) nextKratosInsight();        // retoma o ciclo de insights
+          mOrbOnActive(on);
         },
       });
       return _mapLiveVoice;
@@ -4757,6 +5031,8 @@
         // Gestão de frota: sincroniza rosters com o backend e arma o painel.
         setupFleetPanel();
         loadFleet().catch(() => {});
+        // UI mobile (Dynamic Voice Orb + barra inferior).
+        setupMobileUI();
         // Central de Alertas + Radar de oportunidade.
         setupAlertsPanel();
         refreshProgrammedNames().catch(() => {});
