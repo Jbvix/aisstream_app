@@ -31,3 +31,12 @@ Data: 2026-06-15
 ## Arquivos alterados
 - `frontend/index.html` — overrides mobile (mapa full-bleed, header centralizado,
   alertas centralizados) + `invalidateSize`.
+
+## Ajustes adicionais (2ª rodada)
+- **DB + GR + N agrupados e centralizados:** os três botões foram envolvidos em
+  `.header-iconbtns`; no mobile, clima e botões ficam cada um em sua linha
+  centralizada (antes o DB ficava solto na linha dos chips).
+- **Conversa "limpa":** ao **encerrar a voz** a faixa de conversa é **limpa e
+  ocultada** (`mConvoClear`); botão **×** para limpar manualmente; texto limitado a
+  3 linhas (clamp). Enquanto a conversa está aberta, o **contador BG é ocultado**
+  (`body.convo-open`) para não sobrepor o texto.

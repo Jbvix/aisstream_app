@@ -1458,12 +1458,20 @@
       .header-left h1 { font-size: 1.05rem; line-height: 1; }
       .header-left .subtitle { display: none; }   /* economiza altura */
       .header-actions { width: 100%; justify-content: center !important; flex-wrap: wrap; gap: 6px; }
-      .header-weather { justify-content: center !important; flex-wrap: wrap; gap: 6px; }
+      .header-weather { width: 100%; justify-content: center !important; flex-wrap: wrap; gap: 6px; order: 1; }
+      .header-iconbtns { width: 100%; display: flex; justify-content: center !important; gap: 8px; order: 2; }
       .header-lamps-wrap { order: 3; width: 100%; }
       .header-lamps { justify-content: center !important; }
       .header-weather-item { font-size: .72rem; padding: 2px 7px; gap: 4px; }
       .header-weather-item .ico, .header-weather-item .ico svg { width: 13px; height: 13px; }
       .icon-link { width: 30px; height: 30px; }
+
+      /* Conversa: enquanto aberta, libera a tela escondendo o contador BG */
+      body.convo-open .bgmar-display { display: none !important; }
+      .m-convo { max-height: 96px; }
+      .m-convo__body { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+      .m-convo__clear { margin-left: 6px; background: none; border: none; color: var(--muted); font-size: 1.1rem; line-height: 1; cursor: pointer; padding: 0 2px; }
+      .m-convo__clear:active { color: var(--accent); }
 
       /* ---- Alertas centralizados no topo ---- */
       .alert-toasts { left: 8px; right: 8px; top: 8px; max-width: none; align-items: center; }
@@ -1560,11 +1568,13 @@
             <span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M14 14.76V5a2 2 0 1 0-4 0v9.76a4 4 0 1 0 4 0zM12 3a2 2 0 0 1 2 2v10.35a3 3 0 1 1-4 0V5a2 2 0 0 1 2-2z"></path></svg></span><span id="topTempText">-- °C</span>
           </span>
         </div>
-        <a class="icon-link" id="dashboardLink" href="./dashboard" title="Dashboard estratégico (/dashboard com dados no HTML)" aria-label="Dashboard estratégico">DB</a>
-        <a class="icon-link" id="graphLink" href="./graph" title="Grafo estratégico (visualização de conexões)" aria-label="Grafo estratégico">GR</a>
-        <button id="toggleNamesBtn" class="icon-link" type="button" title="Mostrar nomes das embarcações" aria-label="Mostrar nomes das embarcações">
-          N
-        </button>
+        <div class="header-iconbtns">
+          <a class="icon-link" id="dashboardLink" href="./dashboard" title="Dashboard estratégico (/dashboard com dados no HTML)" aria-label="Dashboard estratégico">DB</a>
+          <a class="icon-link" id="graphLink" href="./graph" title="Grafo estratégico (visualização de conexões)" aria-label="Grafo estratégico">GR</a>
+          <button id="toggleNamesBtn" class="icon-link" type="button" title="Mostrar nomes das embarcações" aria-label="Mostrar nomes das embarcações">
+            N
+          </button>
+        </div>
       </div>
     </div>
     <div class="header-saam-legend">
@@ -1945,7 +1955,7 @@
     <!-- ====================== UI MOBILE (Dynamic Voice Orb) ====================== -->
     <div id="mobileShell" aria-hidden="true">
       <div id="mConvo" class="m-convo m-convo--hidden">
-        <div class="m-convo__head"><b>KRATOS</b><span class="m-convo__state" id="mConvoState">toque no orbe para falar</span></div>
+        <div class="m-convo__head"><b>KRATOS</b><span class="m-convo__state" id="mConvoState">toque no orbe para falar</span><button type="button" id="mConvoClear" class="m-convo__clear" aria-label="Limpar conversa">×</button></div>
         <div class="m-convo__body" id="mConvoBody"></div>
       </div>
       <nav class="m-bottombar" aria-label="Ações principais">
@@ -3890,7 +3900,7 @@
       const orbBtn = document.getElementById("mOrb");
       if (orbBtn) orbBtn.setAttribute("aria-pressed", String(on));
       if (on) { VoiceOrb.setState("listening"); mConvoShow(true); mConvoSetState("ouvindo…"); }
-      else { VoiceOrb.setState("idle"); mConvoSetState("toque no orbe para falar"); }
+      else { VoiceOrb.setState("idle"); mConvoClear(); }   // encerrou: limpa a tela de conversa
     }
     function mOrbOnUserText(t) {
       if (!_orbActive) return;
@@ -3921,6 +3931,13 @@
     function mConvoShow(show) {
       const el = document.getElementById("mConvo");
       if (el) el.classList.toggle("m-convo--hidden", !show);
+      document.body.classList.toggle("convo-open", !!show);
+    }
+    function mConvoClear() {
+      _mConvo.length = 0;
+      const body = document.getElementById("mConvoBody");
+      if (body) body.innerHTML = "";
+      mConvoShow(false);
     }
     function mConvoSetState(s) {
       const el = document.getElementById("mConvoState");
@@ -4038,6 +4055,7 @@
       wire("mBtnAlertas", () => { try { FloatPanels.open("alerts"); } catch (_) {} const b = document.getElementById("mBtnAlertas"); if (b) b.classList.remove("has-alerts"); });
       wire("mBtnRelatorio", mReportSheet);
       wire("mBtnPaineis", mTogglePaineisSheet);
+      wire("mConvoClear", mConvoClear);
     }
 
     async function getMapLiveVoice() {
