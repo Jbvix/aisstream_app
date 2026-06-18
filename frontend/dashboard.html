@@ -363,7 +363,21 @@
       display: flex;
       gap: 8px;
       flex-wrap: wrap;
+      justify-content: center;
+      align-items: center;
     }
+    .strategy-box button.icon-btn {
+      width: 42px; height: 42px; padding: 0; font-size: 1.15rem;
+      display: inline-flex; align-items: center; justify-content: center; line-height: 1;
+    }
+    .sa-sep { width: 1px; height: 26px; background: var(--line); margin: 0 2px; }
+    .assistant-help {
+      margin-top: 10px; border: 1px solid var(--line); border-radius: 10px;
+      background: rgba(9,22,37,.6); padding: 10px 12px; font-size: 0.82rem; color: var(--text);
+    }
+    .assistant-help b { color: var(--accent); }
+    .assistant-help ul { margin: 6px 0 0; padding-left: 18px; }
+    .assistant-help li { margin: 3px 0; color: var(--muted); }
     .hint-row {
       display: flex;
       align-items: center;
@@ -504,17 +518,31 @@
       <textarea id="strategyQuestion" placeholder="Ex.: Para qual manobra o WIL está se posicionando agora? Qual a melhor recomendação sem comprometer nossa programação?"></textarea>
       <textarea id="strategyLearnNote" placeholder="Aprendizado opcional para memória do KRATOS (ex.: Em navio >300m, priorizar 4 rebocadores)."></textarea>
       <div class="strategy-actions">
-        <button type="button" id="btnStrategyAsk">Conversar com KRATOS</button>
-        <button type="button" id="btnStrategyAttach" title="Carregar arquivo (PDF, TXT ou MD) para o KRATOS reter e aplicar">📎 Anexar conhecimento</button>
-        <button type="button" id="btnStrategyLive" title="Conversa falada em tempo real com a voz Leo (xAI Realtime)">🎧 Voz ao vivo</button>
-        <button type="button" id="btnStrategyMic" title="Falar com o KRATOS (microfone)">🎙️ Falar</button>
-        <button type="button" id="btnStrategyVoice" title="KRATOS responde em voz" aria-pressed="false">🔊 Voz: ligada</button>
+        <button type="button" class="icon-btn" id="btnStrategyAsk" title="Conversar com KRATOS" aria-label="Conversar com KRATOS">💬</button>
+        <button type="button" class="icon-btn" id="btnStrategyAttach" title="Anexar conhecimento (PDF, TXT ou MD)" aria-label="Anexar conhecimento">📎</button>
+        <button type="button" class="icon-btn" id="btnStrategyLive" title="Voz ao vivo (xAI Realtime)" aria-label="Voz ao vivo" aria-pressed="false">🎧</button>
+        <button type="button" class="icon-btn" id="btnStrategyMic" title="Falar com o KRATOS (microfone)" aria-label="Falar">🎙️</button>
+        <button type="button" class="icon-btn" id="btnStrategyVoice" title="Voz do KRATOS (ligar/desligar)" aria-label="Voz do KRATOS" aria-pressed="true">🔊</button>
+        <button type="button" class="icon-btn" id="btnHelp" title="Ajuda — o que faz cada botão" aria-label="Ajuda">❓</button>
+        <span class="sa-sep" aria-hidden="true"></span>
         <button type="button" id="btnStrategyReport">Gerar relatório</button>
         <button type="button" id="btnReportPdf" title="Baixar relatório operacional em PDF">⬇ PDF</button>
         <button type="button" id="btnReportDocx" title="Baixar relatório operacional em DOCX">⬇ DOCX</button>
         <button type="button" id="btnStrategyInsights">Gerar insights</button>
         <button type="button" id="btnStrategyClear">Limpar conversa</button>
         <input type="file" id="strategyFileInput" accept=".pdf,.txt,.md,.markdown,application/pdf,text/plain,text/markdown" style="display:none;" />
+      </div>
+      <div id="assistantHelp" class="assistant-help" style="display:none;">
+        <b>Como usar o assistente</b>
+        <ul>
+          <li>💬 <b>Conversar</b> — envia a pergunta digitada ao KRATOS (ou use Enter).</li>
+          <li>📎 <b>Anexar</b> — carrega PDF/TXT/MD para o KRATOS reter e aplicar nas respostas.</li>
+          <li>🎧 <b>Voz ao vivo</b> — conversa falada em tempo real (voz Leo).</li>
+          <li>🎙️ <b>Falar</b> — sua fala vira texto e é enviada.</li>
+          <li>🔊 <b>Voz</b> — liga/desliga a leitura das respostas em voz alta.</li>
+          <li><b>Gerar relatório / ⬇ PDF / ⬇ DOCX</b> — resumo executivo e exportação formatada.</li>
+          <li><b>Gerar insights</b> — hipóteses e oportunidades. <b>Limpar conversa</b> — recomeça o fio.</li>
+        </ul>
       </div>
       <div id="knowledgeBox" class="knowledge-box" style="display:none;">
         <div class="knowledge-box__title">📚 Conhecimento carregado <span class="hint" id="knowledgeHint"></span></div>
@@ -604,7 +632,7 @@
     </div>
   </section>
 
-  <section>
+  <section style="display:none;" aria-hidden="true">
     <h2>Integração Obsidian (Supabase)</h2>
     <p class="hint">Gera notas Markdown interligadas (Manobra ↔ Navio ↔ Berço ↔ Rebocador ↔ Dia ↔ Empresa) e envia para o bucket do Supabase, que o Obsidian sincroniza pelo plugin <strong>Remotely Save</strong>. Requer configuração do Supabase no servidor (<code>.env</code>).</p>
     <div class="sync-row">
@@ -1492,6 +1520,10 @@
     }
     document.getElementById("btnReportPdf").addEventListener("click", () => downloadReport("pdf"));
     document.getElementById("btnReportDocx").addEventListener("click", () => downloadReport("docx"));
+    document.getElementById("btnHelp").addEventListener("click", () => {
+      const h = document.getElementById("assistantHelp");
+      if (h) h.style.display = h.style.display === "none" ? "block" : "none";
+    });
 
     // ===== Conhecimento por arquivo (Etapa 18) =====
     const KNOWLEDGE_MAX_BYTES = 15 * 1024 * 1024;
@@ -1596,7 +1628,9 @@
       // Voz ao vivo (xAI Realtime, voz Leo): um botão liga, o mesmo desliga.
       if (liveBtn) {
         KratosLiveVoice.setOnStateChange((on) => {
-          liveBtn.textContent = on ? "⏹ Encerrar voz" : "🎧 Voz ao vivo";
+          liveBtn.textContent = on ? "⏹" : "🎧";
+          liveBtn.title = on ? "Encerrar voz ao vivo" : "Voz ao vivo (xAI Realtime)";
+          liveBtn.setAttribute("aria-pressed", String(on));
           liveBtn.classList.toggle("mic-active", on);
         });
         let starting = false;
@@ -1604,11 +1638,11 @@
           if (KratosLiveVoice.isActive()) { KratosLiveVoice.stop(); return; }
           if (starting) return;
           starting = true;
-          liveBtn.textContent = "🎧 Conectando…";
+          liveBtn.textContent = "…";
           try {
             await KratosLiveVoice.start();
           } catch (e) {
-            liveBtn.textContent = "🎧 Voz ao vivo";
+            liveBtn.textContent = "🎧";
             const msg = String(e && e.message || e);
             kratosChatHistory.push({ role: "assistant", content: `Não consegui iniciar a voz ao vivo: ${msg}` });
             renderKratosChat();
@@ -1621,13 +1655,14 @@
       // Liga/desliga a fala do KRATOS.
       if (voiceBtn) {
         if (!KratosVoice.ttsSupported()) {
-          voiceBtn.textContent = "🔇 Voz indisponível";
+          voiceBtn.textContent = "🔇"; voiceBtn.title = "Voz indisponível neste navegador";
           voiceBtn.disabled = true;
         } else {
           voiceBtn.addEventListener("click", () => {
             const on = !KratosVoice.isEnabled();
             KratosVoice.setEnabled(on);
-            voiceBtn.textContent = on ? "🔊 Voz: ligada" : "🔇 Voz: desligada";
+            voiceBtn.textContent = on ? "🔊" : "🔇";
+            voiceBtn.title = on ? "Voz do KRATOS: ligada" : "Voz do KRATOS: desligada";
             voiceBtn.setAttribute("aria-pressed", String(on));
           });
         }
@@ -1636,7 +1671,7 @@
       // Microfone: fala vira texto e envia direto.
       if (micBtn) {
         if (!KratosVoice.sttSupported()) {
-          micBtn.textContent = "🎙️ Mic indisponível";
+          micBtn.textContent = "🔇"; micBtn.title = "Microfone indisponível neste navegador";
           micBtn.disabled = true;
         } else {
           let listening = false;
@@ -1650,7 +1685,8 @@
               },
               (state) => {
                 listening = state === "listening";
-                micBtn.textContent = listening ? "🎙️ Ouvindo…" : "🎙️ Falar";
+                micBtn.textContent = listening ? "🔴" : "🎙️";
+                micBtn.title = listening ? "Ouvindo…" : "Falar com o KRATOS (microfone)";
                 micBtn.classList.toggle("mic-active", listening);
               }
             );
