@@ -5090,6 +5090,21 @@
       });
     });
 
+    // ===== UI essencial inicializada SEMPRE (independe das chamadas de dados) =====
+    // Garante que a Central de Alertas, o Orbe de voz e os timers funcionem mesmo
+    // que loadAreas/setMode falhem (evita alertas "mortos" por erro de fetch).
+    (function bootCoreUI() {
+      try { setupMobileUI(); } catch (_) {}
+      try { setupAlertsPanel(); } catch (_) {}
+      try { refreshProgrammedNames().catch(() => {}); } catch (_) {}
+      setInterval(() => { refreshProgrammedNames().catch(() => {}); }, 120000);
+      setInterval(scanFleetOffline, 60000);
+      try { refreshOperatingHours().catch(() => {}); } catch (_) {}
+      setInterval(() => { refreshOperatingHours().catch(() => {}); }, 60000);
+      // Aquecimento: só dispara alertas após ~8 s (evita rajada falsa de "entrou" no F5).
+      setTimeout(() => { _alertsArmed = true; }, 8000);
+    })();
+
     loadAreas()
       .then(() => loadGeofences())
       .then(() => loadGeofenceOccupancy())
@@ -5117,17 +5132,6 @@
         // Gestão de frota: sincroniza rosters com o backend e arma o painel.
         setupFleetPanel();
         loadFleet().catch(() => {});
-        // UI mobile (Dynamic Voice Orb + barra inferior).
-        setupMobileUI();
-        // Central de Alertas + Radar de oportunidade.
-        setupAlertsPanel();
-        refreshProgrammedNames().catch(() => {});
-        setInterval(() => { refreshProgrammedNames().catch(() => {}); }, 120000);
-        setInterval(scanFleetOffline, 60000);
-        refreshOperatingHours().catch(() => {});
-        setInterval(() => { refreshOperatingHours().catch(() => {}); }, 60000);
-        // Aquecimento: só dispara alertas após ~8 s (evita rajada falsa de "entrou" no F5).
-        setTimeout(() => { _alertsArmed = true; }, 8000);
         // Insights do KRATOS na caixa datilografada (canto inferior esquerdo).
         refreshKratosInsights().catch(() => {});
         setInterval(() => { refreshKratosInsights().catch(() => {}); }, KRATOS_INSIGHTS_REFRESH_MS);
