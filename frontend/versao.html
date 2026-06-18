@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>KRATOS — Painel de Implementações da Versão</title>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+  <style>
+    :root { --bg:#071424; --card:#0d1e32; --line:#28405a; --text:#eaf4ff; --muted:#9ab6d4; --accent:#35c8ff; --gold:#ffd400; --green:#37d989; --amber:#ffb020; --violet:#aa78ff; }
+    * { box-sizing:border-box; }
+    body { margin:0; font-family:"IBM Plex Sans",sans-serif; background:
+      radial-gradient(1100px 520px at 50% -10%, rgba(53,200,255,.10), transparent 60%), var(--bg);
+      color:var(--text); min-height:100vh; }
+    header { display:flex; align-items:center; gap:14px; flex-wrap:wrap; padding:16px 20px;
+      border-bottom:1px solid var(--line); background:rgba(6,16,28,.85); position:sticky; top:0; z-index:5; }
+    .kmark { width:46px; height:46px; border-radius:50%; border:2px solid var(--accent); display:flex;
+      align-items:center; justify-content:center; font-family:"Space Grotesk",sans-serif; font-weight:700;
+      font-size:1.4rem; color:var(--accent); flex:0 0 auto; }
+    .htext h1 { font-family:"Space Grotesk",sans-serif; font-size:1.15rem; margin:0; }
+    .htext p { margin:2px 0 0; color:var(--muted); font-size:0.8rem; }
+    .spacer { flex:1; }
+    .nav { color:var(--accent); text-decoration:none; font-weight:600; font-size:0.9rem;
+      border:1px solid var(--line); border-radius:10px; padding:8px 14px; white-space:nowrap; }
+    .nav:hover { background:rgba(53,200,255,.14); }
+    main { padding:18px 20px 40px; max-width:1180px; margin:0 auto; }
+    .grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(300px, 1fr)); gap:14px; }
+    .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px 16px; border-left-width:5px; }
+    .card h2 { font-size:0.98rem; margin:0 0 10px; }
+    .card.c-acc { border-left-color:var(--accent); } .card.c-acc h2 { color:var(--accent); }
+    .card.c-gold { border-left-color:var(--gold); } .card.c-gold h2 { color:var(--gold); }
+    .card.c-amber { border-left-color:var(--amber); } .card.c-amber h2 { color:var(--amber); }
+    .card.c-green { border-left-color:var(--green); } .card.c-green h2 { color:var(--green); }
+    .card.c-violet { border-left-color:var(--violet); } .card.c-violet h2 { color:var(--violet); }
+    .item { display:flex; gap:9px; padding:7px 0; border-top:1px solid rgba(40,64,90,.5); }
+    .item:first-of-type { border-top:none; }
+    .item .ck { flex:0 0 auto; color:var(--green); font-weight:700; margin-top:1px; }
+    .item .t { font-weight:600; font-size:0.9rem; }
+    .item .d { color:var(--muted); font-size:0.8rem; line-height:1.4; margin-top:2px; }
+    .foot { margin-top:18px; color:var(--muted); font-size:0.8rem; line-height:1.5; }
+    .foot a { color:var(--accent); }
+    .pending { margin-top:14px; background:rgba(255,176,32,.10); border:1px solid rgba(255,176,32,.4);
+      border-radius:12px; padding:10px 14px; color:var(--text); font-size:0.85rem; }
+    @media (max-width:600px){ header{ padding:12px 14px; } main{ padding:14px 12px 36px; } .grid{ grid-template-columns:1fr; } }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="kmark">K</div>
+    <div class="htext">
+      <h1>Painel de Implementações da Versão</h1>
+      <p>KRATOS — Inteligência Naval Estratégica · Baía de Guanabara</p>
+    </div>
+    <div class="spacer"></div>
+    <a class="nav" id="backMap" href="./">← Mapa</a>
+  </header>
+
+  <main>
+    <div class="grid" id="grid"></div>
+
+    <div class="pending" id="pending"></div>
+    <div class="foot">
+      Status: em produção · <a href="./frontend/KRATOS_painel_implementacoes.png" target="_blank" rel="noopener">baixar painel (imagem)</a><br>
+      <span id="versionLine"></span>
+    </div>
+  </main>
+
+  <script>
+    const BASE = (() => { const p = location.pathname; const i = p.indexOf("/versao"); return i >= 0 ? p.slice(0, i) : ""; })();
+    document.getElementById("backMap").setAttribute("href", (BASE || "") + "/");
+    const dl = document.querySelector('.foot a');
+    if (dl) dl.setAttribute("href", (BASE || "") + "/frontend/KRATOS_painel_implementacoes.png");
+
+    const SECTIONS = [
+      ["Núcleo & Mapa", "c-acc", [
+        ["Fundação KRATOS", "Mapa AIS ao vivo da BG, relay com persistência, geofences e market share."],
+        ["Alvos em escala real", "Casco em metros sobre a imagem (estilo MarineTraffic), girado pelo rumo; estável (sem piscar)."],
+        ["Meteo + Corrente", "Maré, vento, corrente e temperatura — corrente/vento em nós."],
+      ]],
+      ["Inteligência KRATOS", "c-gold", [
+        ["Conversacional + Voz ao vivo", "Chat e voz (xAI Grok / voz Leo) com memória; tour guiado."],
+        ["Página do Administrador", "Eficácia, uso e auditoria do assistente."],
+        ["Normas NPCP-RJ (foco BG)", "Escada de reboque por porte/TTE, terminais, janelas — terminal a terminal."],
+        ["Upload de conhecimento no chat", "Carrega PDF/TXT/MD; o KRATOS retém e aplica nas respostas."],
+      ]],
+      ["Operação & Alertas", "c-amber", [
+        ["Central de Alertas", "Som por gravidade + popup 'ver no mapa' + notificação; configurável por tipo."],
+        ["Radar de oportunidade", "Navio na barra (LOA ≥ 120 m, sem offshore) SEM contrato → anel âmbar + alerta."],
+        ["Horímetro de operação (fadiga)", "Horas de movimento por rebocador; limite 8 h; alerta 7 h/8 h; revezamento."],
+      ]],
+      ["Mobilidade & UX", "c-green", [
+        ["UI mobile + Dynamic Voice Orb", "Mapa cheio, barra inferior e orbe central (repouso/ouvindo/processando/falando)."],
+        ["Relatórios PDF/DOCX + compartilhar", "Relatório operacional formatado com identidade KRATOS, via Web Share/baixar."],
+        ["UX desktop", "Grafo com header organizado; assistente em ícones + ajuda."],
+      ]],
+      ["Segurança & Integrações", "c-violet", [
+        ["Acesso por convite (token)", "App só por convite; links WhatsApp/e-mail; validade, revogação, chave-mestra."],
+        ["Grafo estratégico (2D/3D)", "Conexões Manobra ↔ Navio ↔ Berço ↔ Rebocador ↔ Empresa ↔ Dia."],
+        ["Integração Obsidian (Supabase)", "Exportação para vault — disponível (oculta na UI a pedido)."],
+      ]],
+    ];
+    const grid = document.getElementById("grid");
+    grid.innerHTML = SECTIONS.map(([title, cls, items]) =>
+      `<section class="card ${cls}"><h2>${title}</h2>` +
+      items.map(([t, d]) => `<div class="item"><span class="ck">✓</span><div><div class="t">${t}</div><div class="d">${d}</div></div></div>`).join("") +
+      `</section>`
+    ).join("");
+    document.getElementById("pending").textContent = "Pendente: Etapa 17 — Corredores de tráfego por GPX/XTE (aguardando os arquivos de derrotas).";
+    document.getElementById("versionLine").textContent = "Versão consolidada · junho/2026 · Autor: Jossian Brito";
+  </script>
+</body>
+</html>

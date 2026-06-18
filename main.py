@@ -1880,6 +1880,13 @@ def graph_page():
     return FileResponse(FRONTEND_DIR / "graph.html", media_type="text/html")
 
 
+@app.get("/versao")
+@app.get("/versao/")
+def versao_page():
+    """Painel de implementações da versão (responsivo)."""
+    return FileResponse(FRONTEND_DIR / "versao.html", media_type="text/html")
+
+
 async def _run_obsidian_export_safe(reason: str) -> dict:
     """Gera e sobe o vault em background, tolerante a falha (auto-sync)."""
     global _obsidian_export_running, _obsidian_last_export_ts
