@@ -401,7 +401,7 @@
           <li><b>Conhece as normas locais (NPCP-RJ), com foco na Baía de Guanabara:</b> o KRATOS incorpora a NPCP-RJ (3ª Revisão) e as Portarias CPRJ nº 11/2026 e nº 110/2026 como <b>informação estratégica, terminal a terminal da BG</b> — quantos rebocadores e qual TTE mínimo cada manobra exige (Gamboa, São Cristóvão, TECON-RJ até 349 m, Terminal de Óleo, Almirante Tamandaré, GLP TAIC/TAIR, GNL, Manguinhos, Neolubes, estaleiros, ferro-gusa), onde o Posicionamento Dinâmico (DP) dispensa reboque (Brasco, Subsea7, RBT), janelas diurno/maré e regras de carga perigosa. Pergunte, por exemplo, <i>"quantos rebocadores um navio de 280 m no TECON exige?"</i> ou <i>"qual a exigência do píer PP-I da Ilha d'Água?"</i>. Em decisão crítica, ele recomenda confirmar na publicação oficial.</li>
           <li><b>Tour guiado:</b> o KRATOS conhece todas as telas do app (mapa, painel, grafo). Peça <i>"me faça um tour"</i> — por texto ou voz — e ele explica as áreas e funcionalidades por partes, perguntando se você quer continuar.</li>
           <li><b>📎 Anexar conhecimento:</b> carregue um arquivo <b>PDF, TXT ou MD</b> (até 15 MB) direto no chat. O KRATOS extrai o texto, <b>retém</b> o documento e passa a <b>aplicar esse conteúdo nas respostas</b> (no chat de texto entram os trechos relevantes à pergunta; na voz, o índice e o resumo). Os documentos carregados aparecem em <b>“📚 Conhecimento carregado”</b>, com botão <b>Remover</b>. Útil para tarifas, normas específicas, procedimentos do terminal etc.</li>
-          <li><b>Gerar relatório:</b> resumo executivo consolidado do cenário atual.</li>
+          <li><b>Gerar relatório:</b> resumo executivo consolidado do cenário atual (no chat). Os botões <b>⬇ PDF</b> e <b>⬇ DOCX</b> exportam o <b>relatório operacional formatado</b> (panorama, market share hoje/7d/30d, frota e fadiga, meteoceânicas e leitura do KRATOS) com a identidade visual KRATOS — baixa o arquivo ou abre o <b>compartilhamento</b> (no celular). No celular, o mesmo está no botão <b>Relatório</b> da barra inferior.</li>
           <li><b>Gerar insights:</b> hipóteses e oportunidades acionáveis.</li>
           <li><b>Limpar conversa:</b> recomeça o fio do zero.</li>
           <li><b>🎧 Voz ao vivo:</b> conversa falada em tempo real com a <b>voz Leo</b> (xAI Realtime). Clique, autorize o microfone e fale naturalmente — o KRATOS ouve, responde com voz e aceita interrupção (fale por cima que ele para e escuta). As falas aparecem transcritas no fio da conversa. Clique em ⏹ para encerrar.</li>
@@ -510,6 +510,8 @@
         <button type="button" id="btnStrategyMic" title="Falar com o KRATOS (microfone)">🎙️ Falar</button>
         <button type="button" id="btnStrategyVoice" title="KRATOS responde em voz" aria-pressed="false">🔊 Voz: ligada</button>
         <button type="button" id="btnStrategyReport">Gerar relatório</button>
+        <button type="button" id="btnReportPdf" title="Baixar relatório operacional em PDF">⬇ PDF</button>
+        <button type="button" id="btnReportDocx" title="Baixar relatório operacional em DOCX">⬇ DOCX</button>
         <button type="button" id="btnStrategyInsights">Gerar insights</button>
         <button type="button" id="btnStrategyClear">Limpar conversa</button>
         <input type="file" id="strategyFileInput" accept=".pdf,.txt,.md,.markdown,application/pdf,text/plain,text/markdown" style="display:none;" />
@@ -1453,6 +1455,43 @@
       kratosChatHistory.length = 0;
       renderKratosChat();
     });
+
+    // Exportar relatório operacional formatado (PDF/DOCX) e baixar/compartilhar.
+    async function downloadReport(fmt) {
+      const btn = document.getElementById(fmt === "pdf" ? "btnReportPdf" : "btnReportDocx");
+      const prev = btn ? btn.textContent : "";
+      if (btn) { btn.disabled = true; btn.textContent = "Gerando…"; }
+      try {
+        const res = await fetch(apiUrl("/api/kratos/report-file"), {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ format: fmt }),
+        });
+        if (!res.ok) {
+          let err = "Falha ao gerar relatório.";
+          try { err = (await res.json()).error || err; } catch (_) {}
+          throw new Error(err);
+        }
+        const blob = await res.blob();
+        const cd = res.headers.get("content-disposition") || "";
+        const m = /filename="?([^"]+)"?/.exec(cd);
+        const fname = (m && m[1]) || `KRATOS_Relatorio.${fmt}`;
+        const file = new File([blob], fname, { type: blob.type });
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          try { await navigator.share({ files: [file], title: "KRATOS — Relatório" }); }
+          catch (_) {}
+        } else {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a"); a.href = url; a.download = fname;
+          document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+        }
+      } catch (e) {
+        alert(String(e.message || e));
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = prev; }
+      }
+    }
+    document.getElementById("btnReportPdf").addEventListener("click", () => downloadReport("pdf"));
+    document.getElementById("btnReportDocx").addEventListener("click", () => downloadReport("docx"));
 
     // ===== Conhecimento por arquivo (Etapa 18) =====
     const KNOWLEDGE_MAX_BYTES = 15 * 1024 * 1024;

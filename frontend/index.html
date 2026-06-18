@@ -3940,19 +3940,62 @@
       document.getElementById("mobileShell").appendChild(sheet);
     }
 
-    async function mQuickReportShare() {
-      // Fase A: compartilha um resumo (insights) por texto. Relatório DOCX/PDF na Fase B.
-      let text = "KRATOS — leitura do cenário:\n";
+    function mReportSheet() {
+      let sheet = document.getElementById("mReportSheet");
+      if (sheet) { sheet.remove(); return; }
+      sheet = document.createElement("div");
+      sheet.id = "mReportSheet";
+      sheet.style.cssText = "position:fixed;left:8px;right:8px;bottom:96px;z-index:1102;background:rgba(11,29,49,.98);border:1px solid var(--line);border-radius:14px;padding:12px;box-shadow:0 12px 32px rgba(0,0,0,.5);";
+      sheet.innerHTML = '<div style="font-weight:700;color:var(--accent);font-size:.85rem;margin-bottom:8px;">Relatório operacional — gerar e compartilhar</div>';
+      const row = document.createElement("div");
+      row.style.cssText = "display:flex;gap:8px;";
+      [["pdf", "📄 PDF"], ["docx", "📝 DOCX"]].forEach(([fmt, label]) => {
+        const b = document.createElement("button");
+        b.type = "button"; b.textContent = label;
+        b.style.cssText = "flex:1;background:rgba(53,200,255,.16);border:1px solid var(--accent);color:var(--accent);border-radius:10px;padding:12px;font:inherit;font-weight:600;cursor:pointer;";
+        b.addEventListener("click", () => { sheet.remove(); mGenerateReport(fmt); });
+        row.appendChild(b);
+      });
+      sheet.appendChild(row);
+      document.getElementById("mobileShell").appendChild(sheet);
+    }
+
+    function _filenameFromDisposition(res, fallback) {
+      const cd = res.headers.get("content-disposition") || "";
+      const m = /filename="?([^"]+)"?/.exec(cd);
+      return (m && m[1]) || fallback;
+    }
+
+    async function mGenerateReport(fmt) {
+      mConvoShow(true); mConvoSetState("gerando relatório…");
       try {
-        const list = (kratosInsightList && kratosInsightList.length) ? kratosInsightList : [];
-        text += list.slice(0, 6).map((s) => "• " + s).join("\n") || "Sem insights no momento.";
-      } catch (_) { text += "Sem insights no momento."; }
-      const shareData = { title: "KRATOS — Inteligência Naval", text, url: location.href };
-      try {
-        if (navigator.share) { await navigator.share(shareData); return; }
-      } catch (_) { /* usuário cancelou */ return; }
-      try { await navigator.clipboard.writeText(text + "\n" + location.href); flashInsight("Resumo copiado para a área de transferência."); }
-      catch (_) { alert(text); }
+        const res = await fetch(apiUrl("/api/kratos/report-file"), {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ format: fmt }),
+        });
+        if (handleAuthRequired(res)) return;
+        if (!res.ok) {
+          let err = "Falha ao gerar relatório.";
+          try { err = (await res.json()).error || err; } catch (_) {}
+          mConvoSetState(err); return;
+        }
+        const blob = await res.blob();
+        const fname = _filenameFromDisposition(res, `KRATOS_Relatorio.${fmt}`);
+        const file = new File([blob], fname, { type: blob.type });
+        mConvoSetState("pronto — compartilhando…");
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          try { await navigator.share({ files: [file], title: "KRATOS — Relatório", text: "Relatório operacional do KRATOS" }); }
+          catch (_) { /* cancelado */ }
+        } else {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a"); a.href = url; a.download = fname; document.body.appendChild(a); a.click();
+          a.remove(); URL.revokeObjectURL(url);
+        }
+        mConvoSetState("toque no orbe para falar");
+      } catch (e) {
+        mConvoSetState("erro ao gerar relatório");
+        flashInsight("Relatório: " + String(e && e.message || e));
+      }
     }
 
     function setupMobileUI() {
@@ -3969,7 +4012,7 @@
       const wire = (id, fn) => { const b = document.getElementById(id); if (b) b.addEventListener("click", fn); };
       wire("mBtnMapa", () => { try { FloatPanels.open("filters"); } catch (_) {} });
       wire("mBtnAlertas", () => { try { FloatPanels.open("alerts"); } catch (_) {} const b = document.getElementById("mBtnAlertas"); if (b) b.classList.remove("has-alerts"); });
-      wire("mBtnRelatorio", mQuickReportShare);
+      wire("mBtnRelatorio", mReportSheet);
       wire("mBtnPaineis", mTogglePaineisSheet);
     }
 

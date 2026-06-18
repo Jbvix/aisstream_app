@@ -4,7 +4,7 @@ import unicodedata
 from datetime import datetime
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
 from dotenv import load_dotenv
 import asyncio
 import json
@@ -3773,6 +3773,247 @@ async def kratos_knowledge_list_dash():
 @app.post("/dashboard/api/kratos/knowledge/delete")
 async def kratos_knowledge_delete_dash(request: Request):
     return await kratos_knowledge_delete(request)
+
+
+# ===== Relatório executivo formatado (PDF / DOCX) + compartilhamento =====
+def _build_report_payload() -> dict:
+    """Reúne os dados reais do cenário para o relatório executivo."""
+    ov = build_dashboard_overview_dict()
+    ctx = _strategy_context_dict()
+    metocean = ctx.get("metocean") or {}
+    msw = ov.get("marketShareWindows") or {}
+    tug_chart = ov.get("tugChart") or []
+    competitors = ov.get("competitors") or []
+    saa = ov.get("saaManeuvers") or []
+    ophours = _saam_operating_hours_rows()
+    try:
+        insights = _build_kratos_insights()
+    except Exception:
+        insights = []
+    saam_active = [t for t in (ctx.get("saamTugs") or []) if t.get("latitude") is not None]
+    comp_inside = [c for c in competitors if c.get("insideManeuverGeofence")]
+    return {
+        "generatedAt": get_now_iso(),
+        "panorama": {
+            "saamTugs": len(saam_active),
+            "scheduledManeuvers": len(saa),
+            "competitorsManeuvering": len(comp_inside),
+        },
+        "marketShare": msw,
+        "tugChart": tug_chart,
+        "operatingHours": ophours,
+        "competitors": competitors,
+        "metocean": metocean,
+        "insights": insights,
+    }
+
+
+def _fmt_metocean_line(m: dict) -> str:
+    parts = []
+    if isinstance(m.get("temperatureC"), (int, float)):
+        parts.append(f"Temperatura {m['temperatureC']:.0f} °C")
+    if isinstance(m.get("windSpeedKn"), (int, float)):
+        wd = m.get("windDirection") or ""
+        parts.append(f"Vento {m['windSpeedKn']:.0f} kn {wd}".strip())
+    if isinstance(m.get("tideLevelM"), (int, float)):
+        parts.append(f"Maré {m['tideLevelM']:.2f} m ({m.get('tideTrend','')})".strip())
+    if isinstance(m.get("currentSpeedKn"), (int, float)):
+        cd = m.get("currentDirection") or ""
+        parts.append(f"Corrente {m['currentSpeedKn']:.2f} kn {cd}".strip())
+    return " · ".join(parts) or "Sem dados meteoceânicos."
+
+
+def _report_filename(ext: str) -> str:
+    return "KRATOS_Relatorio_" + datetime.now().strftime("%Y%m%d_%H%M") + "." + ext
+
+
+def _render_report_pdf(p: dict) -> bytes:
+    import io
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.units import mm
+    from reportlab.lib.colors import HexColor
+    from reportlab.platypus import (SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable)
+    from reportlab.lib.styles import ParagraphStyle
+
+    ACC = HexColor("#0e7bb8"); DARK = HexColor("#0b2237"); MUT = HexColor("#4a6076")
+    body = ParagraphStyle("b", fontName="Helvetica", fontSize=9.8, textColor=DARK, leading=13.5)
+    h1 = ParagraphStyle("h1", fontName="Helvetica-Bold", fontSize=17, textColor=DARK, spaceAfter=2)
+    sub = ParagraphStyle("sub", fontName="Helvetica", fontSize=9.5, textColor=MUT, spaceAfter=10)
+    h2 = ParagraphStyle("h2", fontName="Helvetica-Bold", fontSize=12, textColor=ACC, spaceBefore=11, spaceAfter=5)
+
+    def P(t, s=body): return Paragraph(t, s)
+
+    def tbl(data, widths):
+        t = Table(data, colWidths=widths)
+        t.setStyle(TableStyle([
+            ("FONTNAME", (0, 0), (-1, -1), "Helvetica"), ("FONTSIZE", (0, 0), (-1, -1), 8.6),
+            ("TEXTCOLOR", (0, 0), (-1, -1), DARK), ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("GRID", (0, 0), (-1, -1), 0.4, HexColor("#c7d4e0")),
+            ("TOPPADDING", (0, 0), (-1, -1), 3.5), ("BOTTOMPADDING", (0, 0), (-1, -1), 3.5),
+            ("LEFTPADDING", (0, 0), (-1, -1), 5), ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("BACKGROUND", (0, 0), (-1, 0), HexColor("#e8f1f8")), ("TEXTCOLOR", (0, 0), (-1, 0), ACC),
+        ]))
+        return t
+
+    def hdr(c, d):
+        c.saveState(); c.setFillColor(DARK); c.rect(0, A4[1] - 16 * mm, A4[0], 16 * mm, fill=1, stroke=0)
+        c.setFillColor(HexColor("#35c8ff")); c.setFont("Helvetica-Bold", 11); c.drawString(16 * mm, A4[1] - 10.5 * mm, "KRATOS")
+        c.setFillColor(HexColor("#9ab6d4")); c.setFont("Helvetica", 8)
+        c.drawString(38 * mm, A4[1] - 10.5 * mm, "Inteligência Naval Estratégica · Relatório operacional")
+        c.setFillColor(MUT); c.setFont("Helvetica", 7.5)
+        c.drawCentredString(A4[0] / 2, 8 * mm, f"Autor: Jossian Brito · Baía de Guanabara · Página {c.getPageNumber()}")
+        c.restoreState()
+
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=A4, leftMargin=16 * mm, rightMargin=16 * mm,
+                            topMargin=24 * mm, bottomMargin=16 * mm,
+                            title="KRATOS — Relatório operacional", author="Jossian Brito")
+    when = datetime.now().strftime("%d/%m/%Y %H:%M")
+    E = [P("Relatório operacional — KRATOS", h1), P(f"Gerado em {when} · Baía de Guanabara", sub),
+         HRFlowable(width="100%", thickness=1, color=ACC), Spacer(1, 6)]
+
+    pan = p.get("panorama", {})
+    E.append(P("Panorama", h2))
+    E.append(P(f"Rebocadores SAAM com sinal: <b>{pan.get('saamTugs',0)}</b> · "
+               f"Manobras programadas: <b>{pan.get('scheduledManeuvers',0)}</b> · "
+               f"Concorrentes manobrando agora: <b>{pan.get('competitorsManeuvering',0)}</b>."))
+
+    msw = p.get("marketShare") or {}
+    def share_rows(win):
+        rows = (win or {}).get("rows", []) if isinstance(win, dict) else (win or [])
+        return [[r.get("empRb", "-"), str(r.get("count", 0)), f"{r.get('sharePct', 0)}%"] for r in rows[:6]] or [["—", "—", "—"]]
+    E.append(P("Market share (Praticagem-RJ)", h2))
+    for label, key in [("Hoje", "today"), ("7 dias", "last7d"), ("30 dias", "last30d")]:
+        E.append(P(f"<b>{label}</b>", body))
+        E.append(tbl([["Empresa", "Manobras", "Participação"]] + share_rows(msw.get(key)), [60 * mm, 50 * mm, 58 * mm]))
+        E.append(Spacer(1, 4))
+
+    tc = p.get("tugChart") or []
+    oph = {r["mmsi"]: r for r in (p.get("operatingHours") or [])}
+    if tc:
+        E.append(P("Frota SAAM (atividade e fadiga)", h2))
+        rows = [["Rebocador", "Manobras", "Horas em geofence", "Milhas náut.", "Operação hoje"]]
+        for t in tc:
+            op = oph.get(t.get("mmsi"), {})
+            oph_txt = f"{op.get('operatingHours', 0)} h ({op.get('status','-')})" if op else "—"
+            rows.append([t.get("name") or t.get("abbr") or t.get("mmsi"),
+                         str(t.get("totalManeuvers", 0)), str(t.get("totalHours", 0)),
+                         str(t.get("totalNauticalMiles", 0)), oph_txt])
+        E.append(tbl(rows, [44 * mm, 24 * mm, 34 * mm, 26 * mm, 40 * mm]))
+
+    E.append(P("Condições meteoceânicas", h2))
+    E.append(P(_fmt_metocean_line(p.get("metocean") or {})))
+
+    ins = p.get("insights") or []
+    if ins:
+        E.append(P("Leitura do KRATOS", h2))
+        for s in ins[:10]:
+            E.append(P("• " + str(s)))
+
+    doc.build(E, onFirstPage=hdr, onLaterPages=hdr)
+    return buf.getvalue()
+
+
+def _render_report_docx(p: dict) -> bytes:
+    import io
+    from docx import Document
+    from docx.shared import Pt, RGBColor, Mm
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+
+    ACC = RGBColor(0x0E, 0x7B, 0xB8); DARK = RGBColor(0x0B, 0x22, 0x37); MUT = RGBColor(0x4A, 0x60, 0x76)
+    doc = Document()
+    for s in doc.sections:
+        s.top_margin = Mm(18); s.bottom_margin = Mm(16); s.left_margin = Mm(16); s.right_margin = Mm(16)
+    normal = doc.styles["Normal"].font
+    normal.name = "Calibri"; normal.size = Pt(10)
+
+    def heading(txt, size=16, color=DARK):
+        pp = doc.add_paragraph(); r = pp.add_run(txt); r.bold = True; r.font.size = Pt(size); r.font.color.rgb = color
+        return pp
+
+    def h2(txt):
+        pp = doc.add_paragraph(); pp.space_before = Pt(8); r = pp.add_run(txt); r.bold = True; r.font.size = Pt(12.5); r.font.color.rgb = ACC
+        return pp
+
+    when = datetime.now().strftime("%d/%m/%Y %H:%M")
+    heading("Relatório operacional — KRATOS")
+    sp = doc.add_paragraph(); r = sp.add_run(f"Gerado em {when} · Baía de Guanabara · Autor: Jossian Brito"); r.font.size = Pt(9.5); r.font.color.rgb = MUT
+
+    pan = p.get("panorama", {})
+    h2("Panorama")
+    doc.add_paragraph(f"Rebocadores SAAM com sinal: {pan.get('saamTugs',0)} · "
+                      f"Manobras programadas: {pan.get('scheduledManeuvers',0)} · "
+                      f"Concorrentes manobrando agora: {pan.get('competitorsManeuvering',0)}.")
+
+    msw = p.get("marketShare") or {}
+    h2("Market share (Praticagem-RJ)")
+    for label, key in [("Hoje", "today"), ("7 dias", "last7d"), ("30 dias", "last30d")]:
+        doc.add_paragraph().add_run(label).bold = True
+        win = msw.get(key) or {}
+        rows = ((win.get("rows", []) if isinstance(win, dict) else win) or [])[:6]
+        tb = doc.add_table(rows=1, cols=3); tb.style = "Light Grid Accent 1"
+        hc = tb.rows[0].cells; hc[0].text = "Empresa"; hc[1].text = "Manobras"; hc[2].text = "Participação"
+        for r in rows:
+            c = tb.add_row().cells
+            c[0].text = str(r.get("empRb", "-")); c[1].text = str(r.get("count", 0)); c[2].text = f"{r.get('sharePct',0)}%"
+
+    tc = p.get("tugChart") or []
+    oph = {r["mmsi"]: r for r in (p.get("operatingHours") or [])}
+    if tc:
+        h2("Frota SAAM (atividade e fadiga)")
+        tb = doc.add_table(rows=1, cols=5); tb.style = "Light Grid Accent 1"
+        hc = tb.rows[0].cells
+        for i, t in enumerate(["Rebocador", "Manobras", "Horas geofence", "Milhas náut.", "Operação hoje"]):
+            hc[i].text = t
+        for t in tc:
+            op = oph.get(t.get("mmsi"), {})
+            c = tb.add_row().cells
+            c[0].text = str(t.get("name") or t.get("abbr") or t.get("mmsi"))
+            c[1].text = str(t.get("totalManeuvers", 0)); c[2].text = str(t.get("totalHours", 0))
+            c[3].text = str(t.get("totalNauticalMiles", 0))
+            c[4].text = (f"{op.get('operatingHours',0)} h ({op.get('status','-')})" if op else "—")
+
+    h2("Condições meteoceânicas")
+    doc.add_paragraph(_fmt_metocean_line(p.get("metocean") or {}))
+
+    ins = p.get("insights") or []
+    if ins:
+        h2("Leitura do KRATOS")
+        for s in ins[:10]:
+            doc.add_paragraph(str(s), style="List Bullet")
+
+    buf = io.BytesIO(); doc.save(buf); return buf.getvalue()
+
+
+@app.post("/api/kratos/report-file")
+async def kratos_report_file(request: Request):
+    data = await _read_json_body(request)
+    fmt = str(data.get("format") or "pdf").lower().strip()
+    if fmt not in ("pdf", "docx"):
+        return JSONResponse({"ok": False, "error": "formato invalido (pdf|docx)"}, status_code=400)
+    try:
+        payload = await asyncio.to_thread(_build_report_payload)
+        if fmt == "pdf":
+            blob = await asyncio.to_thread(_render_report_pdf, payload)
+            media = "application/pdf"
+        else:
+            blob = await asyncio.to_thread(_render_report_docx, payload)
+            media = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    except ImportError as exc:
+        lib = "python-docx" if fmt == "docx" else "reportlab"
+        return JSONResponse({"ok": False, "error": f"biblioteca {lib} nao instalada no servidor ({exc})."}, status_code=400)
+    except Exception as exc:
+        return JSONResponse({"ok": False, "error": f"falha ao gerar relatorio: {exc}"}, status_code=500)
+    log_kratos_event("report", {"format": fmt, "bytes": len(blob)})
+    fname = _report_filename(fmt)
+    return Response(content=blob, media_type=media,
+                    headers={"Content-Disposition": f'attachment; filename="{fname}"'})
+
+
+@app.post("/dashboard/api/kratos/report-file")
+async def kratos_report_file_dash(request: Request):
+    return await kratos_report_file(request)
 
 
 # ===== Página do administrador (métricas, eficácia, auditoria) =====

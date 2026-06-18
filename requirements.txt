@@ -4,3 +4,4 @@ python-dotenv
 websockets
 beautifulsoup4
 pymupdf
+python-docx
