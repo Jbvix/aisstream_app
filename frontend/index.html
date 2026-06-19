@@ -1253,9 +1253,9 @@
 
     /* ===== Central de Alertas: toasts e painel ===== */
     .alert-toasts {
-      position: fixed; top: 64px; right: 14px; z-index: 1200;
-      display: flex; flex-direction: column; gap: 8px; max-width: min(360px, 92vw);
-      pointer-events: none;
+      position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1600;
+      display: flex; flex-direction: column; gap: 8px; max-width: min(420px, 92vw); width: 100%;
+      align-items: center; pointer-events: none;
     }
     .alert-toast {
       pointer-events: auto; background: rgba(11, 29, 49, 0.97); color: var(--text, #eaf4ff);
@@ -1482,7 +1482,7 @@
       .m-convo__clear:active { color: var(--accent); }
 
       /* ---- Alertas centralizados no topo ---- */
-      .alert-toasts { left: 8px; right: 8px; top: 8px; max-width: none; align-items: center; }
+      .alert-toasts { max-width: 92vw; }
       .alert-toast { width: 100%; max-width: 420px; }
 
       /* Conversa do KRATOS acima da barra */
