@@ -75,8 +75,9 @@ Ver painel: `docs/KRATOS_painel_implementacoes.png` e relatórios das etapas 01�
 - **SAAM (SAA)**: nossa empresa de reboque; **WIL/CAM**: concorrentes.
 
 ## 8. Para iniciar um NOVO app (reaproveitando este)
-1. Use o **repo *template*** (extração do "KRATOS Core" — ver
-   `docs/adr/0007-estrategia-de-reuso-multi-repo.md`).
+1. Use o **"KRATOS Core"** já extraído em `core-template/` (ver
+   `docs/adr/0007-estrategia-de-reuso-multi-repo.md`). Copie a pasta como raiz
+   do novo repo e preencha os marcadores `TODO-DOMINIO`.
 2. Crie `CLAUDE.md` e `docs/CONTEXTO.md` próprios do novo app (copie este como base).
 3. Mantenha a convenção de **ADRs + relatórios** desde o 1º dia.
 4. Reaproveite genéricos: esqueleto FastAPI+estático, splash, acesso por convite,

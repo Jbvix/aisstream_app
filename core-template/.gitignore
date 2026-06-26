@@ -1,0 +1,23 @@
+# Runtime / segredos
+.env
+data/
+*.log
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+
+# cPanel / Passenger
+tmp/
+passenger.log
+
+# Editor / SO
+.DS_Store
+.idea/
+.vscode/
+
+# Relatórios de sessão locais (não versionar)
+RELATORIO_SESSAO_*

@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Admin — Convites — KRATOS Core</title>
+<style>
+  :root { --bg:#0a0e17; --panel:#111826; --line:#1e2a3d; --txt:#e6edf6; --muted:#8aa0bd; --accent:#3da9fc; --ok:#2ecc71; --err:#ff5c6c; --warn:#f1c40f; }
+  * { box-sizing:border-box; }
+  body { margin:0; min-height:100vh; font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif;
+         background:radial-gradient(1200px 600px at 50% -10%, #13233b 0%, var(--bg) 60%); color:var(--txt); padding:20px; }
+  .wrap { max-width:860px; margin:0 auto; }
+  h1 { font-size:20px; margin:0 0 2px; }
+  .sub { color:var(--muted); font-size:13px; margin:0 0 18px; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:18px; margin-bottom:16px; }
+  .row { display:flex; gap:10px; flex-wrap:wrap; align-items:end; }
+  .field { flex:1 1 160px; } label { display:block; font-size:12px; color:var(--muted); margin:0 0 5px; }
+  input { width:100%; padding:10px 12px; border-radius:9px; border:1px solid var(--line); background:#0c1220; color:var(--txt); font-size:14px; }
+  button { padding:10px 16px; border:0; border-radius:9px; background:var(--accent); color:#04121f; font-weight:700; cursor:pointer; font-size:14px; }
+  button.ghost { background:transparent; color:var(--muted); border:1px solid var(--line); }
+  button.danger { background:transparent; color:var(--err); border:1px solid var(--err); }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th, td { text-align:left; padding:9px 8px; border-bottom:1px solid var(--line); vertical-align:middle; }
+  th { color:var(--muted); font-weight:600; }
+  .tk { font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; }
+  .badge { display:inline-block; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:700; }
+  .badge.ativo { background:rgba(46,204,113,.15); color:var(--ok); }
+  .badge.expirado { background:rgba(241,196,15,.15); color:var(--warn); }
+  .badge.revogado { background:rgba(255,92,108,.15); color:var(--err); }
+  .msg { font-size:13px; min-height:18px; margin-top:8px; } .msg.ok{color:var(--ok)} .msg.err{color:var(--err)}
+  .gate { color:var(--muted); font-size:13px; }
+  .copy { cursor:pointer; color:var(--accent); font-size:12px; margin-left:6px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Convites de acesso</h1>
+  <p class="sub">Controle quem entra no app. A chave-mestra (<code>ADMIN_TOKEN</code>) fica só com você.</p>
+
+  <div class="card" id="authCard">
+    <div class="row">
+      <div class="field"><label for="admtoken">Chave de administrador</label>
+        <input id="admtoken" type="password" placeholder="ADMIN_TOKEN" /></div>
+      <button id="authBtn">Conectar</button>
+    </div>
+    <div id="authMsg" class="msg"></div>
+  </div>
+
+  <div class="card" id="mainCard" style="display:none">
+    <div class="row" style="margin-bottom:14px">
+      <div class="field"><label for="label">Nome do convidado</label>
+        <input id="label" type="text" placeholder="ex.: Atalaia / João" /></div>
+      <div class="field" style="flex:0 0 120px"><label for="days">Expira (dias)</label>
+        <input id="days" type="number" min="0" placeholder="vazio = nunca" /></div>
+      <button id="createBtn">Gerar convite</button>
+    </div>
+    <div id="createMsg" class="msg"></div>
+    <table>
+      <thead><tr><th>Convidado</th><th>Convite</th><th>Status</th><th>Acessos</th><th></th></tr></thead>
+      <tbody id="rows"><tr><td colspan="5" class="gate">Conecte-se para ver os convites.</td></tr></tbody>
+    </table>
+  </div>
+</div>
+<script>
+(function () {
+  "use strict";
+  var BASE = location.pathname.replace(/\/admin\/?$/, "") || "";
+  var api = function (p) { return BASE + p; };
+  var token = "";
+  var el = function (id) { return document.getElementById(id); };
+
+  function hdrs() { return { "Content-Type": "application/json", "X-Admin-Token": token }; }
+  function show(node, text, kind) { node.textContent = text; node.className = "msg " + (kind || ""); }
+
+  function statusBadge(s) { return '<span class="badge ' + s + '">' + s + "</span>"; }
+  function fmtDate(ts) { if (!ts) return "—"; try { return new Date(ts * 1000).toLocaleDateString("pt-BR"); } catch (e) { return "—"; } }
+
+  function render(invites) {
+    var tb = el("rows");
+    if (!invites || !invites.length) { tb.innerHTML = '<tr><td colspan="5" class="gate">Nenhum convite ainda.</td></tr>'; return; }
+    tb.innerHTML = invites.map(function (i) {
+      var link = (location.origin + BASE + "/entrar?access=" + encodeURIComponent(i.token));
+      var revokeBtn = i.status === "ativo"
+        ? '<button class="danger" data-revoke="' + i.token + '">Revogar</button>' : "";
+      return "<tr>" +
+        "<td>" + (i.label || "—") + "<br><span class='gate'>" + fmtDate(i.createdAt) + "</span></td>" +
+        "<td><span class='tk'>" + i.token.slice(0, 10) + "…</span>" +
+          "<span class='copy' data-copy='" + link + "'>copiar link</span></td>" +
+        "<td>" + statusBadge(i.status) + "</td>" +
+        "<td>" + (i.accessCount || 0) + "</td>" +
+        "<td>" + revokeBtn + "</td></tr>";
+    }).join("");
+  }
+
+  function load() {
+    fetch(api("/api/admin/invites"), { headers: hdrs(), credentials: "include" })
+      .then(function (r) { if (!r.ok) throw new Error("auth"); return r.json(); })
+      .then(function (d) { render(d.invites || []); })
+      .catch(function () { show(el("authMsg"), "Chave inválida.", "err"); });
+  }
+
+  el("authBtn").addEventListener("click", function () {
+    token = el("admtoken").value.trim();
+    if (!token) return;
+    fetch(api("/api/admin/invites"), { headers: hdrs(), credentials: "include" })
+      .then(function (r) { if (!r.ok) throw new Error("auth"); return r.json(); })
+      .then(function (d) {
+        el("authCard").style.display = "none"; el("mainCard").style.display = "";
+        render(d.invites || []);
+      })
+      .catch(function () { show(el("authMsg"), "Chave inválida ou acesso negado.", "err"); });
+  });
+
+  el("createBtn").addEventListener("click", function () {
+    var label = el("label").value.trim();
+    var days = el("days").value.trim();
+    fetch(api("/api/admin/invites"), {
+      method: "POST", headers: hdrs(), credentials: "include",
+      body: JSON.stringify({ label: label, expiresInDays: days ? Number(days) : null })
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d && d.ok) { show(el("createMsg"), "Convite criado.", "ok"); el("label").value = ""; el("days").value = ""; load(); }
+        else show(el("createMsg"), "Falha ao criar.", "err");
+      })
+      .catch(function () { show(el("createMsg"), "Falha de conexão.", "err"); });
+  });
+
+  document.addEventListener("click", function (ev) {
+    var t = ev.target;
+    if (t.dataset && t.dataset.revoke) {
+      fetch(api("/api/admin/invites/revoke"), {
+        method: "POST", headers: hdrs(), credentials: "include",
+        body: JSON.stringify({ token: t.dataset.revoke })
+      }).then(function () { load(); });
+    }
+    if (t.dataset && t.dataset.copy) {
+      navigator.clipboard && navigator.clipboard.writeText(t.dataset.copy);
+      t.textContent = "copiado!"; setTimeout(function () { t.textContent = "copiar link"; }, 1500);
+    }
+  });
+})();
+</script>
+</body>
+</html>

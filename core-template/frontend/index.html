@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>KRATOS Core</title>
+<style>
+  :root { --bg:#0a0e17; --panel:#111826; --line:#1e2a3d; --txt:#e6edf6; --muted:#8aa0bd; --accent:#3da9fc;
+          --header-h:56px; --bar-h:60px; }
+  * { box-sizing:border-box; }
+  html, body { margin:0; height:100%; }
+  body { font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif; background:var(--bg); color:var(--txt);
+         display:flex; flex-direction:column; min-height:100vh; }
+
+  /* ---------- Splash ---------- */
+  #splash { position:fixed; inset:0; z-index:2000; display:grid; place-items:center;
+            background:radial-gradient(1200px 600px at 50% -10%, #13233b 0%, var(--bg) 60%); }
+  #splash .inner { text-align:center; width:min(360px,86vw); }
+  .splash-brand { font-size:30px; font-weight:800; letter-spacing:1px; }
+  .splash-sub { color:var(--muted); font-size:13px; margin-top:4px; }
+  .bar { height:6px; border-radius:999px; background:#0c1220; overflow:hidden; margin:22px 0 14px; }
+  .bar > i { display:block; height:100%; width:0%; background:var(--accent); transition:width .3s; }
+  .splash-ver { display:inline-block; margin-top:8px; color:var(--accent); font-size:12px; text-decoration:none;
+                border:1px solid var(--line); padding:6px 12px; border-radius:999px; }
+
+  /* ---------- Header ---------- */
+  header { height:var(--header-h); display:flex; align-items:center; justify-content:center; position:relative;
+           border-bottom:1px solid var(--line); background:var(--panel); }
+  header .brand { font-weight:800; letter-spacing:.5px; }
+  header .right { position:absolute; right:10px; display:flex; gap:6px; }
+  .icon-btn { width:38px; height:38px; border-radius:10px; border:1px solid var(--line); background:#0c1220;
+              color:var(--txt); cursor:pointer; font-size:16px; display:grid; place-items:center; }
+
+  /* ---------- Conteúdo ---------- */
+  main { flex:1; padding:18px; padding-bottom:calc(var(--bar-h) + 18px); }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:18px; margin:0 auto 16px; max-width:760px; }
+  .card h2 { margin:0 0 8px; font-size:16px; }
+  .card p { color:var(--muted); font-size:14px; line-height:1.55; margin:0 0 6px; }
+  .todo { border-left:3px solid var(--accent); padding-left:12px; }
+  code { background:#0c1220; padding:1px 6px; border-radius:6px; font-size:12px; }
+
+  /* ---------- Barra inferior (mobile) ---------- */
+  #bottomBar { position:fixed; left:0; right:0; bottom:0; height:var(--bar-h); z-index:900;
+               display:flex; align-items:center; justify-content:space-around;
+               background:var(--panel); border-top:1px solid var(--line); }
+  #bottomBar button { background:none; border:0; color:var(--muted); font-size:11px; cursor:pointer;
+                      display:flex; flex-direction:column; align-items:center; gap:3px; }
+  #bottomBar button .ic { font-size:18px; }
+  #bottomBar button.active { color:var(--accent); }
+
+  /* ---------- Orb flutuante ---------- */
+  #orbDock { position:fixed; right:16px; bottom:calc(var(--bar-h) + 16px); z-index:950; }
+</style>
+</head>
+<body>
+  <!-- Splash -->
+  <div id="splash"><div class="inner">
+    <div class="splash-brand">KRATOS Core</div>
+    <div class="splash-sub">esqueleto reutilizável</div>
+    <div class="bar"><i id="splashBar"></i></div>
+    <div class="splash-sub" id="splashMsg">iniciando…</div>
+    <a class="splash-ver" href="#" id="verLink">ⓘ versão</a>
+  </div></div>
+
+  <!-- Shell -->
+  <header>
+    <span class="brand">KRATOS Core</span>
+    <div class="right">
+      <button class="icon-btn" id="btnAlertTest" title="Testar alerta">🔔</button>
+      <button class="icon-btn" id="btnLogout" title="Sair">⎋</button>
+    </div>
+  </header>
+
+  <main>
+    <section class="card todo">
+      <h2>Bem-vindo ao KRATOS Core</h2>
+      <p>Este é o esqueleto genérico. Substitua esta tela pelo conteúdo do seu app
+         (mapa, painel, lista — o que o domínio pedir).</p>
+      <p><strong>Próximos passos (procure por <code>TODO-DOMINIO</code>):</strong></p>
+      <p>1. Em <code>main.py</code>: ligue a fonte de dados e as rotas do domínio.</p>
+      <p>2. Em <code>_report_sections()</code>: devolva as seções reais do relatório.</p>
+      <p>3. Em <code>frontend/kratos-core.js</code>: dispare <code>KC.Alerts.fire(...)</code> nos eventos reais.</p>
+    </section>
+
+    <section class="card">
+      <h2>Recursos prontos</h2>
+      <p>✓ Acesso por convite (<code>/entrar</code>, <code>/admin</code>) · kill-switch <code>ACCESS_CONTROL</code>.</p>
+      <p>✓ Central de Alertas (som/popup/notificação) — clique no 🔔 acima para testar.</p>
+      <p>✓ Relatório PDF/DOCX em <code>POST /api/report-file</code>.</p>
+      <p>✓ Dynamic Voice Orb (placeholder, canto inferior direito).</p>
+      <p>✓ Pronto para subcaminho (Passenger/a2wsgi via <code>root_path</code>).</p>
+    </section>
+  </main>
+
+  <div id="orbDock"></div>
+
+  <!-- Barra inferior -->
+  <nav id="bottomBar">
+    <button class="active"><span class="ic">🏠</span>Início</button>
+    <button id="navReport"><span class="ic">📄</span>Relatório</button>
+    <button id="navAdmin"><span class="ic">🛡️</span>Admin</button>
+  </nav>
+
+<script src="frontend/kratos-core.js"></script>
+<script>
+(function () {
+  "use strict";
+
+  // ---------- Splash com progresso ----------
+  var pct = 0, bar = document.getElementById("splashBar"), msg = document.getElementById("splashMsg");
+  var steps = ["carregando núcleo…", "verificando acesso…", "preparando UI…", "pronto"];
+  var iv = setInterval(function () {
+    pct = Math.min(100, pct + 25); bar.style.width = pct + "%";
+    msg.textContent = steps[Math.min(steps.length - 1, Math.floor(pct / 25) - 1)] || steps[0];
+    if (pct >= 100) { clearInterval(iv); setTimeout(hideSplash, 350); }
+  }, 260);
+  function hideSplash() {
+    var s = document.getElementById("splash");
+    s.style.transition = "opacity .4s"; s.style.opacity = "0";
+    setTimeout(function () { s.style.display = "none"; }, 400);
+  }
+  document.getElementById("verLink").href = KC.base() + "/versao";
+
+  // ---------- Boot da UI essencial (fora da cadeia de dados) ----------
+  function bootCoreUI() {
+    KC.VoiceOrb.mount("orbDock");
+    var orb = document.querySelector("#orbDock .kc-orb");
+    if (orb) orb.addEventListener("click", function () {
+      KC.VoiceOrb.set(KC.VoiceOrb.state === "listening" ? "idle" : "listening");
+    });
+
+    document.getElementById("btnAlertTest").addEventListener("click", function () {
+      KC.Alerts.requestPermission();
+      KC.Alerts.fire("warning", "Alerta de teste", "A Central de Alertas está funcionando.", { notify: true });
+    });
+
+    document.getElementById("btnLogout").addEventListener("click", function () {
+      KC.fetchJSON("/api/access/logout", { method: "POST" })
+        .then(function () { location.href = KC.base() + "/entrar"; })
+        .catch(function () { location.href = KC.base() + "/entrar"; });
+    });
+
+    document.getElementById("navAdmin").addEventListener("click", function () { location.href = KC.base() + "/admin"; });
+    document.getElementById("navReport").addEventListener("click", downloadReport);
+  }
+
+  function downloadReport() {
+    fetch(KC.api("/api/report-file"), {
+      method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
+      body: JSON.stringify({ format: "pdf" })
+    })
+    .then(function (r) { if (r.status === 401) { KC.onAuthRequired(); throw new Error("401"); } return r.blob(); })
+    .then(function (blob) {
+      var url = URL.createObjectURL(blob), a = document.createElement("a");
+      a.href = url; a.download = "Relatorio.pdf"; document.body.appendChild(a); a.click();
+      a.remove(); URL.revokeObjectURL(url);
+    })
+    .catch(function () {});
+  }
+
+  // Inicializa a UI imediatamente (não depende de dados externos).
+  bootCoreUI();
+
+  // ---------- Checagem de acesso (não bloqueia a UI) ----------
+  KC.fetchJSON("/api/access/status")
+    .then(function (d) { if (d && d.accessControl && !d.hasValidAccess) KC.onAuthRequired(); })
+    .catch(function () {});
+})();
+</script>
+</body>
+</html>
